@@ -5,9 +5,9 @@ import helmet from 'helmet';
 import session from 'express-session';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// import {usersRouter} from './models/users/users.router';
-// import {coursesRouter} from './models/courses/courses.router';
-// import {authRouter} from './models/auth/auth.router';
+import usersRoutes from './modules/users/user.routes';
+import coursesRouter from './modules/courses/course.routes';
+import lessonsRouter from './modules/lessons/lesson.routes';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,9 +42,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 
-// app.use("/users", usersRouter);
-// app.use('/courses', coursesRouter)
-// app.use('/auth', authRouter)
+app.use("/users", usersRoutes);
+app.use('/courses', coursesRouter)
+app.use('/lessons', lessonsRouter)
 
 app.get('/', ()=>{
     console.log("Home")
