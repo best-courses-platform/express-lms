@@ -1,0 +1,57 @@
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1 class="auth-header__title">Вход в систему</h1>
+            <p class="auth-header__descr">Войдите в свой аккаунт чтобы продолжить</p>
+        </div>
+
+        <form action="/api/auth/login" method="POST" class="auth-form">
+            <div class="form-group">
+                <label for="email" class="form-label">Email адрес</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    class="form-input"
+                    placeholder="your@email.com"
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">Пароль</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    class="form-input"
+                    placeholder="Введите ваш пароль"
+                    required
+                >
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full">
+                <span class="btn-text">Войти</span>
+            </button>
+        </form>
+
+        <div class="auth-divider">
+            <span>или войдите через</span>
+        </div>
+
+        <div class="social-auth">
+            <a href="/api/auth/google" class="btn btn-google">
+                <img src="/icons/google.svg" alt="Google" class="social-icon">
+                Google
+            </a>
+            <a href="/api/auth/github" class="btn btn-github">
+                <img src="/icons/github.svg" alt="GitHub" class="social-icon">
+                GitHub
+            </a>
+        </div>
+
+        <div class="auth-footer">
+            <p>Ещё нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
+        </div>
+    </div>
+</div>
