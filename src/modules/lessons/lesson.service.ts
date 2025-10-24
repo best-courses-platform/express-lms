@@ -1,5 +1,6 @@
 import { Lesson, NewLesson, UpdateLesson } from "./lesson.types";
 import { lessonRepository } from "./lesson.repository";
+import { Types } from 'mongoose';
 import { AppError } from "../../utils/errors";
 import { toObjectIdString, isValidObjectIdString } from "../../utils/typeGuards";
 
@@ -74,42 +75,35 @@ class LessonService {
 
     async checkUserAccess(lessonId: string, userId: string): Promise<boolean> {
         if (!isValidObjectIdString(lessonId) || !isValidObjectIdString(userId)) {
-            throw new AppError(400, "Некорректный ID урока или пользователя");
+            return false;
         }
 
         const lesson = await lessonRepository.findById(lessonId);
+        if (!lesson) return false;
 
-        if (!lesson) throw new AppError(404, "Урок не найден");
-
-        // Преобразуем allowedUsers в строки для сравнения
-        const allowedUserIds = lesson.allowedUsers.map(userId => toObjectIdString(userId));
-        const userIdString = toObjectIdString(userId);
-
-        // Проверяем, есть ли пользователь в списке разрешенных
-        return allowedUserIds.includes(userIdString);
+        // Простая проверка - пользователь имеет доступ если он в allowedUsers
+        const userIdObj = new Types.ObjectId(userId);
+        return lesson.allowedUsers.some(allowedUserId => allowedUserId.equals(userIdObj));
     }
 
-    // Дополнительный метод для добавления пользователя в allowedUsers
     async addUserToAllowed(lessonId: string, userId: string): Promise<Lesson> {
         if (!isValidObjectIdString(lessonId) || !isValidObjectIdString(userId)) {
             throw new AppError(400, "Некорректный ID урока или пользователя");
         }
 
         const lesson = await lessonRepository.findById(lessonId);
-
         if (!lesson) throw new AppError(404, "Урок не найден");
 
-        const userIdString = toObjectIdString(userId);
-        const allowedUserIds = lesson.allowedUsers.map(id => toObjectIdString(id));
+        const userIdObj = new Types.ObjectId(userId);
 
         // Проверяем, не добавлен ли уже пользователь
-        if (allowedUserIds.includes(userIdString)) {
+        if (lesson.allowedUsers.some(id => id.equals(userIdObj))) {
             throw new AppError(409, "Пользователь уже имеет доступ к этому уроку");
         }
 
-        // Добавляем пользователя в allowedUsers
+        // Добавляем пользователя
         const updatedLesson = await lessonRepository.update(lessonId, {
-            allowedUsers: [...lesson.allowedUsers, userId as any]
+            allowedUsers: [...lesson.allowedUsers, userIdObj]
         });
 
         return updatedLesson;

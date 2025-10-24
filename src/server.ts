@@ -5,6 +5,12 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {config} from "./config/config";
+import mongoose from 'mongoose';
+
+// MongoDB connection
+mongoose.connect(config.mongoUri)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch((error) => console.error('MongoDB connection error:', error));
 
 const PORT = config.port;
 
