@@ -152,27 +152,6 @@ class CourseRepository {
 
         return updatedCourse;
     }
-
-    async removeRating(courseId: string, userId: Types.ObjectId): Promise<Course> {
-        if (!Types.ObjectId.isValid(courseId)) {
-            throw new Error('Invalid course ID');
-        }
-
-        const updatedCourse = await CourseModel.findByIdAndUpdate(
-            courseId,
-            { $pull: { ratings: { userId } } },
-            { new: true, runValidators: true }
-        )
-            .populate('author', 'name email avatar')
-            .populate('lessons', 'title duration')
-            .exec();
-
-        if (!updatedCourse) {
-            throw new Error('Course not found');
-        }
-
-        return updatedCourse;
-    }
 }
 
 export const courseRepository = new CourseRepository();

@@ -4,7 +4,8 @@ import { AppError } from "../../utils/errors";
 
 class UserService {
     async create(input: NewUser): Promise<User> {
-        const exists = await userRepository.findByEmail(input.email);
+        const normalizedEmail = input.email.toLowerCase().trim();
+        const exists = await userRepository.findByEmail(normalizedEmail);
 
         if (exists) throw new AppError(409, "Email already in use");
 
@@ -29,9 +30,9 @@ class UserService {
         if (!user) throw new AppError(404, "User not found");
 
         if (patch.email && patch.email !== user.email) {
-            const exists = await userRepository.findByEmail(patch.email);
+            const isTaken = await userRepository.isEmailTaken(patch.email, id);
 
-            if (exists) throw new AppError(409, "Email already in use");
+            if (isTaken) throw new AppError(409, "Email already in use");
         }
 
         return userRepository.update(id, patch);

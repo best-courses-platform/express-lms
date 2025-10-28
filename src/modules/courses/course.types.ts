@@ -1,5 +1,11 @@
 import { Document, Types } from 'mongoose';
 
+export type Rating = {
+    userId: Types.ObjectId;
+    value: number;
+    createdAt: Date;
+}
+
 export type Course = {
     title: string;
     description: string;
@@ -7,13 +13,9 @@ export type Course = {
     author: Types.ObjectId; // теперь ссылка на пользователя
     tags: string[];
     difficulty: 'beginner' | 'intermediate' | 'advanced';
-    lessons: Types.ObjectId[]; // массив уроков курса
-    ratings: {
-        userId: Types.ObjectId;
-        value: number;
-        createdAt: Date;
-    }[];
-    averageRating: number;
+    lessons?: Types.ObjectId[]; // массив уроков курса
+    ratings: Rating[];
+    averageRating?: number;
     isPublished: boolean;
     createdAt: Date;
     updatedAt: Date;

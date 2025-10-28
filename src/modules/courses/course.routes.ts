@@ -21,6 +21,5 @@ router.delete("/:id/lessons/:lessonId", CourseController.removeLesson);
 // Управление рейтингами
 router.post("/:id/ratings", CourseController.addRating);
 router.get("/:id/ratings", CourseController.getRatings); // получить все рейтинги курса
-router.delete("/:id/ratings", CourseController.removeRating); // удалить свой рейтинг
 
 export default router;

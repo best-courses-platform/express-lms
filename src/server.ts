@@ -15,17 +15,15 @@ mongoose.connect(config.mongoUri)
 const PORT = config.port;
 
 // // Получаем __dirname для ES модулей
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 //
 // // Проверяем наличие SSL сертификатов для HTTPS
-// const certPath = path.join(__dirname, '..', 'certificates');
-// const hasCertificates = fs.existsSync(path.join(certPath, 'private-key.pem')) &&
-//     fs.existsSync(path.join(certPath, 'certificate.pem'));
+const certPath = path.join(__dirname, '..', 'certificates'); // предполагая, что certificates на уровне src
 
 const httpsOptions: ServerOptions = {
-    key: fs.readFileSync('.ssl/key.pem'),
-    cert: fs.readFileSync('.ssl/cert.pem'),
+    key: fs.readFileSync(path.join(certPath, 'private-key.pem')),
+    cert: fs.readFileSync(path.join(certPath, 'certificate.pem')),
 };
 
 const start = async () => {
@@ -41,6 +39,7 @@ const start = async () => {
 
 process.on('SIGINT', async () => {
     console.log('App closed')
+    await mongoose.connection.close();
     process.exit()
 })
 

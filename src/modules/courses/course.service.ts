@@ -91,13 +91,6 @@ class CourseService {
 
         return course.ratings;
     }
-
-    async removeRating(courseId: string, userId: Types.ObjectId): Promise<Course> {
-        const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, "Course not found");
-
-        return courseRepository.removeRating(courseId, userId);
-    }
 }
 
 export const courseService = new CourseService();

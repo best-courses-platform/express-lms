@@ -94,14 +94,3 @@ export async function getRatings(req: Request, res: Response, next: NextFunction
         res.json(ratings);
     } catch (e) { next(e); }
 }
-
-export async function removeRating(req: Request, res: Response, next: NextFunction) {
-    try {
-        if (!isAuthenticatedRequest(req)) {
-            throw new AppError(401, "Authentication required");
-        }
-        const userId = getUserIdFromRequest(req);
-        const updated = await courseService.removeRating(req.params.id, userId);
-        res.json(updated);
-    } catch (e) { next(e); }
-}

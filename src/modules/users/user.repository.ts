@@ -50,6 +50,21 @@ class UserRepository {
         return updatedUser;
     }
 
+    async isEmailTaken(email: string, excludeUserId?: string): Promise<boolean> {
+        const query: any = { email };
+
+        // Исключаем текущего пользователя из проверки
+        if (excludeUserId) {
+            query._id = { $ne: new Types.ObjectId(excludeUserId) };
+        }
+
+        const user = await UserModel.findOne(query);
+
+        console.log('user', user);
+
+        return !!user;
+    }
+
     async delete(id: string): Promise<boolean> {
         if (!Types.ObjectId.isValid(id)) return false;
 

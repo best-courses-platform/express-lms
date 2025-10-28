@@ -1,5 +1,5 @@
 import { model, Schema, Types } from 'mongoose';
-import { ICourse } from "./course.types";
+import { ICourse, Rating } from "./course.types";
 
 const ratingSchema = new Schema({
     userId: {
@@ -55,9 +55,13 @@ const courseSchema = new Schema<ICourse>({
     },
     lessons: [{
         type: Schema.Types.ObjectId,
-        ref: 'Lesson'
+        ref: 'Lesson',
+        default: []
     }],
-    ratings: [ratingSchema],
+    ratings: {
+        type:[ratingSchema],
+        default: []
+    },
     averageRating: {
         type: Number,
         default: 0,
@@ -81,13 +85,21 @@ courseSchema.index({ averageRating: -1 });
 courseSchema.index({ createdAt: -1 });
 
 // Middleware для пересчета averageRating при изменении рейтингов
+const calculateAverageRating = (ratings: Rating[]): number => {
+    if (ratings.length === 0) return 0;
+
+    const total = ratings.reduce((sum, rating) => sum + rating.value, 0);
+    return Math.round((total / ratings.length) * 10) / 10;
+};
+
+// Middleware для пересчета averageRating при изменении рейтингов
 courseSchema.pre('save', function(next) {
-    if (this.ratings.length > 0) {
-        const total = this.ratings.reduce((sum, rating) => sum + rating.value, 0);
-        this.averageRating = Math.round((total / this.ratings.length) * 10) / 10;
-    } else {
-        this.averageRating = 0;
-    }
+    const shouldRecalculate = this.isModified('ratings');
+
+    if (!shouldRecalculate) return next();
+
+    this.averageRating = calculateAverageRating(this.ratings);
+
     next();
 });
 
