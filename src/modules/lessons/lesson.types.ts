@@ -29,7 +29,7 @@ export type Lesson = {
 }
 
 // Тип для создания нового урока (без служебных полей)
-export type NewLesson = Omit<Lesson, "createdAt" | "updatedAt">;
+export type NewLesson = Omit<Lesson, "_id" | "createdAt" | "updatedAt">;
 
 // Тип для обновления урока
 export type UpdateLesson = Partial<NewLesson>;
