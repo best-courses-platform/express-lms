@@ -11,6 +11,7 @@ import lessonsRouter from './modules/lessons/lesson.routes';
 import viewsRouter from './modules/views/view.routes';
 import {validateConfig} from "./config/config";
 import { initializePassport } from './passport/config';
+import {refreshTokenMiddleware} from "./middleware/refresh-token";
 
 const __dirname = path.resolve();
 
@@ -46,14 +47,12 @@ app.use(cookieParser());
 
 app.use(passport.initialize());
 
-// Уберите express-session (не нужно для JWT)
-// app.use(session({ ... }));
-
 validateConfig();
 initializePassport();
 
 
 // API routes
+app.use(refreshTokenMiddleware);
 app.use("/api/auth", authRoutes);  // → POST /api/auth/login
 app.use("/api/users", usersRoutes);
 app.use('/api/courses', coursesRouter);

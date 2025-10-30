@@ -4,9 +4,14 @@ dotenv.config();
 export const config = {
     port: process.env.PORT || 3000,
     mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/best-courses-ever',
-    sessionSecret: process.env.SESSION_SECRET || '',
+
+    // JWT настройки
     jwtSecret: process.env.JWT_SECRET || '',
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '',
+    jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || '',
+    // jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '8h',
+    // jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
+    jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '1m',
+    jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '5m',
 
     // Google OAuth
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
@@ -15,19 +20,19 @@ export const config = {
 };
 
 export function validateConfig() {
-    console.log('Config validation:');
-    console.log('JWT_SECRET:', config.jwtSecret ? '✓ set' : '✗ missing');
-    console.log('GOOGLE_CLIENT_ID:', config.googleClientId ? '✓ set' : '✗ missing');
-    console.log('GOOGLE_CLIENT_SECRET:', config.googleClientSecret ? '✓ set' : '✗ missing');
+    console.log('Проверка конфигурации:');
+    console.log('JWT_SECRET:', config.jwtSecret ? 'установлен' : 'отсутствует');
+    console.log('GOOGLE_CLIENT_ID:', config.googleClientId ? 'установлен' : 'отсутствует');
+    console.log('GOOGLE_CLIENT_SECRET:', config.googleClientSecret ? 'установлен' : 'отсутствует');
 
     const required = ['jwtSecret', 'googleClientId', 'googleClientSecret'];
     const missing = required.filter(key => !config[key as keyof typeof config]);
 
     if (missing.length > 0) {
-        console.warn(`Warning: Missing environment variables: ${missing.join(', ')}`);
+        console.warn(`Предупреждение: Отсутствуют обязательные переменные окружения: ${missing.join(', ')}`);
         return false;
     }
 
-    console.log('All required environment variables are set');
+    console.log('Все обязательные переменные окружения установлены');
     return true;
 }

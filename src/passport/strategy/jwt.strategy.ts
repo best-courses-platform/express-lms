@@ -7,7 +7,7 @@ export const jwtStrategy = new JwtStrategy(
         jwtFromRequest: ExtractJwt.fromExtractors([
             ExtractJwt.fromAuthHeaderAsBearerToken(),
             ExtractJwt.fromUrlQueryParameter('token'),
-            (req) => req.cookies?.jwt || null
+            (req) => req.cookies?.access_token || null
         ]),
         secretOrKey: config.jwtSecret,
         algorithms: ['HS256'],
@@ -15,6 +15,10 @@ export const jwtStrategy = new JwtStrategy(
     },
     async (payload, done) => {
         try {
+            if (payload.type !== 'access') {
+                return done(null, false);
+            }
+
             const user = await userService.getById(payload.sub);
 
             if (user) {

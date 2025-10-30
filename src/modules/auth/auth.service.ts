@@ -17,9 +17,12 @@ export class AuthService {
         return await userService.findOrCreateFromOAuth(profile);
     }
 
-    // === Генерация токенов ===
-    static generateUserToken(user: User): string {
-        return JWTService.generateToken(user);
+    static generateAccessToken(user: User): string {
+        return JWTService.generateAccessToken(user);
+    }
+
+    static generateRefreshToken(user: User): string {
+        return JWTService.generateRefreshToken(user);
     }
 
     // === Валидация пользователя ===

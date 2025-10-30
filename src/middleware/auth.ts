@@ -10,7 +10,6 @@ export const jwtAuth = passport.authenticate('jwt', { session: false });
 export const localAuth = passport.authenticate('local', { session: false });
 
 export const googleAuth = passport.authenticate('google', {
-    // session: false,
     scope: ['profile', 'email']
 });
 
@@ -21,7 +20,6 @@ export const googleAuthCallback = passport.authenticate('google', {
 
 // Основная проверка аутентификации
 export const isAuthenticated = (req: Request, res: Response, next: NextFunction): void => {
-    console.log('user ', req);
     AuthService.handleJWTAuthentication(req, res, next);
 };
 
@@ -44,6 +42,3 @@ export const requireRole = (roles: string[]) => {
 // Специализированные middleware для ролей
 export const isAuthor = requireRole(['author', 'admin']);
 export const isAdmin = requireRole(['admin']);
-
-// Генерация JWT токена (реэкспорт)
-export const generateUserToken = AuthService.generateUserToken;

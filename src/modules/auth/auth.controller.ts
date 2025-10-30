@@ -32,13 +32,16 @@ export const register: RequestHandler = async (req, res, next) => {
             role: 'student'
         });
 
-        // Генерация токена и авторизация
-        const token = AuthService.generateUserToken(user);
-        JWTService.setTokenCookie(res, token);
+        // Генерируем ОБА токена для реального пользователя
+        const accessToken = AuthService.generateAccessToken(user);
+        const refreshToken = AuthService.generateRefreshToken(user);
+
+        // Устанавливаем ОБА cookies
+        JWTService.setTokensCookies(res, accessToken, refreshToken);
 
         res.status(201).json({
             message: 'Регистрация успешна',
-            token,
+            token: accessToken,
             user: {
                 id: user._id.toString(),
                 email: user.email,
@@ -62,12 +65,16 @@ export const handleLoginSuccess: RequestHandler = async (req, res, next) => {
             return;
         }
 
-        const token = AuthService.generateUserToken(req.user);
-        JWTService.setTokenCookie(res, token);
+        // Генерируем ОБА токена для реального пользователя
+        const accessToken = AuthService.generateAccessToken(req.user);
+        const refreshToken = AuthService.generateRefreshToken(req.user);
+
+        // Устанавливаем ОБА cookies
+        JWTService.setTokensCookies(res, accessToken, refreshToken);
 
         res.json({
             message: 'Login successful',
-            token,
+            token: accessToken,
             user: {
                 id: req.user._id.toString(),
                 email: req.user.email,
@@ -85,26 +92,21 @@ export const handleOAuthCallback: RequestHandler = async (req, res, next) => {
             return;
         }
 
-        const token = AuthService.generateUserToken(req.user);
+        // Генерируем ОБА токена
+        const accessToken = AuthService.generateAccessToken(req.user);
+        const refreshToken = AuthService.generateRefreshToken(req.user);
 
-        // Сохраняем токен в HTTP-only cookie
-        res.cookie('jwt', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 дней
-        });
+        // Устанавливаем ОБА cookies
+        JWTService.setTokensCookies(res, accessToken, refreshToken);
 
-        // Редирект на главную без токена в URL
+        // Редирект на главную
         res.redirect('/');
-    } catch (e) {
-        console.error('OAuth callback error:', e);
-        next(e);
-    }
+    } catch (e) { next(e); }
 };
 
 export const logout: RequestHandler = async (req, res, next) => {
     try {
-        JWTService.clearTokenCookie(res);
+        JWTService.clearTokensCookies(res);
         res.json({ message: 'Logout successful' });
     } catch (e) { next(e); }
 };
@@ -116,12 +118,15 @@ export const refreshToken: RequestHandler = async (req, res, next) => {
             return;
         }
 
-        const newToken = AuthService.generateUserToken(req.user);
-        JWTService.setTokenCookie(res, newToken);
+        // Генерируем НОВЫЕ токены для реального пользователя
+        const newAccessToken = AuthService.generateAccessToken(req.user);
+        const newRefreshToken = AuthService.generateRefreshToken(req.user);
+
+        JWTService.setTokensCookies(res, newAccessToken, newRefreshToken);
 
         res.json({
             message: 'Token refreshed',
-            token: newToken,
+            token: newAccessToken,
             user: {
                 id: req.user._id.toString(),
                 email: req.user.email,
