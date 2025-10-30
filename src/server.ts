@@ -1,10 +1,9 @@
-import app from './app';
-import type { ServerOptions } from 'node:https'
-import https from 'node:https'
+import app from './app.js';
+import type { ServerOptions } from 'https';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import {config} from "./config/config";
+import { config } from "./config/config.js";
 import mongoose from 'mongoose';
 
 // MongoDB connection
@@ -14,12 +13,12 @@ mongoose.connect(config.mongoUri)
 
 const PORT = config.port;
 
-// // Получаем __dirname для ES модулей
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.resolve();
 //
 // // Проверяем наличие SSL сертификатов для HTTPS
-const certPath = path.join(__dirname, '..', 'certificates'); // предполагая, что certificates на уровне src
+const certPath = path.join(__dirname, 'certificates'); // предполагая, что certificates на уровне src
+const hasCertificates = fs.existsSync(path.join(certPath, 'private-key.pem')) &&
+    fs.existsSync(path.join(certPath, 'certificate.pem'));
 
 const httpsOptions: ServerOptions = {
     key: fs.readFileSync(path.join(certPath, 'private-key.pem')),
@@ -28,8 +27,19 @@ const httpsOptions: ServerOptions = {
 
 const start = async () => {
     try {
-        https.createServer(httpsOptions, app).listen(PORT, () =>
-            console.log(`App listening on https://localhost:${PORT}`))
+        const protocol = hasCertificates && process.env.NODE_ENV === 'production' ? 'HTTPS' : 'HTTP';
+        console.log(`Starting ${protocol} server...`);
+
+        if (hasCertificates && process.env.NODE_ENV === 'production') {
+            // HTTPS в продакшене
+            https.createServer(httpsOptions, app).listen(PORT, () =>
+                console.log(`App listening on https://localhost:${PORT}`))
+        } else {
+            // HTTP в разработке
+            app.listen(PORT, () => {
+                console.log(`App listening on http://localhost:${PORT}`);
+            });
+        }
     } catch (err) {
         console.error('Failed to start the application')
         console.error(err)
@@ -43,4 +53,4 @@ process.on('SIGINT', async () => {
     process.exit()
 })
 
-start()
+start();

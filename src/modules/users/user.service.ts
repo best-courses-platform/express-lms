@@ -1,15 +1,16 @@
 import { User, NewUser, UpdateUser } from "./user.types";
 import { userRepository } from "./user.repository";
 import { AppError } from "../../utils/errors";
+import {isUserDocumentStrict, isUserWithPassword, toSafeUser} from '../../utils/typeGuards';
 
 class UserService {
-    async create(input: NewUser): Promise<User> {
-        const normalizedEmail = input.email.toLowerCase().trim();
+    async create(userData: NewUser): Promise<User> {
+        const normalizedEmail = userData.email.toLowerCase().trim();
         const exists = await userRepository.findByEmail(normalizedEmail);
 
         if (exists) throw new AppError(409, "Email already in use");
 
-        return userRepository.create(input);
+        return userRepository.create(userData);
     }
 
     async list(): Promise<User[]> {
@@ -44,19 +45,28 @@ class UserService {
         if (!ok) throw new AppError(404, "User not found");
     }
 
-    // Новый метод для аутентификации
     async authenticate(email: string, password: string): Promise<User> {
         const user = await userRepository.findByEmailWithPassword(email);
 
         if (!user) throw new AppError(401, "Invalid credentials");
 
-        // Используем метод comparePassword из модели
-        const isValidPassword = await (user as any).comparePassword(password);
+        if (!isUserDocumentStrict(user)) {
+            throw new AppError(500, 'Authentication system error');
+        }
+
+        const isValidPassword = await user.comparePassword(password);
+
         if (!isValidPassword) throw new AppError(401, "Invalid credentials");
 
-        // Возвращаем пользователя без пароля
-        const { password: _, ...userWithoutPassword } = user;
-        return userWithoutPassword as User;
+        const userPlainObject = user.toObject<User & { password: string }>();
+
+        if (!isUserWithPassword(userPlainObject)) {
+            throw new AppError(500, 'User transformation error');
+        }
+
+        const { password: _, ...userWithoutPassword } = userPlainObject;
+
+        return toSafeUser(userWithoutPassword);
     }
 
     // Метод для поиска/создания пользователя через OAuth

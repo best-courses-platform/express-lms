@@ -1,5 +1,5 @@
 import { model, Schema, Types } from 'mongoose';
-import { ICourse, Rating } from "./course.types";
+import { Course, Rating } from "./course.types";
 
 const ratingSchema = new Schema({
     userId: {
@@ -19,7 +19,7 @@ const ratingSchema = new Schema({
     }
 });
 
-const courseSchema = new Schema<ICourse>({
+const courseSchema = new Schema<Course>({
     title: {
         type: String,
         required: true,
@@ -103,4 +103,4 @@ courseSchema.pre('save', function(next) {
     next();
 });
 
-export const CourseModel = model<ICourse>('Course', courseSchema);
+export const CourseModel = model<Course>('Course', courseSchema);

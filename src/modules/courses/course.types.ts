@@ -1,4 +1,4 @@
-import { Document, Types } from 'mongoose';
+import { Types } from 'mongoose';
 
 export type Rating = {
     userId: Types.ObjectId;
@@ -7,6 +7,7 @@ export type Rating = {
 }
 
 export type Course = {
+    _id: Types.ObjectId;
     title: string;
     description: string;
     previewImage: string;
@@ -23,7 +24,3 @@ export type Course = {
 
 export type NewCourse = Omit<Course, "createdAt" | "updatedAt" | "averageRating" | "lessons">;
 export type UpdateCourse = Partial<Course>;
-
-export interface ICourse extends Course, Document {
-    _id: Types.ObjectId;
-}

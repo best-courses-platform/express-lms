@@ -1,18 +1,18 @@
 import { Router } from "express";
 import * as LessonController from "./lesson.controller";
 
-const router = Router();
+const lessonsRouter = Router();
 
 // Основные CRUD операции
-router.post("/", LessonController.createLesson);
-router.get("/", LessonController.listLessons);
-router.get("/:id", LessonController.getLesson);
-router.patch("/:id", LessonController.updateLesson);
-router.delete("/:id", LessonController.deleteLesson);
+lessonsRouter.post("/", LessonController.createLesson);
+lessonsRouter.get("/", LessonController.listLessons);
+lessonsRouter.get("/:id", LessonController.getLesson);
+lessonsRouter.patch("/:id", LessonController.updateLesson);
+lessonsRouter.delete("/:id", LessonController.deleteLesson);
 
 // Дополнительные маршруты
-router.get("/course/:courseId", LessonController.getLessonsByCourse);
-router.get("/:lessonId/access/:userId", LessonController.checkLessonAccess);
-router.post("/:lessonId/allowed-users", LessonController.addUserToAllowed);
+lessonsRouter.get("/course/:courseId", LessonController.getLessonsByCourse);
+lessonsRouter.get("/:lessonId/access/:userId", LessonController.checkLessonAccess);
+lessonsRouter.post("/:lessonId/allowed-users", LessonController.addUserToAllowed);
 
-export default router;
+export default lessonsRouter;

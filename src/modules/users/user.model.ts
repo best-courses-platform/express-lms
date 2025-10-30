@@ -1,8 +1,8 @@
 import { model, Schema } from 'mongoose';
-import { IUser, UserRole } from "./user.types";
+import { User, UserRole } from "./user.types";
 import bcrypt from 'bcryptjs';
 
-const userSchema = new Schema<IUser>({
+const userSchema = new Schema<User>({
     name: {
         type: String,
         required: true,
@@ -57,7 +57,7 @@ userSchema.pre('save', async function(next) {
     }
 
     try {
-        const salt = await bcrypt.genSalt(10);
+        const salt = await bcrypt.genSalt(12);
         this.password = await bcrypt.hash(this.password, salt);
         next();
     } catch (error: any) {
@@ -68,7 +68,8 @@ userSchema.pre('save', async function(next) {
 // Метод для проверки пароля
 userSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
     if (!this.password) return false;
-    return bcrypt.compare(candidatePassword, this.password);
+
+    return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Метод для преобразования пользователя в JSON (убираем пароль)
@@ -88,4 +89,4 @@ userSchema.statics.findByGoogleId = function(googleId: string) {
     return this.findOne({ googleId });
 };
 
-export const UserModel = model<IUser>('User', userSchema);
+export const UserModel = model<User>('User', userSchema);

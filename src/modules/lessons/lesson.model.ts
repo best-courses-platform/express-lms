@@ -1,5 +1,5 @@
 import { model, Schema } from 'mongoose';
-import { ILesson } from "./lesson.types";
+import { Lesson } from "./lesson.types";
 
 const lessonResourceSchema = new Schema({
     type: {
@@ -18,7 +18,7 @@ const lessonResourceSchema = new Schema({
     description: String
 }, { _id: false });
 
-const lessonSchema = new Schema<ILesson>({
+const lessonSchema = new Schema<Lesson>({
     title: {
         type: String,
         required: true,
@@ -68,4 +68,4 @@ lessonSchema.index({ title: 1, courseId: 1 }, { unique: true });
 // Индекс для сортировки уроков в курсе
 lessonSchema.index({ courseId: 1, order: 1 });
 
-export const LessonModel = model<ILesson>('Lesson', lessonSchema);
+export const LessonModel = model<Lesson>('Lesson', lessonSchema);

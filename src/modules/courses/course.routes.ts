@@ -2,24 +2,24 @@
 import { Router } from "express";
 import * as CourseController from "./course.controller";
 
-const router = Router();
+const coursesRouter = Router();
 
 // Основные CRUD операции
-router.post("/", CourseController.createCourse);
-router.get("/", CourseController.listCourse);
-router.get("/published", CourseController.getPublishedCourses);
-router.get("/author/:authorId", CourseController.getCoursesByAuthor);
-router.get("/difficulty/:level", CourseController.getCoursesByDifficulty);
-router.get("/:id", CourseController.getCourse);
-router.patch("/:id", CourseController.updateCourse);
-router.delete("/:id", CourseController.deleteCourse);
+coursesRouter.post("/", CourseController.createCourse);
+coursesRouter.get("/", CourseController.listCourse);
+coursesRouter.get("/published", CourseController.getPublishedCourses);
+coursesRouter.get("/author/:authorId", CourseController.getCoursesByAuthor);
+coursesRouter.get("/difficulty/:level", CourseController.getCoursesByDifficulty);
+coursesRouter.get("/:id", CourseController.getCourse);
+coursesRouter.patch("/:id", CourseController.updateCourse);
+coursesRouter.delete("/:id", CourseController.deleteCourse);
 
 // Управление уроками в курсе
-router.post("/:id/lessons/:lessonId", CourseController.addLesson);
-router.delete("/:id/lessons/:lessonId", CourseController.removeLesson);
+coursesRouter.post("/:id/lessons/:lessonId", CourseController.addLesson);
+coursesRouter.delete("/:id/lessons/:lessonId", CourseController.removeLesson);
 
 // Управление рейтингами
-router.post("/:id/ratings", CourseController.addRating);
-router.get("/:id/ratings", CourseController.getRatings); // получить все рейтинги курса
+coursesRouter.post("/:id/ratings", CourseController.addRating);
+coursesRouter.get("/:id/ratings", CourseController.getRatings); // получить все рейтинги курса
 
-export default router;
+export default coursesRouter;

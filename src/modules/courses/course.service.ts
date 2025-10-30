@@ -1,4 +1,4 @@
-import { Course, NewCourse, UpdateCourse } from "./course.types";
+import {Course, NewCourse, Rating, UpdateCourse} from "./course.types";
 import { courseRepository } from "./course.repository";
 import { AppError } from "../../utils/errors";
 import { Types } from 'mongoose';
@@ -85,7 +85,7 @@ class CourseService {
         });
     }
 
-    async getRatings(courseId: string): Promise<any> {
+    async getRatings(courseId: string): Promise<Rating[]> {
         const course = await courseRepository.findById(courseId);
         if (!course) throw new AppError(404, "Course not found");
 

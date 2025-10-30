@@ -1,4 +1,4 @@
-import { Document, Types } from 'mongoose';
+import { Types } from 'mongoose';
 
 // Тип ресурса урока (файл, ссылка, видео)
 export type LessonResourceType = 'file' | 'link' | 'video';
@@ -13,6 +13,7 @@ export type LessonResource = {
 
 // Основной тип урока
 export type Lesson = {
+    _id: Types.ObjectId;
     title: string;
     description: string;
     courseId: Types.ObjectId; // Ссылка на курс, к которому принадлежит урок
@@ -32,8 +33,3 @@ export type NewLesson = Omit<Lesson, "createdAt" | "updatedAt">;
 
 // Тип для обновления урока
 export type UpdateLesson = Partial<NewLesson>;
-
-// Интерфейс для Mongoose документа
-export interface ILesson extends Lesson, Document {
-    _id: Types.ObjectId;
-}

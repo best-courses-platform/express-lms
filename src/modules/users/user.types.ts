@@ -1,8 +1,9 @@
-import { Document, Types } from 'mongoose';
+import { Types } from 'mongoose';
 
 export type UserRole = 'student' | 'author' | 'admin';
 
 export type User = {
+    _id: Types.ObjectId;
     name: string;
     email: string;
     password?: string;
@@ -13,11 +14,7 @@ export type User = {
     updatedAt: Date;
 }
 
-export type NewUser = Omit<User, "createdAt" | "updatedAt"> & {
+export type NewUser = Omit<User, "_id" | "createdAt" | "updatedAt"> & {
     password: string;
 };
 export type UpdateUser = Partial<User>;
-
-export interface IUser extends User, Document {
-    _id: Types.ObjectId;
-}
