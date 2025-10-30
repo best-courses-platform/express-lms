@@ -53,10 +53,6 @@ const lessonSchema = new Schema<Lesson>({
     tags: [{
         type: String,
         trim: true
-    }],
-    allowedUsers: [{
-        type: Schema.Types.ObjectId,
-        ref: 'User'
     }]
 }, {
     timestamps: true // Автоматически добавляет createdAt и updatedAt

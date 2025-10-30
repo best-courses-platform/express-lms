@@ -2,6 +2,7 @@ import { RequestHandler } from "express";
 import { courseService } from "./course.service";
 import { AppError } from "../../utils/errors";
 import { isAuthenticatedRequest, getUserIdFromRequest } from "../../utils/typeGuards";
+import { Types } from 'mongoose'; // ДОБАВИТЬ ЭТОТ ИМПОРТ
 
 export const createCourse: RequestHandler = async (req, res, next) => {
     try {
@@ -59,16 +60,63 @@ export const deleteCourse: RequestHandler = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// ИСПРАВЛЕННЫЕ МЕТОДЫ:
 export const addLesson: RequestHandler = async (req, res, next) => {
     try {
-        const updated = await courseService.addLesson(req.params.id, req.params.lessonId);
+        if (!isAuthenticatedRequest(req)) {
+            throw new AppError(401, "Authentication required");
+        }
+        const userId = getUserIdFromRequest(req);
+        const updated = await courseService.addLesson(
+            req.params.id,
+            req.params.lessonId,
+            userId // ДОБАВИТЬ userId
+        );
         res.json(updated);
     } catch (e) { next(e); }
 };
 
 export const removeLesson: RequestHandler = async (req, res, next) => {
     try {
-        const updated = await courseService.removeLesson(req.params.id, req.params.lessonId);
+        if (!isAuthenticatedRequest(req)) {
+            throw new AppError(401, "Authentication required");
+        }
+        const userId = getUserIdFromRequest(req);
+        const updated = await courseService.removeLesson(
+            req.params.id,
+            req.params.lessonId,
+            userId
+        );
+        res.json(updated);
+    } catch (e) { next(e); }
+};
+
+export const addUserToAllowed: RequestHandler = async (req, res, next) => {
+    try {
+        if (!isAuthenticatedRequest(req)) {
+            throw new AppError(401, "Authentication required");
+        }
+        const userId = getUserIdFromRequest(req);
+        const updated = await courseService.addUserToAllowed(
+            req.params.id,
+            new Types.ObjectId(req.body.userId),
+            userId
+        );
+        res.json(updated);
+    } catch (e) { next(e); }
+};
+
+export const removeUserFromAllowed: RequestHandler = async (req, res, next) => {
+    try {
+        if (!isAuthenticatedRequest(req)) {
+            throw new AppError(401, "Authentication required");
+        }
+        const userId = getUserIdFromRequest(req);
+        const updated = await courseService.removeUserFromAllowed(
+            req.params.id,
+            new Types.ObjectId(req.params.userId),
+            userId
+        );
         res.json(updated);
     } catch (e) { next(e); }
 };

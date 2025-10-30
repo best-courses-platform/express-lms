@@ -12,7 +12,7 @@ lessonsRouter.delete("/:id", LessonController.deleteLesson);
 
 // Дополнительные маршруты
 lessonsRouter.get("/course/:courseId", LessonController.getLessonsByCourse);
+lessonsRouter.post("/course/:courseId", LessonController.createLessonForCourse);
 lessonsRouter.get("/:lessonId/access/:userId", LessonController.checkLessonAccess);
-lessonsRouter.post("/:lessonId/allowed-users", LessonController.addUserToAllowed);
 
 export default lessonsRouter;

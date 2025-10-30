@@ -23,7 +23,6 @@ export type Lesson = {
     inputExamples?: string; // Примеры входных данных
     outputExamples?: string; // Примеры выходных данных
     tags: string[]; // Теги (например, "алгоритмы", "структуры данных")
-    allowedUsers: Types.ObjectId[]; // Пользователи с доступом к уроку
     createdAt: Date;
     updatedAt: Date;
 }

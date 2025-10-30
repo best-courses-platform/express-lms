@@ -1,12 +1,12 @@
 import { Lesson, NewLesson, UpdateLesson } from "./lesson.types";
 import { lessonRepository } from "./lesson.repository";
+import { courseService } from "courses/course.service";
 import { Types } from 'mongoose';
 import { AppError } from "../../utils/errors";
 import { toObjectIdString, isValidObjectIdString } from "../../utils/typeGuards";
 
 class LessonService {
     async create(input: NewLesson): Promise<Lesson> {
-        // Проверяем валидность courseId
         if (!isValidObjectIdString(input.courseId)) {
             throw new AppError(400, "Некорректный ID курса");
         }
@@ -19,30 +19,19 @@ class LessonService {
         return lessonRepository.create(input);
     }
 
-    async list(): Promise<Lesson[]> {
-        return lessonRepository.findAll();
-    }
-
-    async getById(id: string): Promise<Lesson> {
+    async update(id: string, patch: UpdateLesson, userId: Types.ObjectId): Promise<Lesson> {
         if (!isValidObjectIdString(id)) {
             throw new AppError(400, "Некорректный ID урока");
         }
 
         const lesson = await lessonRepository.findById(id);
-
         if (!lesson) throw new AppError(404, "Урок не найден");
 
-        return lesson;
-    }
-
-    async update(id: string, patch: UpdateLesson): Promise<Lesson> {
-        if (!isValidObjectIdString(id)) {
-            throw new AppError(400, "Некорректный ID урока");
+        // Проверяем, что пользователь - автор курса
+        const course = await courseService.getById(lesson.courseId.toString());
+        if (!course.author.equals(userId)) {
+            throw new AppError(403, "Только автор курса может редактировать уроки");
         }
-
-        const lesson = await lessonRepository.findById(id);
-
-        if (!lesson) throw new AppError(404, "Урок не найден");
 
         // Проверяем уникальность названия при обновлении
         if (patch.title && patch.title !== lesson.title) {
@@ -55,14 +44,44 @@ class LessonService {
         return lessonRepository.update(id, patch);
     }
 
-    async delete(id: string): Promise<void> {
+    async delete(id: string, userId: Types.ObjectId): Promise<void> {
         if (!isValidObjectIdString(id)) {
             throw new AppError(400, "Некорректный ID урока");
         }
 
-        const ok = await lessonRepository.delete(id);
+        const lesson = await lessonRepository.findById(id);
+        if (!lesson) throw new AppError(404, "Урок не найден");
 
+        // Проверяем, что пользователь - автор курса
+        const course = await courseService.getById(lesson.courseId.toString());
+        if (!course.author.equals(userId)) {
+            throw new AppError(403, "Только автор курса может удалять уроки");
+        }
+
+        const ok = await lessonRepository.delete(id);
         if (!ok) throw new AppError(404, "Урок не найден");
+
+        // Удаляем урок из курса
+        await courseService.removeLesson(course._id.toString(), id, userId);
+    }
+
+    async getNextOrderNumber(courseId: string): Promise<number> {
+        return lessonRepository.getNextOrderNumber(courseId);
+    }
+
+    async list(): Promise<Lesson[]> {
+        return lessonRepository.findAll();
+    }
+
+    async getById(id: string): Promise<Lesson> {
+        if (!isValidObjectIdString(id)) {
+            throw new AppError(400, "Некорректный ID урока");
+        }
+
+        const lesson = await lessonRepository.findById(id);
+        if (!lesson) throw new AppError(404, "Урок не найден");
+
+        return lesson;
     }
 
     async getByCourseId(courseId: string): Promise<Lesson[]> {
@@ -81,32 +100,21 @@ class LessonService {
         const lesson = await lessonRepository.findById(lessonId);
         if (!lesson) return false;
 
-        // Простая проверка - пользователь имеет доступ если он в allowedUsers
-        const userIdObj = new Types.ObjectId(userId);
-        return lesson.allowedUsers.some(allowedUserId => allowedUserId.equals(userIdObj));
-    }
-
-    async addUserToAllowed(lessonId: string, userId: string): Promise<Lesson> {
-        if (!isValidObjectIdString(lessonId) || !isValidObjectIdString(userId)) {
-            throw new AppError(400, "Некорректный ID урока или пользователя");
-        }
-
-        const lesson = await lessonRepository.findById(lessonId);
-        if (!lesson) throw new AppError(404, "Урок не найден");
-
+        // Проверяем доступ через родительский курс
+        const course = await courseService.getById(lesson.courseId.toString());
         const userIdObj = new Types.ObjectId(userId);
 
-        // Проверяем, не добавлен ли уже пользователь
-        if (lesson.allowedUsers.some(id => id.equals(userIdObj))) {
-            throw new AppError(409, "Пользователь уже имеет доступ к этому уроку");
-        }
+        // Доступ есть у:
+        // 1. Автора курса
+        // 2. Пользователей из allowedUsers курса
+        // 3. Если курс опубликован - доступ у всех (по логике задания)
+        const isAuthor = course.author.equals(userIdObj);
+        const isAllowedUser = course.allowedUsers?.some(allowedUserId =>
+            allowedUserId.equals(userIdObj)
+        ) || false;
+        const isCoursePublished = course.isPublished;
 
-        // Добавляем пользователя
-        const updatedLesson = await lessonRepository.update(lessonId, {
-            allowedUsers: [...lesson.allowedUsers, userIdObj]
-        });
-
-        return updatedLesson;
+        return isAuthor || isAllowedUser || isCoursePublished;
     }
 }
 

@@ -18,6 +18,7 @@ export type Course = {
     ratings: Rating[];
     averageRating?: number;
     isPublished: boolean;
+    allowedUsers: Types.ObjectId[];
     createdAt: Date;
     updatedAt: Date;
 }

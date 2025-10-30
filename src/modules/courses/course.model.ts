@@ -71,7 +71,12 @@ const courseSchema = new Schema<Course>({
     isPublished: {
         type: Boolean,
         default: false
-    }
+    },
+    allowedUsers: [{
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        default: []
+    }]
 }, {
     timestamps: true // автоматически добавляет createdAt и updatedAt
 });

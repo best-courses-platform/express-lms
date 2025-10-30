@@ -18,8 +18,12 @@ coursesRouter.delete("/:id", CourseController.deleteCourse);
 coursesRouter.post("/:id/lessons/:lessonId", CourseController.addLesson);
 coursesRouter.delete("/:id/lessons/:lessonId", CourseController.removeLesson);
 
+// Управление доступом пользователей
+coursesRouter.post("/:id/allowed-users", CourseController.addUserToAllowed);
+coursesRouter.delete("/:id/allowed-users/:userId", CourseController.removeUserFromAllowed);
+
 // Управление рейтингами
 coursesRouter.post("/:id/ratings", CourseController.addRating);
-coursesRouter.get("/:id/ratings", CourseController.getRatings); // получить все рейтинги курса
+coursesRouter.get("/:id/ratings", CourseController.getRatings);
 
 export default coursesRouter;

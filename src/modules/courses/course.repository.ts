@@ -119,6 +119,50 @@ class CourseRepository {
         return updatedCourse;
     }
 
+    async addUserToAllowed(courseId: string, userId: Types.ObjectId): Promise<Course> {
+        if (!Types.ObjectId.isValid(courseId)) {
+            throw new Error('Invalid course ID');
+        }
+
+        const updatedCourse = await CourseModel.findByIdAndUpdate(
+            courseId,
+            { $addToSet: { allowedUsers: userId } }, // $addToSet предотвращает дубликаты
+            { new: true, runValidators: true }
+        )
+            .populate('author', 'name email avatar')
+            .populate('allowedUsers', 'name email')
+            .populate('lessons', 'title duration')
+            .exec();
+
+        if (!updatedCourse) {
+            throw new Error('Course not found');
+        }
+
+        return updatedCourse;
+    }
+
+    async removeUserFromAllowed(courseId: string, userId: Types.ObjectId): Promise<Course> {
+        if (!Types.ObjectId.isValid(courseId)) {
+            throw new Error('Invalid course ID');
+        }
+
+        const updatedCourse = await CourseModel.findByIdAndUpdate(
+            courseId,
+            { $pull: { allowedUsers: userId } },
+            { new: true, runValidators: true }
+        )
+            .populate('author', 'name email avatar')
+            .populate('allowedUsers', 'name email')
+            .populate('lessons', 'title duration')
+            .exec();
+
+        if (!updatedCourse) {
+            throw new Error('Course not found');
+        }
+
+        return updatedCourse;
+    }
+
     async addRating(courseId: string, rating: { userId: Types.ObjectId; value: number; createdAt: Date }): Promise<Course> {
         if (!Types.ObjectId.isValid(courseId)) {
             throw new Error('Invalid course ID');
