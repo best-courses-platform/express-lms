@@ -1,5 +1,5 @@
 import { model, Schema } from 'mongoose';
-import { Lesson } from "./lesson.types";
+import { Lesson, VideoFile, LessonResource } from "./lesson.types";
 
 const lessonResourceSchema = new Schema({
     type: {
@@ -11,11 +11,19 @@ const lessonResourceSchema = new Schema({
         type: String,
         required: true
     },
-    url: {
-        type: String,
-        required: true
-    },
-    description: String
+    url: String,
+    description: String,
+    fileSize: Number,
+    mimeType: String,
+    originalName: String
+}, { _id: false });
+
+const videoFileSchema = new Schema({
+    url: String,
+    originalName: String,
+    size: Number,
+    duration: Number,
+    mimeType: String
 }, { _id: false });
 
 const lessonSchema = new Schema<Lesson>({
@@ -30,7 +38,6 @@ const lessonSchema = new Schema<Lesson>({
     },
     courseId: {
         type: Schema.Types.ObjectId,
-        ref: 'Course',
         required: true
     },
     order: {
@@ -38,15 +45,7 @@ const lessonSchema = new Schema<Lesson>({
         required: true,
         min: 1
     },
-    videoUrl: {
-        type: String,
-        validate: {
-            validator: function(v: string) {
-                return !v || /^https?:\/\/.+/.test(v);
-            },
-            message: 'URL видео должен быть валидным URL'
-        }
-    },
+    videoFile: videoFileSchema,
     resources: [lessonResourceSchema],
     inputExamples: String,
     outputExamples: String,

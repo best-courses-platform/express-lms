@@ -9,7 +9,6 @@ import usersRoutes from './modules/users/user.routes';
 import coursesRouter from './modules/courses/course.routes';
 import lessonsRouter from './modules/lessons/lesson.routes';
 import viewsRouter from './modules/views/view.routes';
-import {validateConfig} from "./config/config";
 import { initializePassport } from './passport/config';
 import {refreshTokenMiddleware} from "./middleware/refresh-token";
 
@@ -47,7 +46,6 @@ app.use(cookieParser());
 
 app.use(passport.initialize());
 
-validateConfig();
 initializePassport();
 
 

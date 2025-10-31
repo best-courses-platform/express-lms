@@ -3,54 +3,74 @@ import type { ServerOptions } from 'https';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
-import { config } from "./config/config.js";
+import { config, validateConfig } from "./config/config.js";
 import mongoose from 'mongoose';
 
-// MongoDB connection
+// Подключение к MongoDB
 mongoose.connect(config.mongoUri)
-    .then(() => console.log('Connected to MongoDB'))
-    .catch((error) => console.error('MongoDB connection error:', error));
+    .then(() => console.log('Успешное подключение к MongoDB'))
+    .catch((error) => console.error('Ошибка подключения к MongoDB:', error));
 
 const PORT = config.port;
 
-const __dirname = path.resolve();
-//
-// // Проверяем наличие SSL сертификатов для HTTPS
-const certPath = path.join(__dirname, 'certificates'); // предполагая, что certificates на уровне src
-const hasCertificates = fs.existsSync(path.join(certPath, 'private-key.pem')) &&
-    fs.existsSync(path.join(certPath, 'certificate.pem'));
-
-const httpsOptions: ServerOptions = {
-    key: fs.readFileSync(path.join(certPath, 'private-key.pem')),
-    cert: fs.readFileSync(path.join(certPath, 'certificate.pem')),
-};
+const isProduction = process.env.NODE_ENV === 'production';
 
 const start = async () => {
     try {
-        const protocol = hasCertificates && process.env.NODE_ENV === 'production' ? 'HTTPS' : 'HTTP';
-        console.log(`Starting ${protocol} server...`);
+        if (!isProduction) {
+            validateConfig(); // Проверяем настройки только при разработке
 
-        if (hasCertificates && process.env.NODE_ENV === 'production') {
-            // HTTPS в продакшене
-            https.createServer(httpsOptions, app).listen(PORT, () =>
-                console.log(`App listening on https://localhost:${PORT}`))
-        } else {
-            // HTTP в разработке
+            console.log(`Запуск HTTP сервера для разработки...`);
+
             app.listen(PORT, () => {
-                console.log(`App listening on http://localhost:${PORT}`);
+                console.log(`Приложение для разработки запущено на http://localhost:${PORT}`);
             });
+
+            return;
+        }
+
+        console.log(`Запуск продакшен сервера...`);
+
+        const __dirname = path.resolve();
+        const certPath = path.join(__dirname, 'certificates');
+        const keyPath = path.join(certPath, 'private-key.pem');
+        const certPathFull = path.join(certPath, 'certificate.pem');
+
+        const hasCertificates = fs.existsSync(keyPath) && fs.existsSync(certPathFull);
+
+        if (hasCertificates) {
+            const httpsOptions: ServerOptions = {
+                key: fs.readFileSync(keyPath),
+                cert: fs.readFileSync(certPathFull),
+            };
+
+            console.log(`Запуск HTTPS сервера с SSL...`);
+
+            https.createServer(httpsOptions, app).listen(PORT, () =>
+                console.log(`Продакшен приложение запущено на https://localhost:${PORT}`)
+            );
+        } else {
+            console.warn('SSL сертификаты не найдены в продакшене!');
+            startHttpServer();
         }
     } catch (err) {
-        console.error('Failed to start the application')
-        console.error(err)
-        process.exit(1)
+        console.error('Не удалось запустить приложение');
+        console.error(err);
+        process.exit(1);
     }
 }
 
+function startHttpServer() {
+    console.log(`Запуск HTTP сервера...`);
+    app.listen(PORT, () => {
+        console.log(`Продакшен приложение запущено на http://localhost:${PORT}`);
+    });
+}
+
 process.on('SIGINT', async () => {
-    console.log('App closed')
+    console.log('Приложение закрыто');
     await mongoose.connection.close();
-    process.exit()
-})
+    process.exit();
+});
 
 start();

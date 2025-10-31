@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as LessonController from "./lesson.controller";
+import { uploadMiddleware, uploadSmallFilesMiddleware } from "../../middleware/upload.middleware";
 
 const lessonsRouter = Router();
 
@@ -14,5 +15,21 @@ lessonsRouter.delete("/:id", LessonController.deleteLesson);
 lessonsRouter.get("/course/:courseId", LessonController.getLessonsByCourse);
 lessonsRouter.post("/course/:courseId", LessonController.createLessonForCourse);
 lessonsRouter.get("/:lessonId/access/:userId", LessonController.checkLessonAccess);
+
+lessonsRouter.post(
+    "/:lessonId/files/video",
+    uploadMiddleware.single('file'),
+    LessonController.uploadLessonFile
+);
+
+// Для ресурсов (небольшие файлы)
+lessonsRouter.post(
+    "/:lessonId/files/resource",
+    uploadSmallFilesMiddleware.single('file'),
+    LessonController.uploadLessonFile
+);
+
+lessonsRouter.delete("/:lessonId/files", LessonController.deleteLessonFile);
+lessonsRouter.delete("/:lessonId/resources/:resourceIndex", LessonController.deleteLessonResource);
 
 export default lessonsRouter;

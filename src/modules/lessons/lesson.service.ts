@@ -1,9 +1,10 @@
-import { Lesson, NewLesson, UpdateLesson } from "./lesson.types";
+import {Lesson, LessonResource, NewLesson, UpdateLesson, VideoFile} from "./lesson.types";
 import { lessonRepository } from "./lesson.repository";
 import { courseService } from "courses/course.service";
 import { Types } from 'mongoose';
 import { AppError } from "../../utils/errors";
 import { toObjectIdString, isValidObjectIdString } from "../../utils/typeGuards";
+import {fileStorageService, UploadedFile} from "file-storage/file-storage.service";
 
 class LessonService {
     async create(input: NewLesson): Promise<Lesson> {
@@ -115,6 +116,198 @@ class LessonService {
         const isCoursePublished = course.isPublished;
 
         return isAuthor || isAllowedUser || isCoursePublished;
+    }
+
+// lesson.service.ts
+    async uploadFile(
+        lessonId: string,
+        fileData: UploadedFile,
+        fileType: 'video' | 'resource',
+        title?: string,
+        description?: string,
+        userId?: Types.ObjectId
+    ): Promise<Lesson> {
+        const lesson = await this.getById(lessonId);
+
+        if (userId) {
+            const course = await courseService.getById(lesson.courseId.toString());
+            if (!course.author.equals(userId)) {
+                throw new AppError(403, "Только автор курса может загружать файлы");
+            }
+        }
+
+        if (fileType === 'video') {
+            // ДЛЯ ВИДЕО: всегда заменяем существующее видео
+            const oldVideoUrl = lesson.videoFile?.url;
+
+            const videoFile: VideoFile = {
+                url: fileData.url,
+                originalName: fileData.originalName,
+                size: fileData.size,
+                mimeType: fileData.mimeType
+            };
+
+            console.log(`🎥 ${oldVideoUrl ? 'Замена' : 'Добавление'} видео для урока ${lessonId}`);
+            console.log(`Новое видео: ${fileData.url}`);
+            if (oldVideoUrl) {
+                console.log(`Старое видео: ${oldVideoUrl}`);
+            }
+
+            const updatedLesson = await lessonRepository.updateVideoFile(lessonId, videoFile);
+
+            // Удаляем старое видео из S3
+            if (oldVideoUrl && oldVideoUrl !== fileData.url) {
+                try {
+                    console.log(`Удаление старого видео: ${oldVideoUrl}`);
+                    await fileStorageService.deleteFile(oldVideoUrl);
+                    console.log(`Старое видео удалено: ${oldVideoUrl}`);
+                } catch (error) {
+                    console.error('Ошибка при удалении старого видео:', error);
+                    // Продолжаем выполнение даже если удаление не удалось
+                }
+            }
+
+            return updatedLesson;
+
+        } else {
+            // ДЛЯ РЕСУРСОВ: заменяем по названию
+            const resourceTitle = title || fileData.originalName;
+
+            // Ищем существующий ресурс с таким же названием
+            const existingResourceIndex = (lesson.resources || []).findIndex(
+                resource => resource.title === resourceTitle && resource.type === 'file'
+            );
+
+            let updatedLesson: Lesson;
+
+            if (existingResourceIndex !== -1) {
+                console.log(`Замена существующего ресурса: "${resourceTitle}"`);
+
+                // ЗАМЕНЯЕМ существующий ресурс
+                const oldResource = lesson.resources![existingResourceIndex];
+
+                console.log(`Новый ресурс: ${fileData.url}`);
+                console.log(`Старый ресурс: ${oldResource.url}`);
+
+                // Удаляем старый файл из S3 (если это другой файл)
+                if (oldResource.url && oldResource.url !== fileData.url) {
+                    try {
+                        console.log(`Удаление старого файла ресурса: ${oldResource.url}`);
+                        await fileStorageService.deleteFile(oldResource.url);
+                        console.log(`Старый файл ресурса удален: ${oldResource.url}`);
+                    } catch (error) {
+                        console.error('Ошибка при удалении старого файла ресурса:', error);
+                    }
+                }
+
+                // Создаем обновленный ресурс
+                const updatedResource: LessonResource = {
+                    type: 'file',
+                    title: resourceTitle,
+                    url: fileData.url,
+                    description: description || oldResource.description,
+                    fileSize: fileData.size,
+                    mimeType: fileData.mimeType,
+                    originalName: fileData.originalName
+                };
+
+                // Заменяем ресурс по индексу
+                const updatedResources = [...(lesson.resources || [])];
+                updatedResources[existingResourceIndex] = updatedResource;
+
+                updatedLesson = await lessonRepository.update(lessonId, {
+                    resources: updatedResources
+                });
+
+                console.log(`Ресурс "${resourceTitle}" заменен`);
+
+            } else {
+                // ДОБАВЛЯЕМ новый ресурс
+                console.log(`Добавление нового ресурса: "${resourceTitle}"`);
+
+                const resource: LessonResource = {
+                    type: 'file',
+                    title: resourceTitle,
+                    url: fileData.url,
+                    description,
+                    fileSize: fileData.size,
+                    mimeType: fileData.mimeType,
+                    originalName: fileData.originalName
+                };
+
+                updatedLesson = await lessonRepository.addResource(lessonId, resource);
+            }
+
+            return updatedLesson;
+        }
+    }
+
+    async deleteFile(
+        lessonId: string,
+        fileUrl: string,
+        fileType: 'video' | 'resource',
+        userId?: Types.ObjectId
+    ): Promise<Lesson> {
+        const lesson = await this.getById(lessonId);
+
+        if (userId) {
+            const course = await courseService.getById(lesson.courseId.toString());
+            if (!course.author.equals(userId)) {
+                throw new AppError(403, "Только автор курса может удалять файлы");
+            }
+        }
+
+        // Удаляем файл из Selectel
+        await fileStorageService.deleteFile(fileUrl);
+
+        if (fileType === 'video') {
+            // Удаляем видео из урока
+            return lessonRepository.updateVideoFile(lessonId, undefined);
+        } else {
+            // Ищем индекс ресурса по URL
+            const resourceIndex = (lesson.resources || []).findIndex(
+                resource => resource.url === fileUrl
+            );
+
+            if (resourceIndex === -1) {
+                throw new AppError(404, "Ресурс не найден");
+            }
+
+            // ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД РЕПОЗИТОРИЯ
+            return lessonRepository.removeResourceByIndex(lessonId, resourceIndex);
+        }
+    }
+
+    async deleteResourceByIndex(
+        lessonId: string,
+        resourceIndex: number,
+        userId: Types.ObjectId
+    ): Promise<Lesson> {
+        const lesson = await this.getById(lessonId);
+
+        const course = await courseService.getById(lesson.courseId.toString());
+        if (!course.author.equals(userId)) {
+            throw new AppError(403, "Только автор курса может удалять ресурсы");
+        }
+
+        if (!lesson.resources || resourceIndex >= lesson.resources.length) {
+            throw new AppError(404, "Ресурс не найден");
+        }
+
+        const resourceToDelete = lesson.resources[resourceIndex];
+
+        // Удаляем файл из Selectel только если есть URL
+        if (resourceToDelete.type === 'file' && resourceToDelete.url) {
+            try {
+                await fileStorageService.deleteFile(resourceToDelete.url);
+            } catch (error) {
+                console.error('Ошибка при удалении файла из хранилища:', error);
+                // Не прерываем выполнение, продолжаем удалять ресурс из БД
+            }
+        }
+
+        // Используем метод репозитория
+        return lessonRepository.removeResourceByIndex(lessonId, resourceIndex);
     }
 }
 

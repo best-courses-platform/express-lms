@@ -78,29 +78,29 @@ export class JWTService {
             sameSite: 'lax' as const
         };
 
-        // // Access token (8 часов)
-        // res.cookie('access_token', accessToken, {
-        //     ...cookieOptions,
-        //     maxAge: 8 * 60 * 60 * 1000 // 8 часов
-        // });
-        //
-        // // Refresh token (30 дней)
-        // res.cookie('refresh_token', refreshToken, {
-        //     ...cookieOptions,
-        //     maxAge: 30 * 24 * 60 * 60 * 1000 // 30 дней
-        // });
-
-        // Access token (1 минута)
+        // Access token (8 часов)
         res.cookie('access_token', accessToken, {
             ...cookieOptions,
-            maxAge: 1 * 60 * 1000 // 1 минута
+            maxAge: 8 * 60 * 60 * 1000 // 8 часов
         });
 
-        // Refresh token (5 минут)
+        // Refresh token (30 дней)
         res.cookie('refresh_token', refreshToken, {
             ...cookieOptions,
-            maxAge: 5 * 60 * 1000 // 5 минут
+            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 дней
         });
+
+        // // Access token (1 минута)
+        // res.cookie('access_token', accessToken, {
+        //     ...cookieOptions,
+        //     maxAge: 1 * 60 * 1000 // 1 минута
+        // });
+        //
+        // // Refresh token (5 минут)
+        // res.cookie('refresh_token', refreshToken, {
+        //     ...cookieOptions,
+        //     maxAge: 5 * 60 * 1000 // 5 минут
+        // });
     }
 
     // Очистка ВСЕХ cookies

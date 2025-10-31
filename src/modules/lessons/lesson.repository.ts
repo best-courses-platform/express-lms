@@ -10,8 +10,7 @@ class LessonRepository {
 
     async findAll(): Promise<Lesson[]> {
         return await LessonModel.find()
-            .populate('courseId', 'title description')
-            .populate('allowedUsers', 'name email')
+            .populate('courseId', 'title description author') // ДОБАВИТЬ author
             .sort({ createdAt: -1 })
             .exec();
     }
@@ -19,8 +18,7 @@ class LessonRepository {
     async findById(id: string): Promise<Lesson | null> {
         if (!Types.ObjectId.isValid(id)) return null;
         return await LessonModel.findById(id)
-            .populate('courseId', 'title description')
-            .populate('allowedUsers', 'name email')
+            .populate('courseId', 'title description author') // ДОБАВИТЬ author
             .exec();
     }
 
@@ -35,8 +33,8 @@ class LessonRepository {
     async findByCourseId(courseId: string): Promise<Lesson[]> {
         if (!Types.ObjectId.isValid(courseId)) return [];
         return await LessonModel.find({ courseId: new Types.ObjectId(courseId) })
-            .populate('allowedUsers', 'name email')
-            .sort({ order: 1 }) // сортируем по порядку
+            .populate('courseId', 'title description author') // ДОБАВИТЬ author
+            .sort({ order: 1 })
             .exec();
     }
 
@@ -46,7 +44,7 @@ class LessonRepository {
         const skip = (page - 1) * limit;
         const [lessons, total] = await Promise.all([
             LessonModel.find({ courseId: new Types.ObjectId(courseId) })
-                .populate('allowedUsers', 'name email')
+                .populate('courseId', 'title description author') // ДОБАВИТЬ author
                 .sort({ order: 1 })
                 .skip(skip)
                 .limit(limit)
@@ -67,8 +65,7 @@ class LessonRepository {
             { ...patch },
             { new: true, runValidators: true }
         )
-            .populate('courseId', 'title description')
-            .populate('allowedUsers', 'name email')
+            .populate('courseId', 'title description author') // ДОБАВИТЬ author
             .exec();
 
         if (!updatedLesson) {
@@ -85,47 +82,16 @@ class LessonRepository {
         return !!result;
     }
 
+    // УДАЛИТЬ эти методы - они больше не нужны
+    /*
     async addUserToAllowed(lessonId: string, userId: Types.ObjectId): Promise<Lesson> {
-        if (!Types.ObjectId.isValid(lessonId)) {
-            throw new Error('Invalid lesson ID');
-        }
-
-        const updatedLesson = await LessonModel.findByIdAndUpdate(
-            lessonId,
-            { $addToSet: { allowedUsers: userId } }, // $addToSet предотвращает дубликаты
-            { new: true, runValidators: true }
-        )
-            .populate('courseId', 'title description')
-            .populate('allowedUsers', 'name email')
-            .exec();
-
-        if (!updatedLesson) {
-            throw new Error('Lesson not found');
-        }
-
-        return updatedLesson;
+        // УДАЛЕНО - доступ теперь контролируется через курс
     }
 
     async removeUserFromAllowed(lessonId: string, userId: Types.ObjectId): Promise<Lesson> {
-        if (!Types.ObjectId.isValid(lessonId)) {
-            throw new Error('Invalid lesson ID');
-        }
-
-        const updatedLesson = await LessonModel.findByIdAndUpdate(
-            lessonId,
-            { $pull: { allowedUsers: userId } },
-            { new: true, runValidators: true }
-        )
-            .populate('courseId', 'title description')
-            .populate('allowedUsers', 'name email')
-            .exec();
-
-        if (!updatedLesson) {
-            throw new Error('Lesson not found');
-        }
-
-        return updatedLesson;
+        // УДАЛЕНО - доступ теперь контролируется через курс
     }
+    */
 
     async getNextOrderNumber(courseId: string): Promise<number> {
         if (!Types.ObjectId.isValid(courseId)) return 1;
@@ -149,6 +115,79 @@ class LessonRepository {
         }));
 
         await LessonModel.bulkWrite(bulkOps);
+    }
+
+    // НОВЫЙ метод для обновления только видео файла
+    async updateVideoFile(lessonId: string, videoFile: any): Promise<Lesson> {
+        if (!Types.ObjectId.isValid(lessonId)) {
+            throw new Error('Invalid lesson ID');
+        }
+
+        const updatedLesson = await LessonModel.findByIdAndUpdate(
+            lessonId,
+            { videoFile },
+            { new: true, runValidators: true }
+        )
+            .populate('courseId', 'title description author')
+            .exec();
+
+        if (!updatedLesson) {
+            throw new Error('Lesson not found');
+        }
+
+        return updatedLesson;
+    }
+
+    // НОВЫЙ метод для добавления ресурса
+    async addResource(lessonId: string, resource: any): Promise<Lesson> {
+        if (!Types.ObjectId.isValid(lessonId)) {
+            throw new Error('Invalid lesson ID');
+        }
+
+        const updatedLesson = await LessonModel.findByIdAndUpdate(
+            lessonId,
+            { $push: { resources: resource } },
+            { new: true, runValidators: true }
+        )
+            .populate('courseId', 'title description author')
+            .exec();
+
+        if (!updatedLesson) {
+            throw new Error('Lesson not found');
+        }
+
+        return updatedLesson;
+    }
+
+    // НОВЫЙ метод для удаления ресурса по индексу
+    async removeResourceByIndex(lessonId: string, resourceIndex: number): Promise<Lesson> {
+        if (!Types.ObjectId.isValid(lessonId)) {
+            throw new Error('Invalid lesson ID');
+        }
+
+        // Создаем ключ для удаления элемента массива по индексу
+        const updateQuery: any = {};
+        updateQuery[`resources.${resourceIndex}`] = 1;
+
+        const updatedLesson = await LessonModel.findByIdAndUpdate(
+            lessonId,
+            { $unset: updateQuery },
+            { new: true, runValidators: true }
+        )
+            .populate('courseId', 'title description author')
+            .exec();
+
+        if (!updatedLesson) {
+            throw new Error('Lesson not found');
+        }
+
+        // Убираем null значения из массива
+        await LessonModel.findByIdAndUpdate(
+            lessonId,
+            { $pull: { resources: null } }
+        ).exec();
+
+        return updatedLesson;
     }
 }
 

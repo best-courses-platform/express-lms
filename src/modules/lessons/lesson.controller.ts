@@ -3,6 +3,8 @@ import { lessonService } from "./lesson.service";
 import { courseService } from "courses/course.service";
 import { AppError } from "../../utils/errors";
 import { isAuthenticatedRequest, getUserIdFromRequest } from "../../utils/typeGuards";
+import {UploadedFile} from "file-storage/file-storage.service";
+import {getSelectelPublicUrl} from "../../config/config";
 
 export const createLessonForCourse: RequestHandler = async (req, res, next) => {
     try {
@@ -98,5 +100,94 @@ export const checkLessonAccess: RequestHandler = async (req, res, next) => {
     try {
         const hasAccess = await lessonService.checkUserAccess(req.params.lessonId, req.params.userId);
         res.json({ hasAccess });
+    } catch (e) { next(e); }
+};
+
+// lesson.controller.ts
+// lesson.controller.ts (упрощенная версия)
+export const uploadLessonFile: RequestHandler = async (req, res, next) => {
+    try {
+        const { lessonId } = req.params;
+        const { fileType, title, description } = req.body;
+        const userId = req.user?._id;
+
+        if (!fileType || !['video', 'resource'].includes(fileType)) {
+            throw new AppError(400, "fileType должен быть 'video' или 'resource'");
+        }
+
+        if (!req.file) {
+            throw new AppError(400, "Файл не загружен");
+        }
+
+        const uploadedFile: UploadedFile = {
+            url: (req.file as any).location || getSelectelPublicUrl((req.file as any).key),
+            originalName: req.file.originalname,
+            size: req.file.size,
+            mimeType: req.file.mimetype
+        };
+
+        console.log(`Файл загружен: ${uploadedFile.url}`);
+
+        const result = await lessonService.uploadFile(
+            lessonId,
+            uploadedFile,
+            fileType,
+            title,
+            description,
+            userId
+        );
+
+        res.json({
+            success: true,
+            message: 'Файл успешно загружен',
+            data: result,
+            fileUrl: uploadedFile.url
+        });
+    } catch (e) { next(e); }
+};
+
+export const deleteLessonFile: RequestHandler = async (req, res, next) => {
+    try {
+        if (!isAuthenticatedRequest(req)) {
+            throw new AppError(401, "Требуется авторизация");
+        }
+
+        const userId = getUserIdFromRequest(req);
+        const lessonId = req.params.lessonId;
+        const fileUrl = req.body.fileUrl;
+        const fileType = req.body.fileType as 'video' | 'resource';
+
+        const updatedLesson = await lessonService.deleteFile(
+            lessonId,
+            fileUrl,
+            fileType,
+            userId
+        );
+
+        res.json(updatedLesson);
+    } catch (e) { next(e); }
+};
+
+export const deleteLessonResource: RequestHandler = async (req, res, next) => {
+    try {
+        if (!isAuthenticatedRequest(req)) {
+            throw new AppError(401, "Требуется авторизация");
+        }
+
+        const userId = getUserIdFromRequest(req);
+        const lessonId = req.params.lessonId;
+        const resourceIndex = parseInt(req.params.resourceIndex);
+
+        if (isNaN(resourceIndex)) {
+            throw new AppError(400, "Некорректный индекс ресурса");
+        }
+
+        const updatedLesson = await lessonService.deleteResourceByIndex(
+            lessonId,
+            resourceIndex,
+            userId
+        );
+
+        res.json(updatedLesson);
     } catch (e) { next(e); }
 };

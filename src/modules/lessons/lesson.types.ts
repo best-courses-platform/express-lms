@@ -7,8 +7,19 @@ export type LessonResourceType = 'file' | 'link' | 'video';
 export type LessonResource = {
     type: LessonResourceType;
     title: string;
-    url: string; // URL файла, видео или ссылки
+    url?: string;
     description?: string;
+    fileSize?: number;
+    mimeType?: string;
+    originalName?: string;
+};
+
+export type VideoFile = {
+    url?: string;
+    originalName?: string;
+    size?: number;
+    duration?: number;
+    mimeType?: string;
 };
 
 // Основной тип урока
@@ -18,7 +29,7 @@ export type Lesson = {
     description: string;
     courseId: Types.ObjectId; // Ссылка на курс, к которому принадлежит урок
     order: number; // Порядковый номер урока в курсе
-    videoUrl?: string; // URL видео (если есть)
+    videoFile?: VideoFile; // для загруженных видео через Selectel
     resources?: LessonResource[]; // Дополнительные ресурсы
     inputExamples?: string; // Примеры входных данных
     outputExamples?: string; // Примеры выходных данных
