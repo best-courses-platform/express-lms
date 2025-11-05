@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as LessonController from "./lesson.controller";
-import { uploadMiddleware, uploadSmallFilesMiddleware } from "../../middleware/upload.middleware";
+import { uploadFile, uploadSmallFilesMiddleware } from "../../middleware/upload-file";
 
 const lessonsRouter = Router();
 
@@ -18,7 +18,7 @@ lessonsRouter.get("/:lessonId/access/:userId", LessonController.checkLessonAcces
 
 lessonsRouter.post(
     "/:lessonId/files/video",
-    uploadMiddleware.single('file'),
+    uploadFile.single('file'),
     LessonController.uploadLessonFile
 );
 

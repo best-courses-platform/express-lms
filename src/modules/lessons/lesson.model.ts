@@ -1,5 +1,5 @@
 import { model, Schema } from 'mongoose';
-import { Lesson, VideoFile, LessonResource } from "./lesson.types";
+import { Lesson } from "./lesson.types";
 
 const lessonResourceSchema = new Schema({
     type: {

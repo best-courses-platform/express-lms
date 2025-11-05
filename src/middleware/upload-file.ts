@@ -1,4 +1,3 @@
-// middleware/upload.middleware.ts
 import multer from 'multer';
 import { S3Client } from "@aws-sdk/client-s3";
 import multerS3 from 'multer-s3';
@@ -12,25 +11,7 @@ interface UploadRequest extends Request {
     };
 }
 
-// Создаем клиент только если Selectel настроен
-let s3Client: S3Client | null = null;
-
-if (isSelectelConfigured()) {
-    s3Client = new S3Client({
-        region: config.selectel.region,
-        endpoint: config.selectel.endpoint,
-        credentials: {
-            accessKeyId: config.selectel.accessKeyId,
-            secretAccessKey: config.selectel.secretAccessKey,
-        },
-        forcePathStyle: false,
-    });
-    console.log('Selectel S3 клиент инициализирован');
-} else {
-    console.warn('Selectel S3 не настроен, используется memory storage');
-}
-
-// Функция для создания конфигурации multer
+// Базовые настройки multer
 const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
     const baseConfig: multer.Options = {
         limits: {
@@ -70,8 +51,18 @@ const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
         }
     };
 
-    // Если Selectel настроен, используем S3 storage
-    if (s3Client && isSelectelConfigured()) {
+    // Если Selectel настроен, используем S3 storage для автоматической загрузки
+    if (isSelectelConfigured()) {
+        const s3Client = new S3Client({
+            region: config.selectel.region,
+            endpoint: config.selectel.endpoint,
+            credentials: {
+                accessKeyId: config.selectel.accessKeyId,
+                secretAccessKey: config.selectel.secretAccessKey,
+            },
+            forcePathStyle: false,
+        });
+
         baseConfig.storage = multerS3({
             s3: s3Client,
             bucket: config.selectel.bucketName,
@@ -82,7 +73,6 @@ const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
                     mimeType: file.mimetype
                 });
             },
-
             key: function (req: UploadRequest, file, cb) {
                 const lessonId = req.params.lessonId;
 
@@ -92,25 +82,27 @@ const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
                 }
 
                 const timestamp = Date.now();
-                const randomString = Math.random().toString(36).substring(2, 15); // Увеличиваем длину для уникальности
+                const randomString = Math.random().toString(36).substring(2, 15);
                 const safeFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
 
-                // Простая и понятная структура
+                // Используем lessons/{lessonId} без подпапок по типам
+                // Тип файла будет обрабатываться в сервисе
                 const filename = `${timestamp}-${randomString}-${safeFileName}`;
                 const folder = `lessons/${lessonId}`;
 
                 const fullPath = `${folder}/${filename}`;
-                console.log(`Загрузка файла: ${fullPath}`);
+                console.log(`Автоматическая загрузка файла через multer-s3: ${fullPath}`);
 
                 cb(null, fullPath);
             }
         });
     } else {
+        // Иначе используем memory storage и FileStorageService обработает загрузку
         baseConfig.storage = multer.memoryStorage();
     }
 
     return baseConfig;
 };
 
-export const uploadMiddleware = multer(createMulterConfig(false));
+export const uploadFile = multer(createMulterConfig(false));
 export const uploadSmallFilesMiddleware = multer(createMulterConfig(true));

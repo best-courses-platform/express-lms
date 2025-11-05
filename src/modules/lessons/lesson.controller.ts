@@ -3,8 +3,7 @@ import { lessonService } from "./lesson.service";
 import { courseService } from "courses/course.service";
 import { AppError } from "../../utils/errors";
 import { isAuthenticatedRequest, getUserIdFromRequest } from "../../utils/typeGuards";
-import {UploadedFile} from "file-storage/file-storage.service";
-import {getSelectelPublicUrl} from "../../config/config";
+import { fileStorageService } from "file-storage/file-storage.service";
 
 export const createLessonForCourse: RequestHandler = async (req, res, next) => {
     try {
@@ -104,7 +103,6 @@ export const checkLessonAccess: RequestHandler = async (req, res, next) => {
 };
 
 // lesson.controller.ts
-// lesson.controller.ts (упрощенная версия)
 export const uploadLessonFile: RequestHandler = async (req, res, next) => {
     try {
         const { lessonId } = req.params;
@@ -119,14 +117,21 @@ export const uploadLessonFile: RequestHandler = async (req, res, next) => {
             throw new AppError(400, "Файл не загружен");
         }
 
-        const uploadedFile: UploadedFile = {
-            url: (req.file as any).location || getSelectelPublicUrl((req.file as any).key),
-            originalName: req.file.originalname,
+        console.log('Получен файл через multer:', {
+            originalname: req.file.originalname,
             size: req.file.size,
-            mimeType: req.file.mimetype
-        };
+            mimetype: req.file.mimetype,
+            location: (req.file as any).location,
+            key: (req.file as any).key
+        });
 
-        console.log(`Файл загружен: ${uploadedFile.url}`);
+        // Используем FileStorageService для загрузки файла
+        const uploadedFile = await fileStorageService.uploadMulterFile(
+            req.file as any, // Приводим к правильному типу
+            lessonId
+        );
+
+        console.log(`Файл обработан: ${uploadedFile.url}`);
 
         const result = await lessonService.uploadFile(
             lessonId,
@@ -143,7 +148,10 @@ export const uploadLessonFile: RequestHandler = async (req, res, next) => {
             data: result,
             fileUrl: uploadedFile.url
         });
-    } catch (e) { next(e); }
+    } catch (e) {
+        console.error('Ошибка при загрузке файла:', e);
+        next(e);
+    }
 };
 
 export const deleteLessonFile: RequestHandler = async (req, res, next) => {
