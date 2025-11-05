@@ -50,8 +50,8 @@ initializePassport();
 
 
 // API routes
-app.use(refreshTokenMiddleware);
 app.use("/api/auth", authRoutes);  // → POST /api/auth/login
+app.use(refreshTokenMiddleware);
 app.use("/api/users", usersRoutes);
 app.use('/api/courses', coursesRouter);
 app.use('/api/lessons', lessonsRouter);

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import passport from 'passport';
-import { AuthService } from '../modules/auth/auth.service';
+import { AuthService } from 'auth/auth.service';
 
 // Type guard (реэкспорт из сервиса)
 export const isAuthenticatedUser = AuthService.isValidUser;

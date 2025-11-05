@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { userService } from '../users/user.service';
-import { User } from '../users/user.types';
+import { userService } from 'users/user.service';
+import { User } from 'users/user.types';
 import { JWTService } from '../../utils/jwt';
 
 export class AuthService {
