@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "ESNext",
+    "module": "CommonJS",
     "moduleResolution": "node",
     "lib": ["ES2020"],
     "outDir": "./dist",
@@ -20,7 +20,11 @@
     "emitDecoratorMetadata": true,
     "typeRoots": [
       "./node_modules/@types", "./src/types"],
-    "types": ["node", "express"]
+    "types": ["node", "express"],
+    "baseUrl": "./src",
+    "paths": {
+      "*": ["*", "modules/*"]
+    }
   },
   "include": ["src/**/*", "src/types/**/*.d.ts"],
   "exclude": [

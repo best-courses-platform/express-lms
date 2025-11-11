@@ -1,0 +1,118 @@
+{{! views/pages/home.hbs }}
+<div class="home-container">
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1 class="hero-title">Best Courses Ever</h1>
+                <p class="hero-subtitle">Платформа для создания и прохождения образовательных курсов</p>
+                <p class="hero-description">Присоединяйтесь к сообществу преподавателей и студентов. Создавайте, изучайте, развивайтесь вместе с нами.</p>
+
+                {{#unless user}}
+                    <div class="hero-actions">
+                        <a href="/register" class="btn btn-primary btn-large">
+                            Начать обучение
+                        </a>
+                        <a href="/courses" class="btn btn-secondary btn-large">
+                            Смотреть курсы
+                        </a>
+                    </div>
+                {{else}}
+                    <div class="user-welcome">
+                        <h2>Добро пожаловать, {{user.name}}!</h2>
+                        <p class="user-role">Ваша роль: <span class="role-badge">{{user.role}}</span></p>
+                        <div class="action-buttons">
+                            <a href="/courses" class="btn btn-primary">Смотреть курсы</a>
+                            {{#if (eq user.role "author")}}
+                                <a href="/courses/create" class="btn btn-success">Создать курс</a>
+                            {{/if}}
+                            <a href="/profile" class="btn btn-secondary">Мой профиль</a>
+                        </div>
+                    </div>
+                {{/unless}}
+            </div>
+            <div class="hero-visual">
+                <div class="floating-card card-1">
+                    <div class="card-icon">📚</div>
+                    <h4>Курсы</h4>
+                </div>
+                <div class="floating-card card-2">
+                    <div class="card-icon">👨‍🏫</div>
+                    <h4>Преподаватели</h4>
+                </div>
+                <div class="floating-card card-3">
+                    <div class="card-icon">🎓</div>
+                    <h4>Студенты</h4>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <h2 class="section-title">Почему выбирают нас</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <h3 class="feature-title">Создавайте курсы</h3>
+                    <p class="feature-description">Станьте автором и делитесь своими знаниями с тысячами студентов по всему миру</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3 class="feature-title">Изучайте новое</h3>
+                    <p class="feature-description">Доступ к тысячам образовательных материалов по разным темам и направлениям</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <h3 class="feature-title">Общайтесь</h3>
+                    <p class="feature-description">Комментируйте уроки, задавайте вопросы преподавателям и помогайте другим студентам</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3 class="feature-title">Отслеживайте прогресс</h3>
+                    <p class="feature-description">Мониторьте свой учебный прогресс и достигайте поставленных целей</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🏆</div>
+                    <h3 class="feature-title">Получайте сертификаты</h3>
+                    <p class="feature-description">Получайте официальные сертификаты о прохождении курсов</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🌍</div>
+                    <h3 class="feature-title">Учитесь из любой точки мира</h3>
+                    <p class="feature-description">Доступ к платформе с любого устройства в любое время</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats">
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number">1000+</div>
+                    <div class="stat-label">Курсов</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">5000+</div>
+                    <div class="stat-label">Студентов</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">200+</div>
+                    <div class="stat-label">Преподавателей</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">98%</div>
+                    <div class="stat-label">Удовлетворенных пользователей</div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>

@@ -1,14 +1,16 @@
 import { User, NewUser, UpdateUser } from "./user.types";
 import { userRepository } from "./user.repository";
 import { AppError } from "../../utils/errors";
+import {isUserDocumentStrict, isUserWithPassword, toSafeUser} from '../../utils/typeGuards';
 
- class UserService {
-    async create(input: NewUser): Promise<User> {
-        const exists = await userRepository.findByEmail(input.email);
+class UserService {
+    async create(userData: NewUser): Promise<User> {
+        const normalizedEmail = userData.email.toLowerCase().trim();
+        const exists = await userRepository.findByEmail(normalizedEmail);
 
         if (exists) throw new AppError(409, "Email already in use");
 
-        return userRepository.create(input);
+        return userRepository.create(userData);
     }
 
     async list(): Promise<User[]> {
@@ -29,9 +31,9 @@ import { AppError } from "../../utils/errors";
         if (!user) throw new AppError(404, "User not found");
 
         if (patch.email && patch.email !== user.email) {
-            const exists = await userRepository.findByEmail(patch.email);
+            const isTaken = await userRepository.isEmailTaken(patch.email, id);
 
-            if (exists) throw new AppError(409, "Email already in use");
+            if (isTaken) throw new AppError(409, "Email already in use");
         }
 
         return userRepository.update(id, patch);
@@ -41,6 +43,48 @@ import { AppError } from "../../utils/errors";
         const ok = await userRepository.delete(id);
 
         if (!ok) throw new AppError(404, "User not found");
+    }
+
+    async authenticate(email: string, password: string): Promise<User> {
+        const user = await userRepository.findByEmailWithPassword(email);
+
+        if (!user) throw new AppError(401, "Invalid credentials");
+
+        if (!isUserDocumentStrict(user)) {
+            throw new AppError(500, 'Authentication system error');
+        }
+
+        const isValidPassword = await user.comparePassword(password);
+
+        if (!isValidPassword) throw new AppError(401, "Invalid credentials");
+
+        const userPlainObject = user.toObject<User & { password: string }>();
+
+        if (!isUserWithPassword(userPlainObject)) {
+            throw new AppError(500, 'User transformation error');
+        }
+
+        const { password: _, ...userWithoutPassword } = userPlainObject;
+
+        return toSafeUser(userWithoutPassword);
+    }
+
+    // Метод для поиска/создания пользователя через OAuth
+    async findOrCreateFromOAuth(profile: any): Promise<User> {
+        let user = await userRepository.findByGoogleId(profile.id);
+
+        if (!user) {
+            // Создаем нового пользователя для OAuth
+            user = await userRepository.create({
+                name: profile.displayName,
+                email: profile.emails[0].value,
+                googleId: profile.id,
+                avatar: profile.photos[0].value,
+                role: 'student'
+            } as NewUser);
+        }
+
+        return user;
     }
 }
 

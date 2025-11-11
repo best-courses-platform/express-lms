@@ -3,5 +3,7 @@
 
 node_modules
 coverage
+certificates
+src/public/js
 
 .env

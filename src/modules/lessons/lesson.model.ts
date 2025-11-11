@@ -1,5 +1,5 @@
 import { model, Schema } from 'mongoose';
-import { ILesson } from "./lesson.types";
+import { Lesson } from "./lesson.types";
 
 const lessonResourceSchema = new Schema({
     type: {
@@ -11,14 +11,22 @@ const lessonResourceSchema = new Schema({
         type: String,
         required: true
     },
-    url: {
-        type: String,
-        required: true
-    },
-    description: String
+    url: String,
+    description: String,
+    fileSize: Number,
+    mimeType: String,
+    originalName: String
 }, { _id: false });
 
-const lessonSchema = new Schema<ILesson>({
+const videoFileSchema = new Schema({
+    url: String,
+    originalName: String,
+    size: Number,
+    duration: Number,
+    mimeType: String
+}, { _id: false });
+
+const lessonSchema = new Schema<Lesson>({
     title: {
         type: String,
         required: true,
@@ -30,7 +38,6 @@ const lessonSchema = new Schema<ILesson>({
     },
     courseId: {
         type: Schema.Types.ObjectId,
-        ref: 'Course',
         required: true
     },
     order: {
@@ -38,25 +45,13 @@ const lessonSchema = new Schema<ILesson>({
         required: true,
         min: 1
     },
-    videoUrl: {
-        type: String,
-        validate: {
-            validator: function(v: string) {
-                return !v || /^https?:\/\/.+/.test(v);
-            },
-            message: 'URL видео должен быть валидным URL'
-        }
-    },
+    videoFile: videoFileSchema,
     resources: [lessonResourceSchema],
     inputExamples: String,
     outputExamples: String,
     tags: [{
         type: String,
         trim: true
-    }],
-    allowedUsers: [{
-        type: Schema.Types.ObjectId,
-        ref: 'User'
     }]
 }, {
     timestamps: true // Автоматически добавляет createdAt и updatedAt
@@ -68,4 +63,4 @@ lessonSchema.index({ title: 1, courseId: 1 }, { unique: true });
 // Индекс для сортировки уроков в курсе
 lessonSchema.index({ courseId: 1, order: 1 });
 
-export const LessonModel = model<ILesson>('Lesson', lessonSchema);
+export const LessonModel = model<Lesson>('Lesson', lessonSchema);
