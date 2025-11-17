@@ -1,46 +1,27 @@
-import { RequestHandler, ErrorRequestHandler } from "express";
-import { AuthService } from "./auth.service";
-import { JWTService } from "../../utils/jwt";
+// domains/auth/auth.controller.ts
+import { RequestHandler } from "express";
+import {authService} from "./auth.service";
+import { JWTService } from "jwt/jwt.service";
 import { isAuthenticatedRequest } from "../../utils/typeGuards";
-import {userService} from "users/user.service";
+import { userService } from "users/user.service";
+import { validate } from "../../middleware/validate";
+import {
+    registerSchema,
+    loginSchema,
+    refreshTokenSchema,
+    updateProfileSchema,
+    changePasswordSchema
+} from "./auth.schema";
+import { AUTH_MESSAGES } from "./auth.constants";
 
 export const register: RequestHandler = async (req, res, next) => {
     try {
-        const { name, email, password, confirmPassword } = req.body;
+        const { user, accessToken, refreshToken } = await authService.register(req.body);
 
-        // Валидация
-        if (!name || !email || !password) {
-            res.status(400).json({ error: 'Все поля обязательны' });
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            res.status(400).json({ error: 'Пароли не совпадают' });
-            return;
-        }
-
-        if (password.length < 6) {
-            res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
-            return;
-        }
-
-        // Создание пользователя
-        const user = await userService.create({
-            name,
-            email,
-            password,
-            role: 'student'
-        });
-
-        // Генерируем ОБА токена для реального пользователя
-        const accessToken = AuthService.generateAccessToken(user);
-        const refreshToken = AuthService.generateRefreshToken(user);
-
-        // Устанавливаем ОБА cookies
         JWTService.setTokensCookies(res, accessToken, refreshToken);
 
         res.status(201).json({
-            message: 'Регистрация успешна',
+            message: AUTH_MESSAGES.SUCCESS.REGISTERED,
             token: accessToken,
             user: {
                 id: user._id.toString(),
@@ -49,31 +30,47 @@ export const register: RequestHandler = async (req, res, next) => {
                 role: user.role,
             }
         });
-    } catch (e) {
-        if (e instanceof Error && e.message.includes('уже существует')) {
-            res.status(409).json({ error: 'Пользователь с таким email уже существует' });
-            return;
-        }
-        next(e);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const login: RequestHandler = async (req, res, next) => {
+    try {
+        const { email, password } = req.body;
+        const { user, accessToken, refreshToken } = await authService.login(email, password);
+
+        JWTService.setTokensCookies(res, accessToken, refreshToken);
+
+        res.json({
+            message: AUTH_MESSAGES.SUCCESS.LOGGED_IN,
+            token: accessToken,
+            user: {
+                id: user._id.toString(),
+                email: user.email,
+                name: user.name,
+                role: user.role,
+            }
+        });
+    } catch (error) {
+        next(error);
     }
 };
 
 export const handleLoginSuccess: RequestHandler = async (req, res, next) => {
     try {
-        if (!req.user || !AuthService.isValidUser(req.user)) {
-            res.status(401).json({ error: 'Authentication failed' });
+        if (!req.user || !authService.isValidUser(req.user)) {
+            res.status(401).json({ error: AUTH_MESSAGES.ERROR.AUTH_FAILED });
             return;
         }
 
-        // Генерируем ОБА токена для реального пользователя
-        const accessToken = AuthService.generateAccessToken(req.user);
-        const refreshToken = AuthService.generateRefreshToken(req.user);
+        const accessToken = authService.generateAccessToken(req.user);
+        const refreshToken = authService.generateRefreshToken(req.user);
 
-        // Устанавливаем ОБА cookies
         JWTService.setTokensCookies(res, accessToken, refreshToken);
 
         res.json({
-            message: 'Login successful',
+            message: AUTH_MESSAGES.SUCCESS.LOGGED_IN,
             token: accessToken,
             user: {
                 id: req.user._id.toString(),
@@ -82,66 +79,71 @@ export const handleLoginSuccess: RequestHandler = async (req, res, next) => {
                 role: req.user.role,
             }
         });
-    } catch (e) { next(e); }
+    } catch (error) {
+        next(error);
+    }
 };
 
 export const handleOAuthCallback: RequestHandler = async (req, res, next) => {
     try {
-        if (!req.user || !AuthService.isValidUser(req.user)) {
+        if (!req.user || !authService.isValidUser(req.user)) {
             res.redirect('/login?error=auth_failed');
             return;
         }
 
-        // Генерируем ОБА токена
-        const accessToken = AuthService.generateAccessToken(req.user);
-        const refreshToken = AuthService.generateRefreshToken(req.user);
+        const accessToken = authService.generateAccessToken(req.user);
+        const refreshToken = authService.generateRefreshToken(req.user);
 
-        // Устанавливаем ОБА cookies
         JWTService.setTokensCookies(res, accessToken, refreshToken);
 
-        // Редирект на главную
         res.redirect('/');
-    } catch (e) { next(e); }
+    } catch (error) {
+        next(error);
+    }
 };
 
 export const logout: RequestHandler = async (req, res, next) => {
     try {
         JWTService.clearTokensCookies(res);
-        res.json({ message: 'Logout successful' });
-    } catch (e) { next(e); }
+        res.json({ message: AUTH_MESSAGES.SUCCESS.LOGGED_OUT });
+    } catch (error) {
+        next(error);
+    }
 };
 
 export const refreshToken: RequestHandler = async (req, res, next) => {
     try {
-        if (!isAuthenticatedRequest(req)) {
-            res.status(401).json({ error: 'Not authenticated' });
-            return;
+        const { refreshToken: bodyRefreshToken } = req.body;
+        const cookieRefreshToken = req.cookies?.refresh_token;
+        const refreshToken = bodyRefreshToken || cookieRefreshToken;
+
+        if (!refreshToken) {
+            return res.status(401).json({ error: AUTH_MESSAGES.ERROR.REFRESH_TOKEN_REQUIRED });
         }
 
-        // Генерируем НОВЫЕ токены для реального пользователя
-        const newAccessToken = AuthService.generateAccessToken(req.user);
-        const newRefreshToken = AuthService.generateRefreshToken(req.user);
+        const { user, accessToken, refreshToken: newRefreshToken } = await authService.refreshTokens(refreshToken);
 
-        JWTService.setTokensCookies(res, newAccessToken, newRefreshToken);
+        JWTService.setTokensCookies(res, accessToken, newRefreshToken);
 
         res.json({
-            message: 'Token refreshed',
-            token: newAccessToken,
+            message: AUTH_MESSAGES.SUCCESS.TOKENS_REFRESHED,
+            token: accessToken,
             user: {
-                id: req.user._id.toString(),
-                email: req.user.email,
-                name: req.user.name,
-                role: req.user.role,
+                id: user._id.toString(),
+                email: user.email,
+                name: user.name,
+                role: user.role,
             }
         });
-    } catch (e) { next(e); }
+    } catch (error) {
+        next(error);
+    }
 };
 
 export const getCurrentUser: RequestHandler = async (req, res, next) => {
     try {
         if (!isAuthenticatedRequest(req)) {
-            res.status(401).json({ error: 'Not authenticated' });
-            return;
+            return res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
         }
 
         res.json({
@@ -150,15 +152,69 @@ export const getCurrentUser: RequestHandler = async (req, res, next) => {
                 email: req.user.email,
                 name: req.user.name,
                 role: req.user.role,
+                createdAt: req.user.createdAt,
+                updatedAt: req.user.updatedAt
             }
         });
-    } catch (e) { next(e); }
+    } catch (error) {
+        next(error);
+    }
 };
 
-export const handleAuthError: ErrorRequestHandler = async (error, req, res, next) => {
+export const updateProfile: RequestHandler = async (req, res, next) => {
     try {
-        res.status(401).json({
-            error: error.message || 'Authentication failed'
+        if (!isAuthenticatedRequest(req)) {
+            return res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
+        }
+
+        const updateData = req.body;
+        const updatedUser = await userService.update(req.user._id.toString(), updateData);
+
+        res.json({
+            message: AUTH_MESSAGES.SUCCESS.PROFILE_UPDATED,
+            user: {
+                id: updatedUser._id.toString(),
+                email: updatedUser.email,
+                name: updatedUser.name,
+                role: updatedUser.role,
+                createdAt: updatedUser.createdAt,
+                updatedAt: updatedUser.updatedAt
+            }
         });
-    } catch (e) { next(e); }
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const changePassword: RequestHandler = async (req, res, next) => {
+    try {
+        if (!isAuthenticatedRequest(req)) {
+            return res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
+        }
+
+        const { currentPassword, newPassword } = req.body;
+
+        await authService.changePassword(
+            req.user._id.toString(),
+            currentPassword,
+            newPassword
+        );
+
+        res.json({ message: AUTH_MESSAGES.SUCCESS.PASSWORD_CHANGED });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Экспорт с валидацией для использования в routes
+export const AuthController = {
+    register: [validate(registerSchema), register],
+    login: [validate(loginSchema), login],
+    handleLoginSuccess,
+    handleOAuthCallback,
+    logout,
+    refreshToken: [validate(refreshTokenSchema), refreshToken],
+    getCurrentUser,
+    updateProfile: [validate(updateProfileSchema), updateProfile],
+    changePassword: [validate(changePasswordSchema), changePassword]
 };

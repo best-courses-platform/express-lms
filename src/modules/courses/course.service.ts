@@ -1,15 +1,37 @@
-import {Course, NewCourse, Rating, UpdateCourse} from "./course.types";
+// domains/courses/course.service.ts
+import { Course, NewCourse, Rating } from "./course.types";
 import { courseRepository } from "./course.repository";
 import { AppError } from "../../utils/errors";
 import { Types } from 'mongoose';
+import { CreateCourseInput, UpdateCourseInput } from "./course.schema";
+import { COURSE_MESSAGES } from "./course.constants";
 
 class CourseService {
-    async create(input: NewCourse): Promise<Course> {
+    async create(input: CreateCourseInput): Promise<Course> {
         const exists = await courseRepository.findByTitle(input.title);
 
-        if (exists) throw new AppError(409, "This course already exists");
+        if (exists) throw new AppError(409, COURSE_MESSAGES.ERROR.COURSE_ALREADY_EXISTS);
 
-        return courseRepository.create(input);
+        const courseData: NewCourse = {
+            ...input,
+            author: new Types.ObjectId(input.author),
+            isPublished: input.isPublished ?? false
+        };
+
+        return courseRepository.create(courseData);
+    }
+
+    async update(id: string, patch: UpdateCourseInput): Promise<Course> {
+        const course = await courseRepository.findById(id);
+
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+
+        if (patch.title && patch.title !== course.title) {
+            const exists = await courseRepository.findByTitle(patch.title);
+            if (exists) throw new AppError(409, COURSE_MESSAGES.ERROR.COURSE_ALREADY_EXISTS);
+        }
+
+        return courseRepository.update(id, patch);
     }
 
     async list(): Promise<Course[]> {
@@ -30,39 +52,22 @@ class CourseService {
 
     async getById(id: string): Promise<Course> {
         const course = await courseRepository.findById(id);
-
-        if (!course) throw new AppError(404, "Course not found");
-
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        
         return course;
-    }
-
-    async update(id: string, patch: UpdateCourse): Promise<Course> {
-        const course = await courseRepository.findById(id);
-
-        if (!course) throw new AppError(404, "Course not found");
-
-        if (patch.title && patch.title !== course.title) {
-            const exists = await courseRepository.findByTitle(patch.title);
-
-            if (exists) throw new AppError(409, "This course already exists");
-        }
-
-        return courseRepository.update(id, patch);
     }
 
     async delete(id: string): Promise<void> {
         const ok = await courseRepository.delete(id);
-
-        if (!ok) throw new AppError(404, "Course not found");
+        if (!ok) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
     }
 
     async addLesson(courseId: string, lessonId: string, userId: Types.ObjectId): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, "Course not found");
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
 
-        // Проверяем, что пользователь - автор курса
         if (!course.author.equals(userId)) {
-            throw new AppError(403, "Only course author can add lessons");
+            throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
         }
 
         return courseRepository.addLesson(courseId, new Types.ObjectId(lessonId));
@@ -70,11 +75,10 @@ class CourseService {
 
     async removeLesson(courseId: string, lessonId: string, userId: Types.ObjectId): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, "Course not found");
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
 
-        // Проверяем, что пользователь - автор курса
         if (!course.author.equals(userId)) {
-            throw new AppError(403, "Only course author can remove lessons");
+            throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
         }
 
         return courseRepository.removeLesson(courseId, new Types.ObjectId(lessonId));
@@ -82,11 +86,10 @@ class CourseService {
 
     async addUserToAllowed(courseId: string, userId: Types.ObjectId, authorId: Types.ObjectId): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, "Course not found");
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
 
-        // Проверяем, что пользователь - автор курса
         if (!course.author.equals(authorId)) {
-            throw new AppError(403, "Only course author can manage access");
+            throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
         }
 
         return courseRepository.addUserToAllowed(courseId, userId);
@@ -94,11 +97,10 @@ class CourseService {
 
     async removeUserFromAllowed(courseId: string, userId: Types.ObjectId, authorId: Types.ObjectId): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, "Course not found");
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
 
-        // Проверяем, что пользователь - автор курса
         if (!course.author.equals(authorId)) {
-            throw new AppError(403, "Only course author can manage access");
+            throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
         }
 
         return courseRepository.removeUserFromAllowed(courseId, userId);
@@ -106,10 +108,10 @@ class CourseService {
 
     async addRating(courseId: string, userId: Types.ObjectId, value: number): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, "Course not found");
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
 
         if (value < 1 || value > 5) {
-            throw new AppError(400, "Rating must be between 1 and 5");
+            throw new AppError(400, COURSE_MESSAGES.VALIDATION.RATING_MIN);
         }
 
         return courseRepository.addRating(courseId, {
@@ -121,8 +123,7 @@ class CourseService {
 
     async getRatings(courseId: string): Promise<Rating[]> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, "Course not found");
-
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
         return course.ratings;
     }
 }

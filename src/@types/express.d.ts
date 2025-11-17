@@ -1,3 +1,4 @@
+// src/@types/express.d.ts
 import { User as AppUser } from "users/user.types";
 
 declare global {
@@ -6,8 +7,9 @@ declare global {
 
         interface Request {
             user?: AppUser;
+            validatedData?: Record<string, unknown>;
         }
     }
 }
 
-export {}; // Важно: сделать файл модулем
+export {};

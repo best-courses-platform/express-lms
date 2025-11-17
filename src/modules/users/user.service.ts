@@ -1,14 +1,15 @@
+// domains/users/user.service.ts
 import { User, NewUser, UpdateUser } from "./user.types";
 import { userRepository } from "./user.repository";
 import { AppError } from "../../utils/errors";
-import {isUserDocumentStrict, isUserWithPassword, toSafeUser} from '../../utils/typeGuards';
+import { USER_MESSAGES } from "./user.constants";
 
 class UserService {
     async create(userData: NewUser): Promise<User> {
         const normalizedEmail = userData.email.toLowerCase().trim();
         const exists = await userRepository.findByEmail(normalizedEmail);
 
-        if (exists) throw new AppError(409, "Email already in use");
+        if (exists) throw new AppError(409, USER_MESSAGES.ERROR.EMAIL_ALREADY_EXISTS);
 
         return userRepository.create(userData);
     }
@@ -20,7 +21,7 @@ class UserService {
     async getById(id: string): Promise<User> {
         const user = await userRepository.findById(id);
 
-        if (!user) throw new AppError(404, "User not found");
+        if (!user) throw new AppError(404, USER_MESSAGES.ERROR.USER_NOT_FOUND);
 
         return user;
     }
@@ -28,12 +29,12 @@ class UserService {
     async update(id: string, patch: UpdateUser): Promise<User> {
         const user = await userRepository.findById(id);
 
-        if (!user) throw new AppError(404, "User not found");
+        if (!user) throw new AppError(404, USER_MESSAGES.ERROR.USER_NOT_FOUND);
 
         if (patch.email && patch.email !== user.email) {
             const isTaken = await userRepository.isEmailTaken(patch.email, id);
 
-            if (isTaken) throw new AppError(409, "Email already in use");
+            if (isTaken) throw new AppError(409, USER_MESSAGES.ERROR.EMAIL_ALREADY_EXISTS);
         }
 
         return userRepository.update(id, patch);
@@ -42,49 +43,43 @@ class UserService {
     async delete(id: string): Promise<void> {
         const ok = await userRepository.delete(id);
 
-        if (!ok) throw new AppError(404, "User not found");
+        if (!ok) throw new AppError(404, USER_MESSAGES.ERROR.USER_NOT_FOUND);
     }
 
-    async authenticate(email: string, password: string): Promise<User> {
-        const user = await userRepository.findByEmailWithPassword(email);
-
-        if (!user) throw new AppError(401, "Invalid credentials");
-
-        if (!isUserDocumentStrict(user)) {
-            throw new AppError(500, 'Authentication system error');
-        }
-
-        const isValidPassword = await user.comparePassword(password);
-
-        if (!isValidPassword) throw new AppError(401, "Invalid credentials");
-
-        const userPlainObject = user.toObject<User & { password: string }>();
-
-        if (!isUserWithPassword(userPlainObject)) {
-            throw new AppError(500, 'User transformation error');
-        }
-
-        const { password: _, ...userWithoutPassword } = userPlainObject;
-
-        return toSafeUser(userWithoutPassword);
-    }
-
-    // Метод для поиска/создания пользователя через OAuth
     async findOrCreateFromOAuth(profile: any): Promise<User> {
-        let user = await userRepository.findByGoogleId(profile.id);
+        try {
+            if (!profile.emails?.[0]?.value) {
+                throw new AppError(400, USER_MESSAGES.ERROR.USER_DATA_PROCESSING_ERROR);
+            }
 
-        if (!user) {
-            // Создаем нового пользователя для OAuth
-            user = await userRepository.create({
-                name: profile.displayName,
-                email: profile.emails[0].value,
-                googleId: profile.id,
-                avatar: profile.photos[0].value,
-                role: 'student'
-            } as NewUser);
+            let user = await userRepository.findByGoogleId(profile.id);
+
+            if (!user) {
+                const existingUser = await userRepository.findByEmail(profile.emails[0].value);
+
+                if (existingUser) {
+                    user = await userRepository.update(existingUser._id.toString(), {
+                        googleId: profile.id,
+                        avatar: profile.photos?.[0]?.value || existingUser.avatar
+                    });
+                } else {
+                    user = await userRepository.create({
+                        name: profile.displayName,
+                        email: profile.emails[0].value,
+                        googleId: profile.id,
+                        avatar: profile.photos?.[0]?.value,
+                        role: 'student'
+                    } as NewUser);
+                }
+            }
+
+            return user;
+        } catch (error) {
+            if (error instanceof AppError) {
+                throw error;
+            }
+            throw new AppError(500, USER_MESSAGES.ERROR.USER_DATA_PROCESSING_ERROR, error);
         }
-
-        return user;
     }
 }
 

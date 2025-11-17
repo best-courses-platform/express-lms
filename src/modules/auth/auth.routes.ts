@@ -1,29 +1,31 @@
+// auth.routes.ts
 import { Router } from 'express';
 import {
     localAuth,
     googleAuth,
     googleAuthCallback,
-    isAuthenticated, jwtAuth
+    jwtAuth
 } from '../../middleware/auth';
-import * as AuthController from './auth.controller';
+import { AuthController } from './auth.controller';
 
 const authRoutes = Router();
 
-// Регистрация через email
-authRoutes.post('/register', AuthController.register);
-// Local login (email/password)
-authRoutes.post('/login', localAuth, AuthController.handleLoginSuccess);
-// Refresh token (без обязательной аутентификации)
-authRoutes.post('/refresh', AuthController.refreshToken);
+// Регистрация и вход
+authRoutes.post('/register', ...AuthController.register);
+authRoutes.post('/login', ...AuthController.login);
+authRoutes.post('/login/local', localAuth, AuthController.handleLoginSuccess);
 
-// Google OAuth routes
+// Google OAuth
 authRoutes.get('/google', googleAuth);
 authRoutes.get('/google/callback', googleAuthCallback, AuthController.handleOAuthCallback);
 
-// Logout
-authRoutes.post('/logout', isAuthenticated, AuthController.logout);
+// Токены и сессии
+authRoutes.post('/refresh', ...AuthController.refreshToken);
+authRoutes.post('/logout', jwtAuth, AuthController.logout);
 
-// Get current user
+// Профиль пользователя
 authRoutes.get('/me', jwtAuth, AuthController.getCurrentUser);
+authRoutes.patch('/profile', jwtAuth, ...AuthController.updateProfile);
+authRoutes.post('/change-password', jwtAuth, ...AuthController.changePassword);
 
 export default authRoutes;

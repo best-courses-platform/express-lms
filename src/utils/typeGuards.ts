@@ -1,11 +1,7 @@
 // typeGuards.ts
 import { Types } from 'mongoose';
 import { Request } from 'express';
-import { User } from "../modules/users/user.types";
-
-// Utility types для строгой типизации
-type FunctionProperty<T, K extends keyof T> =
-    T[K] extends (...args: infer Args) => infer Return ? (...args: Args) => Return : never;
+import { User } from "users/user.types";
 
 // Строгие интерфейсы
 interface MongooseDocument {
@@ -143,7 +139,7 @@ export function isUserWithPassword(obj: unknown): obj is User & { password: stri
     const candidate = obj as { password?: unknown };
     return typeof candidate.password === 'string';
 }
-// ... остальные ваши существующие type guards
+
 export function isObjectId(id: unknown): id is Types.ObjectId {
     return id instanceof Types.ObjectId;
 }
@@ -171,12 +167,6 @@ export function toObjectIdStringArray(ids: unknown[]): string[] {
         throw new Error('Input is not an array');
     }
     return ids.map(id => toObjectIdString(id));
-}
-
-declare module 'express' {
-    interface Request {
-        user?: User;
-    }
 }
 
 export function isAuthenticatedRequest(req: Request): req is Request & { user: User } {

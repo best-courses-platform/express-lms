@@ -1,6 +1,6 @@
 import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { userService } from 'users/user.service';
-import { config } from '../../config/config';
+import { config } from '../../config';
 
 export const jwtStrategy = new JwtStrategy(
     {

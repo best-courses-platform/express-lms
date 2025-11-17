@@ -23,5 +23,10 @@ export type Course = {
     updatedAt: Date;
 }
 
-export type NewCourse = Omit<Course, "_id" | "createdAt" | "updatedAt" | "averageRating" | "lessons">;
-export type UpdateCourse = Partial<Course>;
+export type NewCourse = Omit<Course,
+    "_id" | "createdAt" | "updatedAt" | "averageRating" | "lessons" | "ratings" | "allowedUsers"
+>;
+
+export type UpdateCourse = Partial<Omit<Course,
+    "_id" | "createdAt" | "updatedAt" | "ratings" | "averageRating" | "lessons" | "allowedUsers" | "author"
+>>;

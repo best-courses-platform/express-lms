@@ -19,14 +19,19 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "typeRoots": [
-      "./node_modules/@types", "./src/types"],
+      "./node_modules/@types",
+      "./src/@types"
+    ],
     "types": ["node", "express"],
     "baseUrl": "./src",
     "paths": {
       "*": ["*", "modules/*"]
     }
   },
-  "include": ["src/**/*", "src/types/**/*.d.ts"],
+  "include": [
+    "src/**/*",
+    "src/@types/*.d.ts"
+  ],
   "exclude": [
     "./node_modules", "dist"]
 }

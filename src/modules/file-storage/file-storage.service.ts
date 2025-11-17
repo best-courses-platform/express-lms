@@ -1,10 +1,11 @@
+// file-storage.service.ts
 import {
     S3Client,
     PutObjectCommand,
     DeleteObjectCommand,
     ListObjectsV2Command
 } from "@aws-sdk/client-s3";
-import { config, isSelectelConfigured, getSelectelPublicUrl } from '../../config/config';
+import { config, isSelectelConfigured, getSelectelPublicUrl } from '../../config';
 import { UploadedFile, UploadOptions, MulterS3File } from './file-storage.types';
 
 export class FileStorageService {
@@ -12,16 +13,32 @@ export class FileStorageService {
 
     constructor() {
         if (isSelectelConfigured()) {
+            // Проверяем что credentials существуют перед созданием клиента
+            if (!config.selectel.accessKeyId || !config.selectel.secretAccessKey) {
+                console.warn('Selectel credentials missing, skipping S3 client creation');
+                return;
+            }
+
             this.s3Client = new S3Client({
                 region: config.selectel.region,
                 endpoint: config.selectel.endpoint,
                 credentials: {
-                    accessKeyId: config.selectel.accessKeyId,
-                    secretAccessKey: config.selectel.secretAccessKey,
+                    accessKeyId: config.selectel.accessKeyId, // Теперь string
+                    secretAccessKey: config.selectel.secretAccessKey, // Теперь string
                 },
                 forcePathStyle: false,
             });
         }
+    }
+
+    /**
+     * Безопасное получение S3 клиента
+     */
+    private getS3Client(): S3Client {
+        if (!this.s3Client) {
+            throw new Error('S3 клиент не инициализирован. Selectel может быть не настроен');
+        }
+        return this.s3Client;
     }
 
     /**
@@ -37,13 +54,15 @@ export class FileStorageService {
         console.log(`Удаление папки урока: ${folder}`);
 
         try {
+            const s3Client = this.getS3Client();
+
             // 1. Получаем список всех файлов в папке
             const listCommand = new ListObjectsV2Command({
                 Bucket: config.selectel.bucketName,
                 Prefix: folder,
             });
 
-            const listResult = await this.s3Client.send(listCommand);
+            const listResult = await s3Client.send(listCommand);
 
             if (!listResult.Contents || listResult.Contents.length === 0) {
                 console.log(`Папка урока ${folder} пуста`);
@@ -60,11 +79,11 @@ export class FileStorageService {
                         Key: object.Key!,
                     });
 
-                    await this.s3Client!.send(deleteCommand);
-                    console.log(`✓ Удален: ${object.Key}`);
+                    await s3Client.send(deleteCommand);
+                    console.log(`Удален: ${object.Key}`);
                     return true;
                 } catch (error) {
-                    console.error(`✗ Ошибка удаления ${object.Key}:`, error);
+                    console.error(`Ошибка удаления ${object.Key}:`, error);
                     return false;
                 }
             });
@@ -113,6 +132,8 @@ export class FileStorageService {
         console.log(`Bucket: ${config.selectel.bucketName}, ContentType: ${contentType}`);
 
         try {
+            const s3Client = this.getS3Client();
+
             const command = new PutObjectCommand({
                 Bucket: config.selectel.bucketName,
                 Key: key,
@@ -120,7 +141,7 @@ export class FileStorageService {
                 ContentType: contentType,
             });
 
-            const result = await this.s3Client.send(command);
+            const result = await s3Client.send(command);
             console.log('S3 upload result:', result);
 
             const url = getSelectelPublicUrl(key);
@@ -208,7 +229,7 @@ export class FileStorageService {
         }
 
         console.error('Multer file structure:', multerFile);
-        throw new Error(`Не поддерживаемый тип хранения multer файла. location: ${multerFile.location}, key: ${multerFile.key}, buffer: ${!!multerFile.buffer}`);
+        throw new Error(`Неподдерживаемый формат файла: отсутствует location, key или buffer. location: ${multerFile.location}, key: ${multerFile.key}, buffer: ${!!multerFile.buffer}`);
     }
 
     /**
@@ -249,12 +270,14 @@ export class FileStorageService {
 
             console.log(`Удаление из S3 по ключу: ${key}`);
 
+            const s3Client = this.getS3Client();
+
             const command = new DeleteObjectCommand({
                 Bucket: config.selectel.bucketName,
                 Key: key,
             });
 
-            const result = await this.s3Client.send(command);
+            await s3Client.send(command);
             console.log(`Файл успешно удален из S3: ${key}`);
         } catch (error) {
             console.error('Ошибка при удалении файла из S3:', error);

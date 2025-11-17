@@ -1,9 +1,8 @@
+// middleware/auth.ts
 import { Request, Response, NextFunction } from 'express';
 import passport from 'passport';
-import { AuthService } from 'auth/auth.service';
-
-// Type guard (реэкспорт из сервиса)
-export const isAuthenticatedUser = AuthService.isValidUser;
+import { AUTH_MESSAGES } from 'auth/auth.constants';
+import {isAuthenticatedRequest} from "../utils/typeGuards";
 
 // Passport стратегии
 export const jwtAuth = passport.authenticate('jwt', { session: false });
@@ -18,21 +17,16 @@ export const googleAuthCallback = passport.authenticate('google', {
     failureRedirect: '/login'
 });
 
-// Основная проверка аутентификации
-export const isAuthenticated = (req: Request, res: Response, next: NextFunction): void => {
-    AuthService.handleJWTAuthentication(req, res, next);
-};
-
 // Проверка ролей
 export const requireRole = (roles: string[]) => {
     return (req: Request, res: Response, next: NextFunction) => {
-        if (!AuthService.validateSession(req)) {
-            return res.status(401).json({ error: 'Unauthorized' });
+        if (!isAuthenticatedRequest(req)) {
+            return res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
         }
 
-        const user = AuthService.getCurrentUser(req);
-        if (!user || !AuthService.checkUserRole(user, roles)) {
-            return res.status(403).json({ error: 'Insufficient permissions' });
+        const user = req.user!; // TypeScript знает что user существует благодаря isAuthenticatedRequest
+        if (!roles.includes(user.role)) {
+            return res.status(403).json({ error: AUTH_MESSAGES.ERROR.FORBIDDEN });
         }
 
         next();

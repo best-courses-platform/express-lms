@@ -1,7 +1,9 @@
+// middleware/refresh-token.ts
 import { Request, Response, NextFunction } from 'express';
-import { JWTService } from '../utils/jwt';
+import { JWTService } from 'jwt/jwt.service';
 import { userService } from 'users/user.service';
-import { AuthService } from 'auth/auth.service';
+import { authService } from 'auth/auth.service';
+import { AUTH_MESSAGES } from 'auth/auth.constants';
 
 export const refreshTokenMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -17,7 +19,7 @@ export const refreshTokenMiddleware = async (req: Request, res: Response, next: 
 
         // 1. Если нет refresh token - сразу ошибка
         if (!refreshToken) {
-            return res.status(401).json({ error: 'Authentication required' });
+            return res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
         }
 
         let currentUser = null;
@@ -30,7 +32,7 @@ export const refreshTokenMiddleware = async (req: Request, res: Response, next: 
 
             if (!currentUser) {
                 JWTService.clearTokensCookies(res);
-                return res.status(401).json({ error: 'Authentication required' });
+                return res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
             }
 
             // 3. Проверяем access token
@@ -49,12 +51,12 @@ export const refreshTokenMiddleware = async (req: Request, res: Response, next: 
 
         } catch (refreshError) {
             JWTService.clearTokensCookies(res);
-            return res.status(401).json({ error: 'Authentication required' });
+            return res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
         }
 
         // 4. Если нужно обновить токены
         if (shouldRefreshTokens && currentUser) {
-            const newAccessToken = AuthService.generateAccessToken(currentUser);
+            const newAccessToken = authService.generateAccessToken(currentUser);
 
             JWTService.setTokensCookies(res, newAccessToken, refreshToken);
 

@@ -1,3 +1,4 @@
+// domains/lessons/lesson.service.ts
 import { Lesson, LessonResource, NewLesson, UpdateLesson, VideoFile } from "./lesson.types";
 import { lessonRepository } from "./lesson.repository";
 import { courseService } from "courses/course.service";
@@ -5,34 +6,41 @@ import { Types } from 'mongoose';
 import { AppError } from "../../utils/errors";
 import { toObjectIdString, isValidObjectIdString } from "../../utils/typeGuards";
 import { fileStorageService } from "file-storage/file-storage.service";
-import {UploadedFile} from "file-storage/file-storage.types";
+import { UploadedFile } from "file-storage/file-storage.types";
+import { CreateLessonInput, UpdateLessonInput } from "./lesson.schema";
+import { LESSON_MESSAGES } from "./lesson.constants";
 
 class LessonService {
     /**
      * Создание нового урока
      */
-    async create(input: NewLesson): Promise<Lesson> {
+    async create(input: CreateLessonInput): Promise<Lesson> {
         if (!isValidObjectIdString(input.courseId)) {
-            throw new AppError(400, "Некорректный ID курса");
+            throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_COURSE_ID);
         }
 
         const courseIdString = toObjectIdString(input.courseId);
         await this.validateUniqueLessonTitle(input.title, courseIdString);
 
-        return lessonRepository.create(input);
+        const lessonData: NewLesson = {
+            ...input,
+            courseId: new Types.ObjectId(input.courseId),
+            tags: input.tags || []
+        };
+
+        return lessonRepository.create(lessonData);
     }
 
     /**
      * Обновление урока
      */
-    async update(id: string, patch: UpdateLesson, userId: Types.ObjectId): Promise<Lesson> {
+    async update(id: string, patch: UpdateLessonInput, userId: Types.ObjectId): Promise<Lesson> {
         if (!isValidObjectIdString(id)) {
-            throw new AppError(400, "Некорректный ID урока");
+            throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_LESSON_ID);
         }
 
         const { lesson } = await this.validateLessonManagementPermissions(id, userId);
 
-        // Проверяем уникальность названия при обновлении
         if (patch.title && patch.title !== lesson.title) {
             await this.validateUniqueLessonTitle(patch.title, lesson.courseId.toString());
         }
@@ -45,7 +53,7 @@ class LessonService {
      */
     async delete(id: string, userId: Types.ObjectId): Promise<void> {
         if (!isValidObjectIdString(id)) {
-            throw new AppError(400, "Некорректный ID урока");
+            throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_LESSON_ID);
         }
 
         const { lesson, course } = await this.validateLessonManagementPermissions(id, userId);
@@ -55,7 +63,7 @@ class LessonService {
 
         // Удаляем урок из БД
         const ok = await lessonRepository.delete(id);
-        if (!ok) throw new AppError(404, "Урок не найден");
+        if (!ok) throw new AppError(404, LESSON_MESSAGES.ERROR.LESSON_NOT_FOUND);
 
         // Удаляем урок из курса
         await courseService.removeLesson(course._id.toString(), id, userId);
@@ -82,11 +90,11 @@ class LessonService {
      */
     async getById(id: string): Promise<Lesson> {
         if (!isValidObjectIdString(id)) {
-            throw new AppError(400, "Некорректный ID урока");
+            throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_LESSON_ID);
         }
 
         const lesson = await lessonRepository.findById(id);
-        if (!lesson) throw new AppError(404, "Урок не найден");
+        if (!lesson) throw new AppError(404, LESSON_MESSAGES.ERROR.LESSON_NOT_FOUND);
 
         return lesson;
     }
@@ -96,7 +104,7 @@ class LessonService {
      */
     async getByCourseId(courseId: string): Promise<Lesson[]> {
         if (!isValidObjectIdString(courseId)) {
-            throw new AppError(400, "Некорректный ID курса");
+            throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_COURSE_ID);
         }
 
         return lessonRepository.findByCourseId(courseId);
@@ -175,7 +183,7 @@ class LessonService {
             const resourceIndex = this.findResourceIndexByUrl(lesson, fileUrl);
 
             if (resourceIndex === -1) {
-                throw new AppError(404, "Ресурс не найден");
+                throw new AppError(404, LESSON_MESSAGES.ERROR.RESOURCE_NOT_FOUND);
             }
 
             return lessonRepository.removeResourceByIndex(lessonId, resourceIndex);
@@ -213,7 +221,7 @@ class LessonService {
         const course = await courseService.getById(lesson.courseId.toString());
 
         if (!course.author.equals(userId)) {
-            throw new AppError(403, "Только автор курса может управлять уроками");
+            throw new AppError(403, LESSON_MESSAGES.ERROR.NOT_AUTHOR);
         }
 
         return { lesson, course };
@@ -227,7 +235,7 @@ class LessonService {
 
         const course = await courseService.getById(lesson.courseId.toString());
         if (!course.author.equals(userId)) {
-            throw new AppError(403, "Только автор курса может загружать файлы");
+            throw new AppError(403, LESSON_MESSAGES.ERROR.NOT_AUTHOR);
         }
     }
 
@@ -237,7 +245,7 @@ class LessonService {
     private async validateUniqueLessonTitle(title: string, courseId: string): Promise<void> {
         const exists = await lessonRepository.findByTitleAndCourse(title, courseId);
         if (exists) {
-            throw new AppError(409, "Урок с таким названием уже существует в этом курсе");
+            throw new AppError(409, LESSON_MESSAGES.ERROR.LESSON_ALREADY_EXISTS);
         }
     }
 
@@ -246,7 +254,7 @@ class LessonService {
      */
     private validateResourceExists(lesson: Lesson, resourceIndex: number): LessonResource {
         if (!lesson.resources || resourceIndex >= lesson.resources.length) {
-            throw new AppError(404, "Ресурс не найден");
+            throw new AppError(404, LESSON_MESSAGES.ERROR.RESOURCE_NOT_FOUND);
         }
 
         return lesson.resources[resourceIndex];
@@ -267,11 +275,11 @@ class LessonService {
     private async safelyDeleteResourceFile(resource: LessonResource): Promise<void> {
         if (resource.type === 'file' && resource.url) {
             try {
-                console.log(`Удаление файла ресурса из хранилища: ${resource.url}`);
+                console.log(`${LESSON_MESSAGES.LOGS.RESOURCE_FILE_DELETED} ${resource.url}`);
                 await fileStorageService.deleteFile(resource.url);
-                console.log(`Файл ресурса удален: ${resource.url}`);
+                console.log(`${LESSON_MESSAGES.LOGS.RESOURCE_FILE_DELETED} ${resource.url}`);
             } catch (error) {
-                console.error('Ошибка при удалении файла из хранилища:', error);
+                console.error(LESSON_MESSAGES.LOGS.RESOURCE_DELETE_ERROR, error);
                 // Не прерываем выполнение - продолжаем удаление из БД
             }
         }
@@ -281,12 +289,12 @@ class LessonService {
      * Очистка файлов урока из S3
      */
     private async cleanupLessonFiles(lessonId: string): Promise<void> {
-        console.log(`Начало очистки файлов урока ${lessonId} из S3`);
+        console.log(`${LESSON_MESSAGES.LOGS.CLEANUP_STARTED} ${lessonId}`);
         try {
             await fileStorageService.deleteLessonFolder(lessonId);
-            console.log(`Файлы урока ${lessonId} успешно удалены из S3`);
+            console.log(`${LESSON_MESSAGES.LOGS.CLEANUP_COMPLETED} ${lessonId}`);
         } catch (error) {
-            console.error(`Ошибка при удалении файлов урока ${lessonId} из S3:`, error);
+            console.error(`${LESSON_MESSAGES.LOGS.CLEANUP_ERROR} ${lessonId}:`, error);
         }
     }
 
@@ -300,7 +308,7 @@ class LessonService {
     ): Promise<Lesson> {
         const oldVideoUrl = lesson.videoFile?.url;
 
-        console.log(`🎥 ${oldVideoUrl ? 'Замена' : 'Добавление'} видео для урока ${lessonId}`);
+        console.log(`🎥 ${oldVideoUrl ? LESSON_MESSAGES.LOGS.VIDEO_REPLACED : LESSON_MESSAGES.LOGS.VIDEO_ADDED} ${lessonId}`);
         console.log(`Новое видео: ${fileData.url}`);
 
         if (oldVideoUrl) {
@@ -319,11 +327,11 @@ class LessonService {
         if (oldVideoUrl === newVideoUrl) return;
 
         try {
-            console.log(`Удаление старого видео: ${oldVideoUrl}`);
+            console.log(`${LESSON_MESSAGES.LOGS.OLD_VIDEO_DELETED} ${oldVideoUrl}`);
             await fileStorageService.deleteFile(oldVideoUrl);
-            console.log(`Старое видео удалено: ${oldVideoUrl}`);
+            console.log(`${LESSON_MESSAGES.LOGS.OLD_VIDEO_DELETED} ${oldVideoUrl}`);
         } catch (error) {
-            console.error('Ошибка при удалении старого видео:', error);
+            console.error(LESSON_MESSAGES.LOGS.OLD_VIDEO_DELETE_ERROR, error);
         }
     }
 
@@ -391,7 +399,7 @@ class LessonService {
         title: string,
         description?: string
     ): Promise<Lesson> {
-        console.log(`Замена существующего ресурса: "${title}"`);
+        console.log(`${LESSON_MESSAGES.LOGS.RESOURCE_REPLACED} "${title}"`);
 
         const oldResource = lesson.resources![existingIndex];
 
@@ -410,11 +418,11 @@ class LessonService {
         if (!oldResource.url || oldResource.url === newFileUrl) return;
 
         try {
-            console.log(`Удаление старого файла ресурса: ${oldResource.url}`);
+            console.log(`${LESSON_MESSAGES.LOGS.OLD_RESOURCE_DELETED} ${oldResource.url}`);
             await fileStorageService.deleteFile(oldResource.url);
-            console.log(`Старый файл ресурса удален: ${oldResource.url}`);
+            console.log(`${LESSON_MESSAGES.LOGS.OLD_RESOURCE_DELETED} ${oldResource.url}`);
         } catch (error) {
-            console.error('Ошибка при удалении старого файла ресурса:', error);
+            console.error(LESSON_MESSAGES.LOGS.OLD_RESOURCE_DELETE_ERROR, error);
         }
     }
 
@@ -460,7 +468,7 @@ class LessonService {
         title: string,
         description?: string
     ): Promise<Lesson> {
-        console.log(`Добавление нового ресурса: "${title}"`);
+        console.log(`${LESSON_MESSAGES.LOGS.RESOURCE_ADDED} "${title}"`);
 
         const resource = this.createNewResource(fileData, title, description);
         return await lessonRepository.addResource(lessonId, resource);

@@ -3,7 +3,7 @@ import type { ServerOptions } from 'https';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
-import { config, validateConfig } from "./config/config.js";
+import { config, logConfigValidation } from "./config";
 import mongoose from 'mongoose';
 
 // Подключение к MongoDB
@@ -18,7 +18,8 @@ const isProduction = process.env.NODE_ENV === 'production';
 const start = async () => {
     try {
         if (!isProduction) {
-            validateConfig(); // Проверяем настройки только при разработке
+            // validateConfig(); // Проверяем настройки только при разработке
+            logConfigValidation();
 
             console.log(`Запуск HTTP сервера для разработки...`);
 
