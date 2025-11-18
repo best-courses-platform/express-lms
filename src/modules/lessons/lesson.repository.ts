@@ -82,17 +82,6 @@ class LessonRepository {
         return !!result;
     }
 
-    // УДАЛИТЬ эти методы - они больше не нужны
-    /*
-    async addUserToAllowed(lessonId: string, userId: Types.ObjectId): Promise<Lesson> {
-        // УДАЛЕНО - доступ теперь контролируется через курс
-    }
-
-    async removeUserFromAllowed(lessonId: string, userId: Types.ObjectId): Promise<Lesson> {
-        // УДАЛЕНО - доступ теперь контролируется через курс
-    }
-    */
-
     async getNextOrderNumber(courseId: string): Promise<number> {
         if (!Types.ObjectId.isValid(courseId)) return 1;
 
@@ -159,7 +148,7 @@ class LessonRepository {
         return updatedLesson;
     }
 
-    // НОВЫЙ метод для удаления ресурса по индексу
+    // Метод для удаления ресурса по индексу
     async removeResourceByIndex(lessonId: string, resourceIndex: number): Promise<Lesson> {
         if (!Types.ObjectId.isValid(lessonId)) {
             throw new Error('Invalid lesson ID');

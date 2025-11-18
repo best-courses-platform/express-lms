@@ -13,18 +13,20 @@ export const COMMON_MESSAGES = {
         CURRENT_PASSWORD_REQUIRED: "Текущий пароль обязателен",
         NEW_PASSWORD_REQUIRED: "Новый пароль обязателен",
         USER_ID_REQUIRED: "ID пользователя обязательно",
+        COURSE_ID_REQUIRED: "ID курса обязательно",
+        LESSON_ID_REQUIRED: "ID урока обязательно",
+        TAGS_TOO_MANY: "Не более 10 тегов",
+        TAG_TOO_LONG: "Тег не должен превышать 30 символов",
         AT_LEAST_ONE_FIELD: "Хотя бы одно поле должно быть заполнено",
         AVATAR_INVALID: "Аватар должен быть валидной ссылкой"
     },
     ERROR: {
         NOT_FOUND: "Ресурс не найден",
+        LESSON_NOT_FOUND: "Урок не найден",
         UNAUTHORIZED: "Не авторизован",
         FORBIDDEN: "Доступ запрещен",
         INTERNAL_SERVER_ERROR: "Внутренняя ошибка сервера",
         VALIDATION_ERROR: "Ошибка валидации",
         NOT_AUTHOR: "Только автор курса может выполнять это действие",
-    },
-    SUCCESS: {
-        PASSWORD_CHANGED: "Пароль успешно изменен"
-    },
+    }
 } as const;

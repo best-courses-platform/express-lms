@@ -1,5 +1,5 @@
 // domains/lessons/lesson.constants.ts
-import { COMMON_MESSAGES } from 'shared/constants/messages';
+import { COMMON_MESSAGES } from '../../shared/constants/messages';
 
 export const LESSON_MESSAGES = {
     VALIDATION: {
@@ -9,14 +9,10 @@ export const LESSON_MESSAGES = {
         DESCRIPTION_REQUIRED: "Описание урока обязательно",
         DESCRIPTION_TOO_SHORT: "Описание должно содержать не менее 10 символов",
         DESCRIPTION_TOO_LONG: "Описание не должно превышать 2000 символов",
-        COURSE_ID_REQUIRED: "ID курса обязательно",
         ORDER_REQUIRED: "Порядковый номер обязателен",
         ORDER_MIN: "Порядковый номер должен быть не менее 1",
         INPUT_EXAMPLES_TOO_LONG: "Примеры входных данных не должны превышать 1000 символов",
         OUTPUT_EXAMPLES_TOO_LONG: "Примеры выходных данных не должны превышать 1000 символов",
-        TAGS_TOO_MANY: "Не более 10 тегов",
-        TAG_TOO_LONG: "Тег не должен превышать 30 символов",
-        LESSON_ID_REQUIRED: "ID урока обязательно",
         FILE_TYPE_REQUIRED: "Тип файла обязателен",
         FILE_TYPE_INVALID: "Тип файла должен быть video или resource",
         FILE_TITLE_REQUIRED: "Название файла обязательно",
@@ -27,7 +23,6 @@ export const LESSON_MESSAGES = {
     },
     ERROR: {
         ...COMMON_MESSAGES.ERROR,
-        LESSON_NOT_FOUND: "Урок не найден",
         LESSON_ALREADY_EXISTS: "Урок с таким названием уже существует в этом курсе",
         INVALID_LESSON_ID: "Некорректный ID урока",
         INVALID_COURSE_ID: "Некорректный ID курса",

@@ -1,6 +1,6 @@
 // jwt/jwt.schema.ts
 import { z } from 'zod';
-import { COMMON_MESSAGES } from 'shared/constants/messages';
+import { COMMON_MESSAGES } from '../../shared/constants/messages';
 
 export const jwtPayloadSchema = z.object({
     sub: z.string().min(1, COMMON_MESSAGES.VALIDATION.USER_ID_REQUIRED),

@@ -1,5 +1,5 @@
 import { Strategy as LocalStrategy } from 'passport-local';
-import { AuthService } from 'auth/auth.service';
+import { authService } from 'auth/auth.service';
 
 export const localStrategy = new LocalStrategy(
     {
@@ -8,7 +8,7 @@ export const localStrategy = new LocalStrategy(
     },
     async (email: string, password: string, done: any) => {
         try {
-            const user = await AuthService.validateLocalCredentials(email, password);
+            const user = await authService.authenticate(email, password);
             return done(null, user);
         } catch (error: any) {
             return done(null, false, { message: error.message });

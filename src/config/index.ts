@@ -1,5 +1,7 @@
+// config/index.ts
 import dotenv from 'dotenv';
 import { configSchema, Config } from './schema';
+import { CONFIG_MESSAGES } from './config.constants';
 
 dotenv.config();
 
@@ -26,21 +28,16 @@ export const config: Config = configSchema.parse({
     }
 });
 
-// Zod уже проверил обязательные поля, так что эта функция теперь для логирования
+// Упрощенная функция логирования конфигурации
 export function logConfigValidation(): void {
-    console.log('   Конфигурация успешно загружена:');
-    console.log(`   Port: ${config.port}`);
-    console.log(`   MongoDB: ${config.mongoUri.includes('localhost') ? 'local' : 'remote'}`);
-    console.log(`   JWT: настроен (expires in: ${config.jwtAccessExpiresIn})`);
-    console.log(`   Google OAuth: настроен`);
-    console.log(`   Selectel S3: ${isSelectelConfigured() ? 'настроен' : 'не настроен'}`);
+    console.log(CONFIG_MESSAGES.SUCCESS.CONFIG_LOADED);
 
     if (!isSelectelConfigured()) {
-        console.warn('   Selectel S3 не настроен - файлы будут сохраняться в памяти');
+        console.warn(CONFIG_MESSAGES.WARN.SELECTEL_NOT_CONFIGURED);
     }
 }
 
-// Вспомогательные функции для Selectel (оставляем т.к. они полезны)
+// Вспомогательные функции для Selectel
 export function isSelectelConfigured(): boolean {
     return !!(config.selectel.accessKeyId &&
         config.selectel.secretAccessKey &&

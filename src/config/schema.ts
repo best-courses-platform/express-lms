@@ -1,19 +1,20 @@
 // config/schema.ts
 import { z } from 'zod';
+import { CONFIG_MESSAGES } from './config.constants';
 
 export const configSchema = z.object({
     port: z.coerce.number().default(3000),
     mongoUri: z.string().url().default('mongodb://localhost:27017/best-courses-ever'),
 
     // JWT
-    jwtSecret: z.string().min(1, "JWT_SECRET is required"),
+    jwtSecret: z.string().min(1, CONFIG_MESSAGES.ERROR.JWT_SECRET_REQUIRED),
     jwtRefreshSecret: z.string().default(() => process.env.JWT_SECRET || ''),
     jwtAccessExpiresIn: z.string().default('8h'),
     jwtRefreshExpiresIn: z.string().default('30d'),
 
     // Google OAuth
-    googleClientId: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
-    googleClientSecret: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
+    googleClientId: z.string().min(1, CONFIG_MESSAGES.ERROR.GOOGLE_CLIENT_ID_REQUIRED),
+    googleClientSecret: z.string().min(1, CONFIG_MESSAGES.ERROR.GOOGLE_CLIENT_SECRET_REQUIRED),
     googleCallbackURL: z.string().default('/api/auth/google/callback'),
 
     // Selectel S3

@@ -1,7 +1,7 @@
 // middleware/validate.ts
 import { z, ZodType, ZodError } from "zod";
 import { RequestHandler } from "express";
-import { COMMON_MESSAGES } from "shared/constants/messages";
+import { COMMON_MESSAGES } from "../shared/constants/messages";
 
 export const validate = (schema: ZodType<any>, source: keyof z.infer<typeof schema> = 'body'): RequestHandler => {
     return (req, _res, next) => {

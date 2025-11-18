@@ -1,5 +1,5 @@
 // domains/courses/course.constants.ts
-import { COMMON_MESSAGES } from 'shared/constants/messages';
+import { COMMON_MESSAGES } from '../../shared/constants/messages';
 
 export const COURSE_MESSAGES = {
     VALIDATION: {
@@ -12,11 +12,7 @@ export const COURSE_MESSAGES = {
         PREVIEW_IMAGE_REQUIRED: "Изображение предпросмотра обязательно",
         PREVIEW_IMAGE_INVALID: "Изображение предпросмотра должно быть валидным URL",
         AUTHOR_REQUIRED: "ID автора обязательно",
-        TAGS_TOO_MANY: "Не более 10 тегов",
-        TAG_TOO_LONG: "Тег не должен превышать 30 символов",
         DIFFICULTY_INVALID: "Сложность должна быть: beginner, intermediate или advanced",
-        COURSE_ID_REQUIRED: "ID курса обязательно",
-        LESSON_ID_REQUIRED: "ID урока обязательно",
         RATING_REQUIRED: "Рейтинг обязателен",
         RATING_MIN: "Рейтинг должен быть не менее 1",
         RATING_MAX: "Рейтинг должен быть не более 5",
@@ -26,7 +22,6 @@ export const COURSE_MESSAGES = {
         COURSE_NOT_FOUND: "Курс не найден",
         COURSE_ALREADY_EXISTS: "Курс с таким названием уже существует",
         LESSON_ALREADY_ADDED: "Урок уже добавлен в курс",
-        LESSON_NOT_FOUND: "Урок не найден в курсе",
         USER_ALREADY_ADDED: "Пользователь уже имеет доступ к курсу",
         USER_NOT_FOUND_IN_ALLOWED: "Пользователь не найден в списке доступа",
         RATING_ALREADY_EXISTS: "Вы уже оценили этот курс",
