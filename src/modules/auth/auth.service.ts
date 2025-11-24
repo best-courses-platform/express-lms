@@ -2,7 +2,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { userService } from 'users/user.service';
 import { User, NewUser } from 'users/user.types';
-import { JWTService } from 'jwt/jwt.service';
+import { jwtService } from 'jwt/jwt.service';
 import { AppError } from '../../utils/errors';
 import { AUTH_MESSAGES } from './auth.constants';
 import { isUserDocumentStrict, isUserWithPassword, toSafeUser } from '../../utils/typeGuards';
@@ -96,7 +96,7 @@ export class AuthService {
 
     async refreshTokens(refreshToken: string): Promise<{ user: User; accessToken: string; refreshToken: string }> {
         try {
-            const payload = JWTService.verifyRefreshToken(refreshToken);
+            const payload = jwtService.verifyRefreshToken(refreshToken);
             const user = await userService.getById(payload.sub);
 
             if (!user) {
@@ -116,11 +116,11 @@ export class AuthService {
     }
 
     generateAccessToken(user: User): string {
-        return JWTService.generateAccessToken(user);
+        return jwtService.generateAccessToken(user);
     }
 
     generateRefreshToken(user: User): string {
-        return JWTService.generateRefreshToken(user);
+        return jwtService.generateRefreshToken(user);
     }
 
     isValidUser(user: any): user is User {

@@ -1,9 +1,9 @@
 // middleware/refresh-token.ts
 import { Request, Response, NextFunction } from 'express';
-import { JWTService } from 'jwt/jwt.service';
 import { userService } from 'users/user.service';
 import { authService } from 'auth/auth.service';
 import { AUTH_MESSAGES } from 'auth/auth.constants';
+import {jwtService} from "jwt/jwt.service";
 
 export const refreshTokenMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -15,7 +15,7 @@ export const refreshTokenMiddleware = async (req: Request, res: Response, next: 
             return next();
         }
 
-        const { accessToken, refreshToken } = JWTService.getTokensFromRequest(req);
+        const { accessToken, refreshToken } = jwtService.getTokensFromRequest(req);
 
         // 1. Если нет refresh token - сразу ошибка
         if (!refreshToken) {
@@ -27,18 +27,18 @@ export const refreshTokenMiddleware = async (req: Request, res: Response, next: 
 
         // 2. Проверяем refresh token
         try {
-            const refreshPayload = JWTService.verifyRefreshToken(refreshToken);
+            const refreshPayload = jwtService.verifyRefreshToken(refreshToken);
             currentUser = await userService.getById(refreshPayload.sub);
 
             if (!currentUser) {
-                JWTService.clearTokensCookies(res);
+                jwtService.clearTokensCookies(res);
                 return res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
             }
 
             // 3. Проверяем access token
             if (accessToken) {
                 try {
-                    JWTService.verifyAccessToken(accessToken);
+                    jwtService.verifyAccessToken(accessToken);
                     // Access token валиден - используем как есть
                     req.user = currentUser;
                     return next();
@@ -50,7 +50,7 @@ export const refreshTokenMiddleware = async (req: Request, res: Response, next: 
             }
 
         } catch (refreshError) {
-            JWTService.clearTokensCookies(res);
+            jwtService.clearTokensCookies(res);
             return res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
         }
 
@@ -58,7 +58,7 @@ export const refreshTokenMiddleware = async (req: Request, res: Response, next: 
         if (shouldRefreshTokens && currentUser) {
             const newAccessToken = authService.generateAccessToken(currentUser);
 
-            JWTService.setTokensCookies(res, newAccessToken, refreshToken);
+            jwtService.setTokensCookies(res, newAccessToken, refreshToken);
 
             req.user = currentUser;
             return next();

@@ -1,7 +1,7 @@
 // domains/auth/auth.controller.ts
 import { RequestHandler } from "express";
 import {authService} from "./auth.service";
-import { JWTService } from "jwt/jwt.service";
+import { jwtService } from "jwt/jwt.service";
 import { isAuthenticatedRequest } from "../../utils/typeGuards";
 import { userService } from "users/user.service";
 import { validate } from "../../middleware/validate";
@@ -18,7 +18,7 @@ export const register: RequestHandler = async (req, res, next) => {
     try {
         const { user, accessToken, refreshToken } = await authService.register(req.body);
 
-        JWTService.setTokensCookies(res, accessToken, refreshToken);
+        jwtService.setTokensCookies(res, accessToken, refreshToken);
 
         res.status(201).json({
             message: AUTH_MESSAGES.SUCCESS.REGISTERED,
@@ -40,7 +40,7 @@ export const login: RequestHandler = async (req, res, next) => {
         const { email, password } = req.body;
         const { user, accessToken, refreshToken } = await authService.login(email, password);
 
-        JWTService.setTokensCookies(res, accessToken, refreshToken);
+        jwtService.setTokensCookies(res, accessToken, refreshToken);
 
         res.json({
             message: AUTH_MESSAGES.SUCCESS.LOGGED_IN,
@@ -67,7 +67,7 @@ export const handleLoginSuccess: RequestHandler = async (req, res, next) => {
         const accessToken = authService.generateAccessToken(req.user);
         const refreshToken = authService.generateRefreshToken(req.user);
 
-        JWTService.setTokensCookies(res, accessToken, refreshToken);
+        jwtService.setTokensCookies(res, accessToken, refreshToken);
 
         res.json({
             message: AUTH_MESSAGES.SUCCESS.LOGGED_IN,
@@ -94,7 +94,7 @@ export const handleOAuthCallback: RequestHandler = async (req, res, next) => {
         const accessToken = authService.generateAccessToken(req.user);
         const refreshToken = authService.generateRefreshToken(req.user);
 
-        JWTService.setTokensCookies(res, accessToken, refreshToken);
+        jwtService.setTokensCookies(res, accessToken, refreshToken);
 
         res.redirect('/');
     } catch (error) {
@@ -104,7 +104,7 @@ export const handleOAuthCallback: RequestHandler = async (req, res, next) => {
 
 export const logout: RequestHandler = async (req, res, next) => {
     try {
-        JWTService.clearTokensCookies(res);
+        jwtService.clearTokensCookies(res);
         res.json({ message: AUTH_MESSAGES.SUCCESS.LOGGED_OUT });
     } catch (error) {
         next(error);
@@ -123,7 +123,7 @@ export const refreshToken: RequestHandler = async (req, res, next) => {
 
         const { user, accessToken, refreshToken: newRefreshToken } = await authService.refreshTokens(refreshToken);
 
-        JWTService.setTokensCookies(res, accessToken, newRefreshToken);
+        jwtService.setTokensCookies(res, accessToken, newRefreshToken);
 
         res.json({
             message: AUTH_MESSAGES.SUCCESS.TOKENS_REFRESHED,

@@ -6,7 +6,7 @@ import { JWTPayload, validateJWTPayload } from './jwt.schema';
 import { AUTH_MESSAGES } from 'auth/auth.constants';
 
 export class JWTService {
-    static generateAccessToken(user: User): string {
+    generateAccessToken(user: User): string {
         const payload: JWTPayload = {
             sub: user._id.toString(),
             email: user.email,
@@ -27,7 +27,7 @@ export class JWTService {
         );
     }
 
-    static generateRefreshToken(user: User): string {
+    generateRefreshToken(user: User): string {
         const payload: JWTPayload = {
             sub: user._id.toString(),
             email: user.email,
@@ -49,7 +49,7 @@ export class JWTService {
         );
     }
 
-    static verifyAccessToken(token: string): JWTPayload {
+    verifyAccessToken(token: string): JWTPayload {
         try {
             const payload = jwt.verify(token, config.jwtSecret);
             return validateJWTPayload(payload);
@@ -58,7 +58,7 @@ export class JWTService {
         }
     }
 
-    static verifyRefreshToken(token: string): JWTPayload {
+    verifyRefreshToken(token: string): JWTPayload {
         try {
             const secret = config.jwtRefreshSecret || config.jwtSecret;
             const payload = jwt.verify(token, secret);
@@ -68,7 +68,7 @@ export class JWTService {
         }
     }
 
-    static setTokensCookies(res: any, accessToken: string, refreshToken: string): void {
+    setTokensCookies(res: any, accessToken: string, refreshToken: string): void {
         const cookieOptions = {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -86,12 +86,12 @@ export class JWTService {
         });
     }
 
-    static clearTokensCookies(res: any): void {
+    clearTokensCookies(res: any): void {
         res.clearCookie('access_token');
         res.clearCookie('refresh_token');
     }
 
-    static getTokensFromRequest(req: any): {
+    getTokensFromRequest(req: any): {
         accessToken: string | null;
         refreshToken: string | null
     } {
@@ -115,3 +115,5 @@ export class JWTService {
         return { accessToken, refreshToken };
     }
 }
+
+export const jwtService = new JWTService();
