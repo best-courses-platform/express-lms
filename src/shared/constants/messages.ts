@@ -1,4 +1,6 @@
 // shared/constants/messages.ts
+import {ENTITY_MESSAGES} from "./entity-messages";
+
 export const COMMON_MESSAGES = {
     VALIDATION: {
         NAME_REQUIRED: "Имя обязательно для заполнения",
@@ -12,17 +14,16 @@ export const COMMON_MESSAGES = {
         PASSWORDS_DONT_MATCH: "Пароли не совпадают",
         CURRENT_PASSWORD_REQUIRED: "Текущий пароль обязателен",
         NEW_PASSWORD_REQUIRED: "Новый пароль обязателен",
-        USER_ID_REQUIRED: "ID пользователя обязательно",
-        COURSE_ID_REQUIRED: "ID курса обязательно",
-        LESSON_ID_REQUIRED: "ID урока обязательно",
+        USER_ID_REQUIRED: ENTITY_MESSAGES.ID_REQUIRED("пользователя"),
+        COURSE_ID_REQUIRED: ENTITY_MESSAGES.ID_REQUIRED("курса"),
+        LESSON_ID_REQUIRED: ENTITY_MESSAGES.ID_REQUIRED("урока"),
         TAGS_TOO_MANY: "Не более 10 тегов",
         TAG_TOO_LONG: "Тег не должен превышать 30 символов",
         AT_LEAST_ONE_FIELD: "Хотя бы одно поле должно быть заполнено",
         AVATAR_INVALID: "Аватар должен быть валидной ссылкой"
     },
     ERROR: {
-        NOT_FOUND: "Ресурс не найден",
-        LESSON_NOT_FOUND: "Урок не найден",
+        RESOURCE_NOT_FOUND: ENTITY_MESSAGES.NOT_FOUND("Ресурс"),
         UNAUTHORIZED: "Не авторизован",
         FORBIDDEN: "Доступ запрещен",
         INTERNAL_SERVER_ERROR: "Внутренняя ошибка сервера",

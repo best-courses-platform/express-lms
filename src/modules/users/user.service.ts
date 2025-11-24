@@ -9,7 +9,7 @@ class UserService {
         const normalizedEmail = userData.email.toLowerCase().trim();
         const exists = await userRepository.findByEmail(normalizedEmail);
 
-        if (exists) throw new AppError(409, USER_MESSAGES.ERROR.EMAIL_ALREADY_EXISTS);
+        if (exists) throw new AppError(409, USER_MESSAGES.ERROR.ALREADY_EXISTS);
 
         return userRepository.create(userData);
     }
@@ -21,7 +21,7 @@ class UserService {
     async getById(id: string): Promise<User> {
         const user = await userRepository.findById(id);
 
-        if (!user) throw new AppError(404, USER_MESSAGES.ERROR.USER_NOT_FOUND);
+        if (!user) throw new AppError(404, USER_MESSAGES.ERROR.NOT_FOUND);
 
         return user;
     }
@@ -29,12 +29,12 @@ class UserService {
     async update(id: string, patch: UpdateUser): Promise<User> {
         const user = await userRepository.findById(id);
 
-        if (!user) throw new AppError(404, USER_MESSAGES.ERROR.USER_NOT_FOUND);
+        if (!user) throw new AppError(404, USER_MESSAGES.ERROR.NOT_FOUND);
 
         if (patch.email && patch.email !== user.email) {
             const isTaken = await userRepository.isEmailTaken(patch.email, id);
 
-            if (isTaken) throw new AppError(409, USER_MESSAGES.ERROR.EMAIL_ALREADY_EXISTS);
+            if (isTaken) throw new AppError(409, USER_MESSAGES.ERROR.ALREADY_EXISTS);
         }
 
         return userRepository.update(id, patch);
@@ -43,7 +43,7 @@ class UserService {
     async delete(id: string): Promise<void> {
         const ok = await userRepository.delete(id);
 
-        if (!ok) throw new AppError(404, USER_MESSAGES.ERROR.USER_NOT_FOUND);
+        if (!ok) throw new AppError(404, USER_MESSAGES.ERROR.NOT_FOUND);
     }
 
     async findOrCreateFromOAuth(profile: any): Promise<User> {

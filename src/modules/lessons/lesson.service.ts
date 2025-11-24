@@ -63,7 +63,7 @@ class LessonService {
 
         // Удаляем урок из БД
         const ok = await lessonRepository.delete(id);
-        if (!ok) throw new AppError(404, LESSON_MESSAGES.ERROR.LESSON_NOT_FOUND);
+        if (!ok) throw new AppError(404, LESSON_MESSAGES.ERROR.NOT_FOUND);
 
         // Удаляем урок из курса
         await courseService.removeLesson(course._id.toString(), id, userId);
@@ -94,7 +94,7 @@ class LessonService {
         }
 
         const lesson = await lessonRepository.findById(id);
-        if (!lesson) throw new AppError(404, LESSON_MESSAGES.ERROR.LESSON_NOT_FOUND);
+        if (!lesson) throw new AppError(404, LESSON_MESSAGES.ERROR.NOT_FOUND);
 
         return lesson;
     }
@@ -245,7 +245,7 @@ class LessonService {
     private async validateUniqueLessonTitle(title: string, courseId: string): Promise<void> {
         const exists = await lessonRepository.findByTitleAndCourse(title, courseId);
         if (exists) {
-            throw new AppError(409, LESSON_MESSAGES.ERROR.LESSON_ALREADY_EXISTS);
+            throw new AppError(409, LESSON_MESSAGES.ERROR.ALREADY_EXISTS);
         }
     }
 

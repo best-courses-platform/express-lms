@@ -1,4 +1,6 @@
 // file-storage/file-storage.constants.ts
+import {ENTITY_MESSAGES} from "../../shared/constants/entity-messages";
+
 export const FILE_STORAGE_MESSAGES = {
     ERROR: {
         // Основные ошибки файлового хранилища
@@ -12,7 +14,7 @@ export const FILE_STORAGE_MESSAGES = {
 
         // Ошибки загрузки файлов (upload-file)
         SELECTEL_CREDENTIALS_MISSING: "Учетные данные Selectel не настроены",
-        LESSON_ID_REQUIRED: "ID урока обязателен",
+        LESSON_ID_REQUIRED: ENTITY_MESSAGES.ID_REQUIRED("урока"),
         S3_CLIENT_CREATION_FAILED: "Не удалось создать S3 клиент",
         INVALID_FILE_TYPE_SMALL: "Неверный тип файла для небольших файлов",
         INVALID_FILE_TYPE_LARGE: "Неверный тип файла. Разрешенные типы: видео, изображения, PDF, ZIP, текст, Word документы, Excel файлы"

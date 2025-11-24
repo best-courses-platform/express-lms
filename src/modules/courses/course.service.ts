@@ -10,7 +10,7 @@ class CourseService {
     async create(input: CreateCourseInput): Promise<Course> {
         const exists = await courseRepository.findByTitle(input.title);
 
-        if (exists) throw new AppError(409, COURSE_MESSAGES.ERROR.COURSE_ALREADY_EXISTS);
+        if (exists) throw new AppError(409, COURSE_MESSAGES.ERROR.ALREADY_EXISTS);
 
         const courseData: NewCourse = {
             ...input,
@@ -24,11 +24,11 @@ class CourseService {
     async update(id: string, patch: UpdateCourseInput): Promise<Course> {
         const course = await courseRepository.findById(id);
 
-        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);
 
         if (patch.title && patch.title !== course.title) {
             const exists = await courseRepository.findByTitle(patch.title);
-            if (exists) throw new AppError(409, COURSE_MESSAGES.ERROR.COURSE_ALREADY_EXISTS);
+            if (exists) throw new AppError(409, COURSE_MESSAGES.ERROR.ALREADY_EXISTS);
         }
 
         return courseRepository.update(id, patch);
@@ -52,19 +52,19 @@ class CourseService {
 
     async getById(id: string): Promise<Course> {
         const course = await courseRepository.findById(id);
-        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);
         
         return course;
     }
 
     async delete(id: string): Promise<void> {
         const ok = await courseRepository.delete(id);
-        if (!ok) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        if (!ok) throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);
     }
 
     async addLesson(courseId: string, lessonId: string, userId: Types.ObjectId): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);
 
         if (!course.author.equals(userId)) {
             throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
@@ -75,7 +75,7 @@ class CourseService {
 
     async removeLesson(courseId: string, lessonId: string, userId: Types.ObjectId): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);
 
         if (!course.author.equals(userId)) {
             throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
@@ -86,7 +86,7 @@ class CourseService {
 
     async addUserToAllowed(courseId: string, userId: Types.ObjectId, authorId: Types.ObjectId): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);
 
         if (!course.author.equals(authorId)) {
             throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
@@ -97,7 +97,7 @@ class CourseService {
 
     async removeUserFromAllowed(courseId: string, userId: Types.ObjectId, authorId: Types.ObjectId): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);
 
         if (!course.author.equals(authorId)) {
             throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
@@ -108,7 +108,7 @@ class CourseService {
 
     async addRating(courseId: string, userId: Types.ObjectId, value: number): Promise<Course> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);
 
         if (value < 1 || value > 5) {
             throw new AppError(400, COURSE_MESSAGES.VALIDATION.RATING_MIN);
@@ -123,7 +123,7 @@ class CourseService {
 
     async getRatings(courseId: string): Promise<Rating[]> {
         const course = await courseRepository.findById(courseId);
-        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.COURSE_NOT_FOUND);
+        if (!course) throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);
         return course.ratings;
     }
 }

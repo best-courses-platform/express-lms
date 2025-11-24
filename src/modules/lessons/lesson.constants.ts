@@ -1,14 +1,15 @@
 // domains/lessons/lesson.constants.ts
 import { COMMON_MESSAGES } from '../../shared/constants/messages';
+import {ENTITY_MESSAGES, ENTITY_SUCCESS, ENTITY_VALIDATION} from "../../shared/constants/entity-messages";
 
 export const LESSON_MESSAGES = {
     VALIDATION: {
         ...COMMON_MESSAGES.VALIDATION,
-        TITLE_REQUIRED: "Название урока обязательно",
-        TITLE_TOO_LONG: "Название урока не должно превышать 100 символов",
-        DESCRIPTION_REQUIRED: "Описание урока обязательно",
-        DESCRIPTION_TOO_SHORT: "Описание должно содержать не менее 10 символов",
-        DESCRIPTION_TOO_LONG: "Описание не должно превышать 2000 символов",
+        TITLE_REQUIRED: ENTITY_VALIDATION.FIELD_REQUIRED("Название", "урока"),
+        TITLE_TOO_LONG: ENTITY_VALIDATION.FIELD_TOO_LONG("Название", "урока", 100),
+        DESCRIPTION_REQUIRED: ENTITY_VALIDATION.FIELD_REQUIRED("Описание", "урока"),
+        DESCRIPTION_TOO_SHORT: ENTITY_VALIDATION.FIELD_TOO_SHORT("Описание", "урока", 10),
+        DESCRIPTION_TOO_LONG: ENTITY_VALIDATION.FIELD_TOO_LONG("Описание", "урока", 2000),
         ORDER_REQUIRED: "Порядковый номер обязателен",
         ORDER_MIN: "Порядковый номер должен быть не менее 1",
         INPUT_EXAMPLES_TOO_LONG: "Примеры входных данных не должны превышать 1000 символов",
@@ -23,20 +24,20 @@ export const LESSON_MESSAGES = {
     },
     ERROR: {
         ...COMMON_MESSAGES.ERROR,
-        LESSON_ALREADY_EXISTS: "Урок с таким названием уже существует в этом курсе",
+        NOT_FOUND: ENTITY_MESSAGES.NOT_FOUND("Урок"),
+        ALREADY_EXISTS: ENTITY_MESSAGES.ALREADY_EXISTS("Урок с таким названием"),
+        ACCESS_DENIED: ENTITY_MESSAGES.ACCESS_DENIED("уроку"),
         INVALID_LESSON_ID: "Некорректный ID урока",
         INVALID_COURSE_ID: "Некорректный ID курса",
         FILE_NOT_UPLOADED: "Файл не загружен",
-        RESOURCE_NOT_FOUND: "Ресурс не найден",
-        ACCESS_DENIED: "Доступ к уроку запрещен",
     },
     SUCCESS: {
-        LESSON_CREATED: "Урок успешно создан",
-        LESSON_UPDATED: "Урок успешно обновлен",
-        LESSON_DELETED: "Урок успешно удален",
+        LESSON_CREATED: ENTITY_SUCCESS.CREATED("Урок"),
+        LESSON_UPDATED: ENTITY_SUCCESS.UPDATED("Урок"),
+        LESSON_DELETED: ENTITY_SUCCESS.DELETED("Урок"),
         FILE_UPLOADED: "Файл успешно загружен",
         FILE_DELETED: "Файл успешно удален",
-        RESOURCE_DELETED: "Ресурс успешно удален",
+        RESOURCE_DELETED: ENTITY_SUCCESS.DELETED("Ресурс"),
         ACCESS_GRANTED: "Доступ к уроку предоставлен"
     },
     LOGS: {
