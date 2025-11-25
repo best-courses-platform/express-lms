@@ -1,0 +1,34 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+# Apply to all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Matches multiple file extensions
+[*.{js,ts,jsx,tsx,json,yml,yaml,css,scss,html,hbs}]
+indent_size = 2
+
+# Package.json should remain with 2 spaces
+[package.json]
+indent_size = 2
+
+# Makefiles always use tabs
+[Makefile]
+indent_style = tab
+
+# Batch files use CRLF
+[*.bat]
+end_of_line = crlf
+
+# Keep markdown trailing whitespace (for line breaks)
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = 120

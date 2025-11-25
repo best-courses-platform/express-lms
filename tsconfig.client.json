@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES6",
     "module": "ES6",
-    "lib": ["DOM", "DOM.Iterable", "ES6"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES6"
+    ],
     "outDir": "src/public/js",
     "rootDir": "src/public/ts",
     "strict": true,
@@ -10,7 +14,12 @@
     "skipLibCheck": true,
     "moduleResolution": "node"
   },
-  "include": ["src/public/ts/**/*"],
+  "include": [
+    "src/public/ts/**/*"
+  ],
   "exclude": [
-    "./node_modules", "dist", "src/public/js"]
+    "node_modules",
+    "dist",
+    "src/public/js"
+  ]
 }

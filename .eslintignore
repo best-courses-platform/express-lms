@@ -1,0 +1,6 @@
+node_modules/
+dist/
+coverage/
+src/public/js/
+src/modules/**/__tests__/**
+*.min.js

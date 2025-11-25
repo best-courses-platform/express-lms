@@ -9,11 +9,16 @@
     "./*": "./dist/*.js"
   },
   "scripts": {
+    "build:server": "tsc -p tsconfig.server.json",
     "build:client": "tsc -p tsconfig.client.json",
-    "dev:client": "tsc -p tsconfig.client.json --watch",
-    "dev": "npm run build:client && tsx src/server.ts",
-    "build": "npm run build:client && tsc",
+    "build": "npm run build:server && npm run build:client",
+    "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
+    "lint": "eslint src --ext .ts,.js",
+    "lint:fix": "eslint src --ext .ts,.js --fix",
+    "format": "prettier --write \"src/**/*.{ts,js,json,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,js,json,css,md}\"",
+    "ci:check": "npm run lint && npm run format:check && npm run test",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -67,11 +72,18 @@
     "@types/passport-local": "^1.0.38",
     "@types/supertest": "^6.0.3",
     "@types/uuid": "^11.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.48.0",
+    "@typescript-eslint/parser": "^8.48.0",
     "dotenv": "^17.2.3",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
     "jest": "^30.1.3",
+    "prettier": "^3.6.2",
     "supertest": "^7.1.4",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
+    "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.2"
   }

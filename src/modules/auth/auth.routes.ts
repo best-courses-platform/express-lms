@@ -1,11 +1,6 @@
 // auth.routes.ts
 import { Router } from 'express';
-import {
-    localAuth,
-    googleAuth,
-    googleAuthCallback,
-    jwtAuth
-} from '../../middleware/auth';
+import { localAuth, googleAuth, googleAuthCallback, jwtAuth } from '../../middleware/auth';
 import { AuthController } from './auth.controller';
 
 const authRoutes = Router();
