@@ -1,66 +1,66 @@
 /// <reference lib="dom" />
 const initializeAuthForm = (): void => {
-    const emailSection = document.getElementById('emailAuthSection') as HTMLElement | null;
-    const showEmailBtn = document.getElementById('showEmailForm') as HTMLButtonElement | null;
-    const showOAuthBtn = document.getElementById('showOAuthForm') as HTMLButtonElement | null;
-    const oauthButtons = document.querySelector('.oauth-buttons') as HTMLElement | null;
-    const authDivider = document.querySelector('.auth-divider') as HTMLElement | null;
+  const emailSection = document.getElementById('emailAuthSection') as HTMLElement | null;
+  const showEmailBtn = document.getElementById('showEmailForm') as HTMLButtonElement | null;
+  const showOAuthBtn = document.getElementById('showOAuthForm') as HTMLButtonElement | null;
+  const oauthButtons = document.querySelector('.oauth-buttons') as HTMLElement | null;
+  const authDivider = document.querySelector('.auth-divider') as HTMLElement | null;
 
-    if (!emailSection || !showEmailBtn || !showOAuthBtn || !oauthButtons || !authDivider) {
-        console.warn('Auth form elements not found');
-        
-        return;
-    }
+  if (!emailSection || !showEmailBtn || !showOAuthBtn || !oauthButtons || !authDivider) {
+    console.warn('Auth form elements not found');
 
-    const showEmailForm = (): void => {
-        // Скрываем OAuth элементы
-        oauthButtons.style.display = 'none';
-        authDivider.style.display = 'none';
-        showEmailBtn.style.display = 'none';
+    return;
+  }
 
-        // Показываем форму и кнопку OAuth
-        emailSection.style.display = 'block';
-        showOAuthBtn.style.display = 'block';
+  const showEmailForm = (): void => {
+    // Скрываем OAuth элементы
+    oauthButtons.style.display = 'none';
+    authDivider.style.display = 'none';
+    showEmailBtn.style.display = 'none';
 
-        animateFormAppearance(emailSection);
-    };
+    // Показываем форму и кнопку OAuth
+    emailSection.style.display = 'block';
+    showOAuthBtn.style.display = 'block';
 
-    const showOAuthForm = (): void => {
-        // Показываем OAuth элементы
-        oauthButtons.style.display = 'flex';
-        authDivider.style.display = 'flex';
-        showEmailBtn.style.display = 'block';
+    animateFormAppearance(emailSection);
+  };
 
-        // Скрываем форму и кнопку OAuth
-        emailSection.style.display = 'none';
-        showOAuthBtn.style.display = 'none';
-    };
+  const showOAuthForm = (): void => {
+    // Показываем OAuth элементы
+    oauthButtons.style.display = 'flex';
+    authDivider.style.display = 'flex';
+    showEmailBtn.style.display = 'block';
 
-    const animateFormAppearance = (element: HTMLElement): void => {
-        element.style.opacity = '0';
-        element.style.transform = 'translateY(10px)';
+    // Скрываем форму и кнопку OAuth
+    emailSection.style.display = 'none';
+    showOAuthBtn.style.display = 'none';
+  };
 
-        requestAnimationFrame(() => {
-            element.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-            element.style.opacity = '1';
-            element.style.transform = 'translateY(0)';
-        });
-    };
+  const animateFormAppearance = (element: HTMLElement): void => {
+    element.style.opacity = '0';
+    element.style.transform = 'translateY(10px)';
 
-    // Обработчики событий
-    showEmailBtn.addEventListener('click', (event: Event) => {
-        event.preventDefault();
-        showEmailForm();
+    requestAnimationFrame(() => {
+      element.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      element.style.opacity = '1';
+      element.style.transform = 'translateY(0)';
     });
+  };
 
-    showOAuthBtn.addEventListener('click', (event: Event) => {
-        event.preventDefault();
-        showOAuthForm();
-    });
+  // Обработчики событий
+  showEmailBtn.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    showEmailForm();
+  });
+
+  showOAuthBtn.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    showOAuthForm();
+  });
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    initializeAuthForm();
+  initializeAuthForm();
 });
 
 export { initializeAuthForm };

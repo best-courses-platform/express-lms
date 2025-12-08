@@ -1,107 +1,112 @@
+// middleware/upload-file.ts
 import multer from 'multer';
-import { S3Client } from "@aws-sdk/client-s3";
+import { S3Client } from '@aws-sdk/client-s3';
 import multerS3 from 'multer-s3';
 import { Request } from 'express';
-import { config, isSelectelConfigured } from '../config/config';
+import { config, isSelectelConfigured } from '../config';
+import { FILE_STORAGE_MESSAGES } from 'file-storage/file-storage.constants';
+import { AppError } from '../utils/errors';
 
 interface UploadRequest extends Request {
-    params: {
-        courseId?: string;
-        lessonId?: string;
-    };
+  params: {
+    courseId?: string;
+    lessonId?: string;
+  };
 }
+
+// Функция для безопасного получения S3 клиента
+const createS3Client = (): S3Client => {
+  if (!config.selectel.accessKeyId || !config.selectel.secretAccessKey) {
+    throw new AppError(500, FILE_STORAGE_MESSAGES.ERROR.SELECTEL_CREDENTIALS_MISSING);
+  }
+
+  return new S3Client({
+    region: config.selectel.region,
+    endpoint: config.selectel.endpoint,
+    credentials: {
+      accessKeyId: config.selectel.accessKeyId,
+      secretAccessKey: config.selectel.secretAccessKey,
+    },
+    forcePathStyle: false,
+  });
+};
 
 // Базовые настройки multer
 const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
-    const baseConfig: multer.Options = {
-        limits: {
-            fileSize: isSmallFile ? 10 * 1024 * 1024 : 100 * 1024 * 1024,
+  const baseConfig: multer.Options = {
+    limits: {
+      fileSize: isSmallFile ? FILE_STORAGE_MESSAGES.FILE_LIMITS.SMALL : FILE_STORAGE_MESSAGES.FILE_LIMITS.LARGE,
+    },
+    fileFilter: (req: UploadRequest, file, cb) => {
+      const allowedMimeTypes = isSmallFile
+        ? FILE_STORAGE_MESSAGES.MIME_TYPES.SMALL
+        : FILE_STORAGE_MESSAGES.MIME_TYPES.LARGE;
+
+      const isValidType = allowedMimeTypes.some(type => file.mimetype.startsWith(type) || file.mimetype === type);
+
+      if (isValidType) {
+        cb(null, true);
+      } else {
+        const error = isSmallFile
+          ? new AppError(400, FILE_STORAGE_MESSAGES.ERROR.INVALID_FILE_TYPE_SMALL, {
+              mimetype: file.mimetype,
+              allowedTypes: FILE_STORAGE_MESSAGES.MIME_TYPES.SMALL,
+            })
+          : new AppError(400, FILE_STORAGE_MESSAGES.ERROR.INVALID_FILE_TYPE_LARGE, {
+              mimetype: file.mimetype,
+              allowedTypes: FILE_STORAGE_MESSAGES.MIME_TYPES.LARGE,
+            });
+        cb(error);
+      }
+    },
+  };
+
+  // Если Selectel настроен, используем S3 storage для автоматической загрузки
+  if (isSelectelConfigured()) {
+    try {
+      const s3Client = createS3Client();
+
+      baseConfig.storage = multerS3({
+        s3: s3Client,
+        bucket: config.selectel.bucketName,
+        metadata: function (req: UploadRequest, file, cb) {
+          cb(null, {
+            fieldName: file.fieldname,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+          });
         },
-        fileFilter: (req: UploadRequest, file, cb) => {
-            const allowedMimeTypes = isSmallFile
-                ? [
-                    'image/',
-                    'application/pdf',
-                    'text/plain',
-                    'application/msword',
-                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                ]
-                : [
-                    'video/',
-                    'image/',
-                    'application/pdf',
-                    'application/zip',
-                    'text/plain',
-                    'application/msword',
-                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                ];
+        key: function (req: UploadRequest, file, cb) {
+          const lessonId = req.params.lessonId;
 
-            const isValidType = allowedMimeTypes.some(type =>
-                file.mimetype.startsWith(type) || file.mimetype === type
-            );
+          if (!lessonId) {
+            return cb(new AppError(400, FILE_STORAGE_MESSAGES.ERROR.LESSON_ID_REQUIRED));
+          }
 
-            if (isValidType) {
-                cb(null, true);
-            } else {
-                const errorMsg = isSmallFile
-                    ? `Неверный тип файла для небольших файлов: ${file.mimetype}`
-                    : `Неверный тип файла: ${file.mimetype}. Разрешенные типы: видео, изображения, PDF, ZIP, текст, Word документы`;
-                cb(new Error(errorMsg));
-            }
-        }
-    };
+          const timestamp = Date.now();
+          const randomString = Math.random().toString(36).substring(2, 15);
+          const safeFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
 
-    // Если Selectel настроен, используем S3 storage для автоматической загрузки
-    if (isSelectelConfigured()) {
-        const s3Client = new S3Client({
-            region: config.selectel.region,
-            endpoint: config.selectel.endpoint,
-            credentials: {
-                accessKeyId: config.selectel.accessKeyId,
-                secretAccessKey: config.selectel.secretAccessKey,
-            },
-            forcePathStyle: false,
-        });
+          const filename = `${timestamp}-${randomString}-${safeFileName}`;
+          const folder = `lessons/${lessonId}`;
 
-        baseConfig.storage = multerS3({
-            s3: s3Client,
-            bucket: config.selectel.bucketName,
-            metadata: function (req: UploadRequest, file, cb) {
-                cb(null, {
-                    fieldName: file.fieldname,
-                    originalName: file.originalname,
-                    mimeType: file.mimetype
-                });
-            },
-            key: function (req: UploadRequest, file, cb) {
-                const lessonId = req.params.lessonId;
-
-                if (!lessonId) {
-                    console.error('lessonId не найден в параметрах запроса');
-                    return cb(new Error('Lesson ID is required'));
-                }
-
-                const timestamp = Date.now();
-                const randomString = Math.random().toString(36).substring(2, 15);
-                const safeFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-
-                // Используем lessons/{lessonId} без подпапок по типам
-                // Тип файла будет обрабатываться в сервисе
-                const filename = `${timestamp}-${randomString}-${safeFileName}`;
-                const folder = `lessons/${lessonId}`;
-
-                const fullPath = `${folder}/${filename}`;
-                console.log(`Автоматическая загрузка файла через multer-s3: ${fullPath}`);
-
-                cb(null, fullPath);
-            }
-        });
-    } else {
-        // Иначе используем memory storage и FileStorageService обработает загрузку
-        baseConfig.storage = multer.memoryStorage();
+          const fullPath = `${folder}/${filename}`;
+          cb(null, fullPath);
+        },
+      });
+    } catch (error) {
+      // Если не удалось создать S3 клиент, пробрасываем ошибку дальше
+      throw new AppError(500, FILE_STORAGE_MESSAGES.ERROR.S3_CLIENT_CREATION_FAILED, {
+        originalError: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
+  } else {
+    // Если Selectel не настроен, используем memory storage
+    // FileStorageService сам обработает загрузку через свой механизм
+    baseConfig.storage = multer.memoryStorage();
+  }
 
-    return baseConfig;
+  return baseConfig;
 };
 
 export const uploadFile = multer(createMulterConfig(false));

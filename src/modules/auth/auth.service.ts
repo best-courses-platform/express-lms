@@ -1,46 +1,130 @@
-import { Request, Response, NextFunction } from 'express';
+// domains/auth/auth.service.ts
 import { userService } from 'users/user.service';
-import { User } from 'users/user.types';
-import { JWTService } from '../../utils/jwt';
+import { NewUser, User } from 'users/user.types';
+import { jwtService } from 'jwt/jwt.service';
+import { AppError } from '../../utils/errors';
+import { AUTH_MESSAGES } from './auth.constants';
+import { isPlainUser, isUserDocumentStrict, isUserWithPassword, toSafeUser } from '../../utils/typeGuards';
+import { userRepository } from 'users/user.repository';
 
 export class AuthService {
-    static async validateLocalCredentials(
-        email: string,
-        password: string
-    ): Promise<User> {
-        return await userService.authenticate(email, password);
+  async register(userData: {
+    name: string;
+    email: string;
+    password: string;
+    role: string;
+  }): Promise<{ user: User; accessToken: string; refreshToken: string }> {
+    try {
+      // Создаем пользователя через userService
+      const user = await userService.create(userData as NewUser);
+
+      // Генерируем токены
+      const accessToken = this.generateAccessToken(user);
+      const refreshToken = this.generateRefreshToken(user);
+
+      return { user, accessToken, refreshToken };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error; // Пробрасываем доменные ошибки userService
+      }
+      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTH_FAILED, error);
+    }
+  }
+
+  async authenticate(email: string, password: string): Promise<User> {
+    const user = await userRepository.findByEmailWithPassword(email);
+
+    if (!user) {
+      throw new AppError(401, AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
-    static generateAccessToken(user: User): string {
-        return JWTService.generateAccessToken(user);
+    if (!isUserDocumentStrict(user)) {
+      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTHENTICATION_ERROR);
     }
 
-    static generateRefreshToken(user: User): string {
-        return JWTService.generateRefreshToken(user);
+    const isValidPassword = await user.comparePassword(password);
+
+    if (!isValidPassword) {
+      throw new AppError(401, AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
-    static isValidUser(user: any): user is User {
-        return user && user._id && user.email && user.name;
+    const userPlainObject = user.toObject<User & { password: string }>();
+
+    if (!isUserWithPassword(userPlainObject)) {
+      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTH_FAILED);
     }
 
-    static checkUserRole(user: User, requiredRoles: string[]): boolean {
-        return requiredRoles.includes(user.role);
+    const { password: _, ...userWithoutPassword } = userPlainObject;
+    return toSafeUser(userWithoutPassword);
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await userRepository.findByEmailWithPassword(userId);
+
+    if (!user) {
+      throw new AppError(404, AUTH_MESSAGES.ERROR.AUTH_FAILED);
     }
 
-    static handleJWTAuthentication(req: Request, res: Response, next: NextFunction): void {
-        if (!req.user) {
-            res.status(401).json({ error: 'Unauthorized' });
-            return;
-        }
-
-        next();
+    if (!isUserDocumentStrict(user)) {
+      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTHENTICATION_ERROR);
     }
 
-    static validateSession(req: Request): boolean {
-        return !!req.user;
+    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+      throw new AppError(400, AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
-    static getCurrentUser(req: Request): User | undefined {
-        return req.user as User | undefined;
+    user.password = newPassword;
+    await user.save();
+  }
+
+  async login(email: string, password: string): Promise<{ user: User; accessToken: string; refreshToken: string }> {
+    try {
+      const user = await this.authenticate(email, password);
+      const accessToken = this.generateAccessToken(user);
+      const refreshToken = this.generateRefreshToken(user);
+
+      return { user, accessToken, refreshToken };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error; // Уже используем auth ошибки
+      }
+      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTH_FAILED, error);
     }
+  }
+
+  async refreshTokens(refreshToken: string): Promise<{ user: User; accessToken: string; refreshToken: string }> {
+    try {
+      const payload = jwtService.verifyRefreshToken(refreshToken);
+      const user = await userService.getById(payload.sub);
+
+      if (!user) {
+        throw new AppError(401, AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
+      }
+
+      const newAccessToken = this.generateAccessToken(user);
+      const newRefreshToken = this.generateRefreshToken(user);
+
+      return { user, accessToken: newAccessToken, refreshToken: newRefreshToken };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(401, AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN, error);
+    }
+  }
+
+  generateAccessToken(user: User): string {
+    return jwtService.generateAccessToken(user);
+  }
+
+  generateRefreshToken(user: User): string {
+    return jwtService.generateRefreshToken(user);
+  }
+
+  isValidUser(user: unknown): user is User {
+    return isPlainUser(user);
+  }
 }
+
+export const authService = new AuthService();

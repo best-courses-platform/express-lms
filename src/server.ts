@@ -1,76 +1,78 @@
-import app from './app.js';
+// server.ts
+import app from './app';
 import type { ServerOptions } from 'https';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
-import { config, validateConfig } from "./config/config.js";
+import { config, logConfigValidation } from './config';
+import { CONFIG_MESSAGES } from './config/config.constants';
 import mongoose from 'mongoose';
 
 // Подключение к MongoDB
-mongoose.connect(config.mongoUri)
-    .then(() => console.log('Успешное подключение к MongoDB'))
-    .catch((error) => console.error('Ошибка подключения к MongoDB:', error));
+mongoose
+  .connect(config.mongoUri)
+  .then(() => console.log(CONFIG_MESSAGES.SUCCESS.MONGO_CONNECTED))
+  .catch((error: Error) => {
+    console.error(CONFIG_MESSAGES.ERROR.MONGO_CONNECTION_FAILED, error);
+    process.exit(1);
+  });
 
 const PORT = config.port;
-
 const isProduction = process.env.NODE_ENV === 'production';
 
 const start = async () => {
-    try {
-        if (!isProduction) {
-            validateConfig(); // Проверяем настройки только при разработке
+  try {
+    if (!isProduction) {
+      logConfigValidation(); // Проверяем настройки только при разработке
 
-            console.log(`Запуск HTTP сервера для разработки...`);
+      console.log(CONFIG_MESSAGES.INFO.STARTING_DEV);
 
-            app.listen(PORT, () => {
-                console.log(`Приложение для разработки запущено на http://localhost:${PORT}`);
-            });
+      app.listen(PORT, () => {
+        console.log(`${CONFIG_MESSAGES.SUCCESS.HTTP_DEV_STARTED} http://localhost:${PORT}`);
+      });
 
-            return;
-        }
-
-        console.log(`Запуск продакшен сервера...`);
-
-        const __dirname = path.resolve();
-        const certPath = path.join(__dirname, 'certificates');
-        const keyPath = path.join(certPath, 'private-key.pem');
-        const certPathFull = path.join(certPath, 'certificate.pem');
-
-        const hasCertificates = fs.existsSync(keyPath) && fs.existsSync(certPathFull);
-
-        if (hasCertificates) {
-            const httpsOptions: ServerOptions = {
-                key: fs.readFileSync(keyPath),
-                cert: fs.readFileSync(certPathFull),
-            };
-
-            console.log(`Запуск HTTPS сервера с SSL...`);
-
-            https.createServer(httpsOptions, app).listen(PORT, () =>
-                console.log(`Продакшен приложение запущено на https://localhost:${PORT}`)
-            );
-        } else {
-            console.warn('SSL сертификаты не найдены в продакшене!');
-            startHttpServer();
-        }
-    } catch (err) {
-        console.error('Не удалось запустить приложение');
-        console.error(err);
-        process.exit(1);
+      return;
     }
-}
+
+    console.log(CONFIG_MESSAGES.INFO.STARTING_PROD);
+
+    const __dirname = path.resolve();
+    const certPath = path.join(__dirname, 'certificates');
+    const keyPath = path.join(certPath, 'private-key.pem');
+    const certPathFull = path.join(certPath, 'certificate.pem');
+
+    const hasCertificates = fs.existsSync(keyPath) && fs.existsSync(certPathFull);
+
+    if (hasCertificates) {
+      const httpsOptions: ServerOptions = {
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPathFull),
+      };
+
+      https
+        .createServer(httpsOptions, app)
+        .listen(PORT, () => console.log(`${CONFIG_MESSAGES.SUCCESS.HTTPS_PROD_STARTED} https://localhost:${PORT}`));
+    } else {
+      console.warn(CONFIG_MESSAGES.ERROR.SSL_CERTS_MISSING);
+      startHttpServer();
+    }
+  } catch (err) {
+    console.error(CONFIG_MESSAGES.ERROR.APP_START_FAILED);
+    console.error(err);
+    process.exit(1);
+  }
+};
 
 function startHttpServer() {
-    console.log(`Запуск HTTP сервера...`);
-    app.listen(PORT, () => {
-        console.log(`Продакшен приложение запущено на http://localhost:${PORT}`);
-    });
+  app.listen(PORT, () => {
+    console.log(`${CONFIG_MESSAGES.SUCCESS.HTTP_PROD_STARTED} http://localhost:${PORT}`);
+  });
 }
 
 process.on('SIGINT', async () => {
-    console.log('Приложение закрыто');
-    await mongoose.connection.close();
-    process.exit();
+  console.log(CONFIG_MESSAGES.SUCCESS.APP_CLOSED);
+  await mongoose.connection.close();
+  process.exit();
 });
 
 start();

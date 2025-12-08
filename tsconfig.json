@@ -3,9 +3,9 @@
     "target": "ES2020",
     "module": "CommonJS",
     "moduleResolution": "node",
-    "lib": ["ES2020"],
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "lib": [
+      "ES2020"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -19,14 +19,19 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "typeRoots": [
-      "./node_modules/@types", "./src/types"],
-    "types": ["node", "express"],
+      "./src/@types",
+      "./node_modules/@types"
+    ],
+    "types": [
+      "node",
+      "express"
+    ],
     "baseUrl": "./src",
     "paths": {
-      "*": ["*", "modules/*"]
+      "*": [
+        "*",
+        "modules/*"
+      ]
     }
-  },
-  "include": ["src/**/*", "src/types/**/*.d.ts"],
-  "exclude": [
-    "./node_modules", "dist"]
+  }
 }

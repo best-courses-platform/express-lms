@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+src/public/js/
+src/modules/**/__tests__/**
+*.min.js
+*.min.css
+package-lock.json
+yarn.lock
+.env
+.env.local
+.certificates/
+*.log
+jest-report/
