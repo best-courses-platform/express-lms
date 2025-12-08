@@ -17,6 +17,11 @@ export const configSchema = z.object({
   googleClientSecret: z.string().min(1, CONFIG_MESSAGES.ERROR.GOOGLE_CLIENT_SECRET_REQUIRED),
   googleCallbackURL: z.string().default('/api/auth/google/callback'),
 
+  // Github OAuth
+  githubClientId: z.string().min(1, CONFIG_MESSAGES.ERROR.GITHUB_CLIENT_ID_REQUIRED),
+  githubClientSecret: z.string().min(1, CONFIG_MESSAGES.ERROR.GITHUB_CLIENT_SECRET_REQUIRED),
+  githubCallbackURL: z.string().default('/api/auth/github/callback'),
+
   // Selectel S3
   selectel: z.object({
     accessKeyId: z.string().optional(),

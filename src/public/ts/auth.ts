@@ -23,6 +23,12 @@ const initializeAuthForm = (): void => {
     showOAuthBtn.style.display = 'block';
 
     animateFormAppearance(emailSection);
+
+    // Фокусируемся на первом поле
+    // const firstInput = emailSection.querySelector('input') as HTMLInputElement;
+    // if (firstInput) {
+    //   firstInput.focus();
+    // }
   };
 
   const showOAuthForm = (): void => {

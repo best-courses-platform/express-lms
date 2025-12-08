@@ -1,5 +1,5 @@
 // middleware/auth.ts
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import passport from 'passport';
 import { AUTH_MESSAGES } from 'auth/auth.constants';
 import { isAuthenticatedRequest } from '../utils/typeGuards';
@@ -13,6 +13,15 @@ export const googleAuth = passport.authenticate('google', {
 });
 
 export const googleAuthCallback = passport.authenticate('google', {
+  session: false,
+  failureRedirect: '/login',
+});
+
+export const githubAuth = passport.authenticate('github', {
+  scope: ['user:email'],
+});
+
+export const githubAuthCallback = passport.authenticate('github', {
   session: false,
   failureRedirect: '/login',
 });

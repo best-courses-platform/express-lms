@@ -1,6 +1,13 @@
-// auth.routes.ts
+// domains/auth/auth.routes.ts
 import { Router } from 'express';
-import { localAuth, googleAuth, googleAuthCallback, jwtAuth } from '../../middleware/auth';
+import {
+  githubAuth,
+  githubAuthCallback,
+  googleAuth,
+  googleAuthCallback,
+  jwtAuth,
+  localAuth,
+} from '../../middleware/auth';
 import { AuthController } from './auth.controller';
 
 const authRoutes = Router();
@@ -13,6 +20,10 @@ authRoutes.post('/login/local', localAuth, AuthController.handleLoginSuccess);
 // Google OAuth
 authRoutes.get('/google', googleAuth);
 authRoutes.get('/google/callback', googleAuthCallback, AuthController.handleOAuthCallback);
+
+// GitHub OAuth
+authRoutes.get('/github', githubAuth);
+authRoutes.get('/github/callback', githubAuthCallback, AuthController.handleOAuthCallback);
 
 // Токены и сессии
 authRoutes.post('/refresh', ...AuthController.refreshToken);

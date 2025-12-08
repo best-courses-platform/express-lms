@@ -8,6 +8,7 @@ export type User = {
   email: string;
   password?: string;
   googleId?: string;
+  githubId?: string;
   role: UserRole;
   avatar?: string;
   createdAt: Date;

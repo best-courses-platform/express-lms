@@ -18,8 +18,11 @@ export const AUTH_MESSAGES = {
     REFRESH_TOKEN_REQUIRED: 'Refresh token отсутствует',
     AUTH_FAILED: 'Ошибка аутентификации',
     AUTHENTICATION_ERROR: 'Ошибка аутентификации',
-    OAUTH_ERROR: 'Ошибка при OAuth аутентификации',
-    OAUTH_EMAIL_NOT_PROVIDED: 'Email не предоставлен провайдером Google',
+    OAUTH_EMAIL_NOT_PROVIDED: 'Email не предоставлен провайдером',
     GOOGLE_OAUTH_ERROR: 'Ошибка Google OAuth',
+    GITHUB_EMAIL_NOT_PROVIDED:
+      'Не удалось получить email. Пожалуйста, проверьте настройки приватности в GitHub или укажите публичный email.',
+    GITHUB_EMAIL_FETCH_ERROR: 'Ошибка получения email из GitHub',
+    GITHUB_OAUTH_ERROR: 'Ошибка GitHub OAuth',
   },
 } as const;

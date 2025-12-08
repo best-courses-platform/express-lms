@@ -63,21 +63,31 @@ class UserService {
         throw new AppError(400, USER_MESSAGES.ERROR.USER_DATA_PROCESSING_ERROR);
       }
 
-      let user = await userRepository.findByGoogleId(profile.id);
+      // Определяем провайдера и соответствующее поле
+      const isGithub = profile.provider === 'github';
+      const providerField = isGithub ? 'githubId' : 'googleId';
+
+      // Ищем пользователя
+      let user = isGithub
+        ? await userRepository.findByGithubId(profile.id)
+        : await userRepository.findByGoogleId(profile.id);
 
       if (!user) {
         const existingUser = await userRepository.findByEmail(profile.emails[0].value);
 
         if (existingUser) {
           user = await userRepository.update(existingUser._id.toString(), {
-            googleId: profile.id,
+            [providerField]: profile.id,
             avatar: profile.photos?.[0]?.value || existingUser.avatar,
           });
         } else {
+          // Для GitHub используем username если нет displayName
+          const name = profile.displayName || (isGithub ? profile.username : null) || 'User';
+
           user = await userRepository.create({
-            name: profile.displayName,
+            name,
             email: profile.emails[0].value,
-            googleId: profile.id,
+            [providerField]: profile.id,
             avatar: profile.photos?.[0]?.value,
             role: 'student',
           } as NewUser);

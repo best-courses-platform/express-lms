@@ -1,6 +1,6 @@
 // config/index.ts
 import dotenv from 'dotenv';
-import { configSchema, Config } from './schema';
+import { Config, configSchema } from './schema';
 import { CONFIG_MESSAGES } from './config.constants';
 
 dotenv.config();
@@ -17,6 +17,10 @@ export const config: Config = configSchema.parse({
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
   googleCallbackURL: process.env.GOOGLE_CALLBACK_URL,
+  // Github OAuth
+  githubClientId: process.env.GITHUB_CLIENT_ID,
+  githubClientSecret: process.env.GITHUB_CLIENT_SECRET,
+  githubCallbackURL: process.env.GITHUB_CALLBACK_URL,
   // Selectel S3
   selectel: {
     accessKeyId: process.env.SELECTEL_ACCESS_KEY_ID,

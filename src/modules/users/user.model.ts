@@ -23,10 +23,15 @@ const userSchema = new Schema<User>(
       minlength: 6,
       // required только для локальной регистрации, не для OAuth
       required: function () {
-        return !this.googleId;
+        return !this.googleId && !this.githubId; // <-- обновляем условие
       },
     },
     googleId: {
+      type: String,
+      sparse: true,
+      unique: true,
+    },
+    githubId: {
       type: String,
       sparse: true,
       unique: true,
@@ -50,6 +55,7 @@ const userSchema = new Schema<User>(
 // Индексы для оптимизации запросов
 userSchema.index({ email: 1 });
 userSchema.index({ googleId: 1 });
+userSchema.index({ githubId: 1 }); // <-- добавляем индекс для githubId
 userSchema.index({ role: 1 });
 userSchema.index({ createdAt: -1 });
 
@@ -84,14 +90,28 @@ userSchema.methods.toJSON = function () {
   return userObject;
 };
 
-// Статический метод для поиска по email
+// Статические методы для поиска
 userSchema.statics.findByEmail = function (email: string) {
   return this.findOne({ email: email.toLowerCase() });
 };
 
-// Статический метод для поиска по googleId
 userSchema.statics.findByGoogleId = function (googleId: string) {
   return this.findOne({ googleId });
+};
+
+userSchema.statics.findByGithubId = function (githubId: string) {
+  // <-- добавляем метод
+  return this.findOne({ githubId });
+};
+
+// Статический метод для поиска по любому OAuth провайдеру
+userSchema.statics.findByOAuthProvider = function (provider: string, providerId: string) {
+  if (provider === 'google') {
+    return this.findOne({ googleId: providerId });
+  } else if (provider === 'github') {
+    return this.findOne({ githubId: providerId }); // <-- добавляем поиск по githubId
+  }
+  return null;
 };
 
 export const UserModel = model<User>('User', userSchema);

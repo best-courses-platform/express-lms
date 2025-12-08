@@ -25,13 +25,25 @@ class UserRepository {
     return await UserModel.findOne({ email: email.toLowerCase() }).exec();
   }
 
-  // Этот метод нужен для аутентификации, где пароль требуется
   async findByEmailWithPassword(email: string): Promise<User | null> {
     return await UserModel.findOne({ email: email.toLowerCase() }).select('+password').exec();
   }
 
   async findByGoogleId(googleId: string): Promise<User | null> {
     return await UserModel.findOne({ googleId }).exec();
+  }
+
+  async findByGithubId(githubId: string): Promise<User | null> {
+    return await UserModel.findOne({ githubId }).exec();
+  }
+
+  async findByOAuthProvider(provider: string, providerId: string): Promise<User | null> {
+    if (provider === 'google') {
+      return this.findByGoogleId(providerId);
+    } else if (provider === 'github') {
+      return this.findByGithubId(providerId);
+    }
+    return null;
   }
 
   async update(id: string, patch: UpdateUser): Promise<User> {
@@ -53,7 +65,6 @@ class UserRepository {
   async isEmailTaken(email: string, excludeUserId?: string): Promise<boolean> {
     const query: { email: string; _id?: { $ne: Types.ObjectId } } = { email };
 
-    // Исключаем текущего пользователя из проверки
     if (excludeUserId) {
       query._id = { $ne: new Types.ObjectId(excludeUserId) };
     }
