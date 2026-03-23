@@ -6,11 +6,14 @@ import { isAuthenticatedRequest } from '../../utils/typeGuards';
 import { userService } from 'users/user.service';
 import { validate } from '../../middleware/validate';
 import {
-  registerSchema,
+  changePasswordSchema,
   loginSchema,
   refreshTokenSchema,
+  registerSchema,
+  requestPasswordResetSchema,
+  resendVerificationSchema,
+  resetPasswordSchema,
   updateProfileSchema,
-  changePasswordSchema,
 } from './auth.schema';
 import { AUTH_MESSAGES } from './auth.constants';
 
@@ -202,6 +205,73 @@ export const changePassword: RequestHandler = async (req, res, next) => {
   }
 };
 
+export const verifyEmail: RequestHandler = async (req, res, next) => {
+  try {
+    const { token } = req.query;
+
+    if (typeof token !== 'string') {
+      return res.status(400).json({ error: 'Invalid token' });
+    }
+
+    const user = await authService.verifyEmail(token);
+
+    res.json({
+      message: 'Email успешно подтвержден!',
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isEmailVerified: user.isEmailVerified,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendVerification: RequestHandler = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    await authService.resendVerificationEmail(email);
+
+    res.json({
+      message: 'Письмо с подтверждением отправлено повторно',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const requestPasswordReset: RequestHandler = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    await authService.requestPasswordReset(email);
+
+    res.json({
+      message: 'Если email зарегистрирован, письмо для сброса пароля будет отправлено',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetPassword: RequestHandler = async (req, res, next) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    await authService.resetPassword(token, newPassword);
+
+    res.json({
+      message: 'Пароль успешно изменен',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Экспорт с валидацией для использования в routes
 export const AuthController = {
   register: [validate(registerSchema), register],
@@ -213,4 +283,8 @@ export const AuthController = {
   getCurrentUser,
   updateProfile: [validate(updateProfileSchema), updateProfile],
   changePassword: [validate(changePasswordSchema), changePassword],
+  verifyEmail,
+  resendVerification: [validate(resendVerificationSchema), resendVerification],
+  requestPasswordReset: [validate(requestPasswordResetSchema), requestPasswordReset],
+  resetPassword: [validate(resetPasswordSchema), resetPassword],
 };

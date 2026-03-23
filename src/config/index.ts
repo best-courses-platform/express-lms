@@ -21,6 +21,19 @@ export const config: Config = configSchema.parse({
   githubClientId: process.env.GITHUB_CLIENT_ID,
   githubClientSecret: process.env.GITHUB_CLIENT_SECRET,
   githubCallbackURL: process.env.GITHUB_CALLBACK_URL,
+  // Email
+  email: {
+    host: process.env.EMAIL_HOST,
+    port: process.env.EMAIL_PORT,
+    secure: process.env.EMAIL_SECURE === 'true',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+    from: process.env.EMAIL_FROM,
+    verificationUrl: process.env.EMAIL_VERIFICATION_URL,
+  },
+  frontendUrl: process.env.FRONTEND_URL,
   // Selectel S3
   selectel: {
     accessKeyId: process.env.SELECTEL_ACCESS_KEY_ID,

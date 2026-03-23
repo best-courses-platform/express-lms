@@ -22,6 +22,24 @@ export const configSchema = z.object({
   githubClientSecret: z.string().min(1, CONFIG_MESSAGES.ERROR.GITHUB_CLIENT_SECRET_REQUIRED),
   githubCallbackURL: z.string().default('/api/auth/github/callback'),
 
+  // Email (для подтверждения регистрации)
+  email: z.object({
+    host: z.string().optional(),
+    port: z.coerce.number().default(587),
+    secure: z.coerce.boolean().default(false),
+    auth: z
+      .object({
+        user: z.string().optional(),
+        pass: z.string().optional(),
+      })
+      .optional(),
+    from: z.string().default('noreply@yourapp.com'),
+    verificationUrl: z.string().default('http://localhost:3000/api/auth/verify-email'),
+  }),
+
+  // Фронтенд URL для ссылок подтверждения
+  frontendUrl: z.string().url().default('http://localhost:3000'),
+
   // Selectel S3
   selectel: z.object({
     accessKeyId: z.string().optional(),

@@ -77,8 +77,43 @@ export const changePasswordSchema = z.object({
     }),
 });
 
+export const verifyEmailSchema = z.object({
+  query: z.object({
+    token: z.string().min(1, 'Токен подтверждения обязателен'),
+  }),
+});
+
+export const resendVerificationSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+  }),
+});
+
+export const requestPasswordResetSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+  }),
+});
+
+export const resetPasswordSchema = z.object({
+  body: z
+    .object({
+      token: z.string().min(1, 'Токен сброса пароля обязателен'),
+      newPassword: passwordSchema,
+      confirmPassword: z.string().min(1, AUTH_MESSAGES.VALIDATION.CONFIRM_PASSWORD_REQUIRED),
+    })
+    .refine(data => data.newPassword === data.confirmPassword, {
+      message: AUTH_MESSAGES.VALIDATION.PASSWORDS_DONT_MATCH,
+      path: ['confirmPassword'],
+    }),
+});
+
 // Типы для TypeScript
 export type RegisterInput = z.infer<typeof registerSchema>['body'];
 export type LoginInput = z.infer<typeof loginSchema>['body'];
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>['body'];
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>['body'];
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>['query'];
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>['body'];
+export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>['body'];
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>['body'];

@@ -24,5 +24,13 @@ export const AUTH_MESSAGES = {
       'Не удалось получить email. Пожалуйста, проверьте настройки приватности в GitHub или укажите публичный email.',
     GITHUB_EMAIL_FETCH_ERROR: 'Ошибка получения email из GitHub',
     GITHUB_OAUTH_ERROR: 'Ошибка GitHub OAuth',
+
+    EMAIL_NOT_VERIFIED: 'Email не подтвержден. Проверьте вашу почту.',
+    EMAIL_ALREADY_VERIFIED: 'Email уже подтвержден',
+    INVALID_VERIFICATION_TOKEN: 'Неверный токен подтверждения',
+    VERIFICATION_TOKEN_EXPIRED: 'Срок действия токена подтверждения истек',
+    INVALID_RESET_TOKEN: 'Неверный токен сброса пароля',
+    RESET_TOKEN_EXPIRED: 'Срок действия токена сброса пароля истек',
+    VERIFICATION_REQUIRED: 'Требуется подтверждение email',
   },
 } as const;

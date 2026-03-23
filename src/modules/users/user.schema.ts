@@ -1,4 +1,3 @@
-// domains/users/user.schema.ts
 import { z } from 'zod';
 import { USER_MESSAGES } from './user.constants';
 
@@ -22,13 +21,17 @@ const passwordSchema = z
   .min(6, USER_MESSAGES.VALIDATION.PASSWORD_TOO_SHORT)
   .max(30, USER_MESSAGES.VALIDATION.PASSWORD_TOO_LONG);
 
-const roleSchema = z
-  .enum(['student', 'author', 'admin'])
-  .refine(val => ['student', 'author', 'admin'].includes(val), { message: USER_MESSAGES.VALIDATION.INVALID_ROLE });
+const roleSchema = z.enum(['student', 'author', 'admin']).refine(val => ['student', 'author', 'admin'].includes(val), {
+  message: USER_MESSAGES.VALIDATION.INVALID_ROLE,
+});
 
 const avatarSchema = z.string().url(USER_MESSAGES.VALIDATION.AVATAR_INVALID).optional().nullable();
 
 const idSchema = z.string().min(1, USER_MESSAGES.VALIDATION.USER_ID_REQUIRED);
+
+// Добавляем схемы для токенов
+const verificationTokenSchema = z.string().min(1, 'Токен подтверждения обязателен');
+const resetTokenSchema = z.string().min(1, 'Токен сброса пароля обязателен');
 
 // Базовые схемы для тела запроса
 export const userBaseSchema = z.object({
@@ -36,6 +39,7 @@ export const userBaseSchema = z.object({
   email: emailSchema,
   role: roleSchema.default('student'),
   avatar: avatarSchema,
+  isEmailVerified: z.boolean().optional(),
 });
 
 // Создание пользователя (для админских операций)
@@ -85,6 +89,41 @@ export const idParamSchema = z.object({
   }),
 });
 
+// Схема для верификации email
+export const verifyEmailSchema = z.object({
+  query: z.object({
+    token: verificationTokenSchema,
+  }),
+});
+
+// Схема для повторной отправки верификации
+export const resendVerificationSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+  }),
+});
+
+// Схема для запроса сброса пароля
+export const requestPasswordResetSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+  }),
+});
+
+// Схема для сброса пароля
+export const resetPasswordSchema = z.object({
+  body: z
+    .object({
+      token: resetTokenSchema,
+      newPassword: passwordSchema,
+      confirmPassword: z.string().min(1, USER_MESSAGES.VALIDATION.CONFIRM_PASSWORD_REQUIRED),
+    })
+    .refine(data => data.newPassword === data.confirmPassword, {
+      message: USER_MESSAGES.VALIDATION.PASSWORDS_DONT_MATCH,
+      path: ['confirmPassword'],
+    }),
+});
+
 // Схема для поиска пользователей с пагинацией
 export const userListSchema = z.object({
   query: z
@@ -92,6 +131,10 @@ export const userListSchema = z.object({
       page: z.string().optional().default('1').transform(Number),
       limit: z.string().optional().default('10').transform(Number),
       role: roleSchema.optional(),
+      isEmailVerified: z
+        .enum(['true', 'false'])
+        .optional()
+        .transform(val => val === 'true'),
       search: z.string().optional(),
     })
     .refine(data => data.page > 0, {
@@ -108,3 +151,7 @@ export type UpdateUserInput = z.infer<typeof updateUserSchema>['body'];
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>['body'];
 export type IdParamInput = z.infer<typeof idParamSchema>['params'];
 export type UserListQuery = z.infer<typeof userListSchema>['query'];
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>['query'];
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>['body'];
+export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>['body'];
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>['body'];
