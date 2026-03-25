@@ -1,0 +1,17 @@
+### Запрос списка всех курсов
+GET {{baseUrl}}/api/courses
+
+### POST /api/courses
+POST {{baseUrl}}/api/courses
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "title": "Тестовый курс по Node.js",
+  "description": "Короткое описание курса на 10+ символов (для валидации).",
+  "previewImage": "https://placehold.co/1200x600/png?text=Course+Preview",
+  "tags": ["node.js", "backend"],
+  "difficulty": "beginner",
+  "isPublished": false,
+  "author": "{{author_id}}"
+}

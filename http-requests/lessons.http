@@ -1,0 +1,55 @@
+@courseId = 69c395e79d1944b27c939903
+@lessonId = 69c396ca9d1944b27c93990a
+
+### Получить детали конкретного урока
+GET {{baseUrl}}/api/lessons/{{lessonId}}
+Authorization: Bearer {{auth_token}}
+
+### Создание нового урока в курсе
+POST {{baseUrl}}/api/lessons/course/{{courseId}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "title": "Тестовый урок по JavaScript 1",
+  "description": "Введение в основы JavaScript: переменные, типы данных и функции 1",
+  "courseId": "{{courseId}}",
+  "order": 2,
+  "tags": ["javascript", "программирование", "основы"]
+}
+
+### Загрузка файла ресурса к уроку
+POST {{baseUrl}}/api/lessons/{{lessonId}}/files/resource
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="test-courses.txt"
+Content-Type: text/plain
+
+< ./resources/files/test-courses.txt
+--boundary
+Content-Disposition: form-data; name="fileType"
+
+resource
+--boundary
+Content-Disposition: form-data; name="title"
+
+Тестовый файл 2 excel
+--boundary--
+
+### Загрузка видео к уроку
+POST {{baseUrl}}/api/lessons/{{lessonId}}/files/video
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="sky.m4v"
+Content-Type: video/mp4
+
+< ./resources/video/sky.m4v
+--boundary
+Content-Disposition: form-data; name="fileType"
+
+video
+--boundary--

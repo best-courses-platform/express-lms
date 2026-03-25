@@ -7,3 +7,8 @@ certificates
 src/public/js
 
 .env
+
+http-requests/resources/
+http-requests/resources/**
+dist
+dist/

@@ -10,6 +10,10 @@
   ],
   "exclude": [
     "src/public/**/*",
+    "src/**/__tests__/**/*",
+    "src/**/__mocks__/**/*",
+    "src/**/*.spec.ts",
+    "src/**/*.test.ts",
     "node_modules",
     "dist"
   ]
