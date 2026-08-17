@@ -14,6 +14,7 @@ import {
   resendVerificationSchema,
   resetPasswordSchema,
   updateProfileSchema,
+  verifyEmailSchema,
 } from './auth.schema';
 import { AUTH_MESSAGES } from './auth.constants';
 
@@ -207,11 +208,7 @@ export const changePassword: RequestHandler = async (req, res, next) => {
 
 export const verifyEmail: RequestHandler = async (req, res, next) => {
   try {
-    const { token } = req.query;
-
-    if (typeof token !== 'string') {
-      return res.status(400).json({ error: 'Invalid token' });
-    }
+    const { token } = req.body;
 
     const user = await authService.verifyEmail(token);
 
@@ -283,7 +280,7 @@ export const AuthController = {
   getCurrentUser,
   updateProfile: [validate(updateProfileSchema), updateProfile],
   changePassword: [validate(changePasswordSchema), changePassword],
-  verifyEmail,
+  verifyEmail: [validate(verifyEmailSchema), verifyEmail],
   resendVerification: [validate(resendVerificationSchema), resendVerification],
   requestPasswordReset: [validate(requestPasswordResetSchema), requestPasswordReset],
   resetPassword: [validate(resetPasswordSchema), resetPassword],

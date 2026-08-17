@@ -14,15 +14,10 @@ export class AuthService {
     email: string;
     password: string;
     role: string;
-  }): Promise<{ user: User; accessToken: string; refreshToken: string; verificationToken: string }> {
+  }): Promise<{ user: User; accessToken: string; refreshToken: string }> {
     try {
-      // Создаем пользователя с неподтвержденным email
-      const user = await userService.create({
-        ...userData,
-        isEmailVerified: false,
-        emailVerificationToken: crypto.randomBytes(32).toString('hex'),
-        emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 часа
-      } as NewUser);
+      // userService.create сам решает isEmailVerified/токен (false + токен для локальной регистрации, true для OAuth)
+      const user = await userService.create(userData as NewUser);
 
       // Отправляем email для подтверждения
       if (emailService.isConfigured() && user.emailVerificationToken) {
@@ -33,12 +28,7 @@ export class AuthService {
       const accessToken = this.generateAccessToken(user);
       const refreshToken = this.generateRefreshToken(user);
 
-      return {
-        user,
-        accessToken,
-        refreshToken,
-        verificationToken: user.emailVerificationToken!,
-      };
+      return { user, accessToken, refreshToken };
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
@@ -59,45 +49,32 @@ export class AuthService {
       throw new AppError(400, AUTH_MESSAGES.ERROR.VERIFICATION_TOKEN_EXPIRED);
     }
 
-    // Подтверждаем email
-    const userWithMethods = user as User & { save: () => Promise<void> }; // Приведение типа
-    userWithMethods.isEmailVerified = true;
-    userWithMethods.emailVerificationToken = undefined;
-    userWithMethods.emailVerificationExpires = undefined;
+    // Подтверждаем email (user уже UserDocument — findByEmailVerificationToken так типизирован)
+    user.isEmailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
 
-    await userWithMethods.save();
-
-    // Возвращаем обновленного пользователя без методов
-    const { save: _, ...userWithoutMethods } = userWithMethods;
-    return userWithoutMethods as User;
+    return await user.save();
   }
 
   async resendVerificationEmail(email: string): Promise<void> {
     const user = await userRepository.findByEmail(email);
 
-    if (!user) {
-      // Не сообщаем, что пользователь не найден (security)
+    // Единообразный тихий ответ и для "email не найден", и для "уже подтверждён" —
+    // иначе разница в ответе (400 EMAIL_ALREADY_VERIFIED vs тихий успех) палит user enumeration.
+    if (!user || user.isEmailVerified) {
       return;
     }
 
-    if (user.isEmailVerified) {
-      throw new AppError(400, AUTH_MESSAGES.ERROR.EMAIL_ALREADY_VERIFIED);
-    }
-
     // Генерируем новый токен
-    const userWithMethods = user as User & { save: () => Promise<void> };
-    userWithMethods.emailVerificationToken = crypto.randomBytes(32).toString('hex');
-    userWithMethods.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    user.emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    await userWithMethods.save();
+    await user.save();
 
     // Отправляем email
-    if (emailService.isConfigured() && userWithMethods.emailVerificationToken) {
-      await emailService.sendVerificationEmail(
-        userWithMethods.email,
-        userWithMethods.emailVerificationToken,
-        userWithMethods.name
-      );
+    if (emailService.isConfigured()) {
+      await emailService.sendVerificationEmail(user.email, user.emailVerificationToken, user.name);
     }
   }
 
@@ -110,19 +87,14 @@ export class AuthService {
     }
 
     // Генерируем токен для сброса пароля
-    const userWithMethods = user as User & { save: () => Promise<void> };
-    userWithMethods.passwordResetToken = crypto.randomBytes(32).toString('hex');
-    userWithMethods.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
+    user.passwordResetToken = crypto.randomBytes(32).toString('hex');
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
 
-    await userWithMethods.save();
+    await user.save();
 
     // Отправляем email
-    if (emailService.isConfigured() && userWithMethods.passwordResetToken) {
-      await emailService.sendPasswordResetEmail(
-        userWithMethods.email,
-        userWithMethods.passwordResetToken,
-        userWithMethods.name
-      );
+    if (emailService.isConfigured()) {
+      await emailService.sendPasswordResetEmail(user.email, user.passwordResetToken, user.name);
     }
   }
 
@@ -139,12 +111,11 @@ export class AuthService {
     }
 
     // Обновляем пароль
-    const userWithMethods = user as User & { save: () => Promise<void> };
-    userWithMethods.password = newPassword;
-    userWithMethods.passwordResetToken = undefined;
-    userWithMethods.passwordResetExpires = undefined;
+    user.password = newPassword;
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
 
-    await userWithMethods.save();
+    await user.save();
   }
 
   async authenticate(email: string, password: string): Promise<User> {

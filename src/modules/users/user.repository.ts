@@ -113,34 +113,6 @@ class UserRepository {
     const result = await UserModel.findByIdAndDelete(id).exec();
     return result !== null;
   }
-
-  async verifyEmail(token: string): Promise<UserDocument | null> {
-    const user = await this.findByEmailVerificationToken(token);
-
-    if (!user) {
-      return null;
-    }
-
-    user.isEmailVerified = true;
-    user.emailVerificationToken = null;
-    user.emailVerificationExpires = null;
-
-    return await user.save();
-  }
-
-  async resetPassword(token: string, newPassword: string): Promise<UserDocument | null> {
-    const user = await this.findByPasswordResetToken(token);
-
-    if (!user) {
-      return null;
-    }
-
-    user.password = newPassword;
-    user.passwordResetToken = null;
-    user.passwordResetExpires = null;
-
-    return await user.save();
-  }
 }
 
 export const userRepository = new UserRepository();

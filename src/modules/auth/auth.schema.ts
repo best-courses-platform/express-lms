@@ -78,7 +78,7 @@ export const changePasswordSchema = z.object({
 });
 
 export const verifyEmailSchema = z.object({
-  query: z.object({
+  body: z.object({
     token: z.string().min(1, 'Токен подтверждения обязателен'),
   }),
 });
@@ -113,7 +113,7 @@ export type RegisterInput = z.infer<typeof registerSchema>['body'];
 export type LoginInput = z.infer<typeof loginSchema>['body'];
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>['body'];
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>['body'];
-export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>['query'];
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>['body'];
 export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>['body'];
 export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>['body'];
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>['body'];
