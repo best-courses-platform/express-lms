@@ -4,6 +4,7 @@ import { userService } from 'users/user.service';
 import { config } from '../../config';
 import { AUTH_MESSAGES } from 'auth/auth.constants';
 import { DoneCallback, OAuthProfile } from 'auth/auth.types';
+import { z } from 'zod';
 
 export const githubOAuthStrategy = new GitHubStrategy(
   {
@@ -26,12 +27,23 @@ export const githubOAuthStrategy = new GitHubStrategy(
           });
 
           if (response.ok) {
-            const emails: Array<{
-              email: string;
-              primary: boolean;
-              verified: boolean;
-              visibility: string | null;
-            }> = await response.json();
+            const emailsResponseJson = await response.json();
+            const emailsSchema = z.array(
+              z.object({
+                email: z.string().min(1),
+                primary: z.boolean(),
+                verified: z.boolean(),
+                visibility: z.string().nullable(),
+              })
+            );
+
+            const parsed = emailsSchema.safeParse(emailsResponseJson);
+            if (!parsed.success) {
+              console.error(AUTH_MESSAGES.ERROR.GITHUB_EMAIL_FETCH_ERROR, parsed.error);
+              return;
+            }
+
+            const emails = parsed.data;
 
             const primaryEmail = emails.find(e => e.primary && e.verified);
             email = primaryEmail?.email || emails[0]?.email;
