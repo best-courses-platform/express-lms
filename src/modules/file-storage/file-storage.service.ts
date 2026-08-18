@@ -163,6 +163,11 @@ export class FileStorageService {
         Key: key,
         Body: fileBuffer,
         ContentType: contentType,
+        // Без этого объект загружается с приватным ACL бакета по умолчанию, а
+        // getSelectelPublicUrl() ниже всё равно строит и возвращает клиенту "публичную"
+        // ссылку на него — которая на деле отдаёт 403 AccessDenied у любого, кто по ней
+        // перейдёт (браузер при просмотре видео/картинки урока, а не только сторонний).
+        ACL: 'public-read',
       });
 
       await s3Client.send(command);

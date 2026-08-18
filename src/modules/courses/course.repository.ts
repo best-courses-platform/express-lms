@@ -1,5 +1,5 @@
 import { Course, NewCourse, UpdateCourse } from './course.types';
-import { CourseModel } from './course.model';
+import { CourseModel, calculateAverageRating } from './course.model';
 import { Types } from 'mongoose';
 
 class CourseRepository {
@@ -175,9 +175,22 @@ class CourseRepository {
     await CourseModel.findByIdAndUpdate(courseId, { $pull: { ratings: { userId: rating.userId } } }).exec();
 
     // Добавим новый рейтинг
-    const updatedCourse = await CourseModel.findByIdAndUpdate(
+    const pushedCourse = await CourseModel.findByIdAndUpdate(
       courseId,
       { $push: { ratings: rating } },
+      { new: true, runValidators: true }
+    ).exec();
+
+    if (!pushedCourse) {
+      throw new Error('Course not found');
+    }
+
+    // findByIdAndUpdate — обычный запрос, а не document.save(), поэтому pre('save')
+    // хук в course.model.ts здесь не срабатывает и averageRating не пересчитывается
+    // сам по себе. Считаем явно и сохраняем отдельным запросом.
+    const updatedCourse = await CourseModel.findByIdAndUpdate(
+      courseId,
+      { averageRating: calculateAverageRating(pushedCourse.ratings) },
       { new: true, runValidators: true }
     )
       .populate('author', 'name email avatar')

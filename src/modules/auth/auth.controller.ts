@@ -5,6 +5,7 @@ import { jwtService } from 'jwt/jwt.service';
 import { isAuthenticatedRequest } from '../../utils/typeGuards';
 import { userService } from 'users/user.service';
 import { validate } from '../../middleware/validate';
+import { config } from '../../config';
 import {
   changePasswordSchema,
   loginSchema,
@@ -90,8 +91,12 @@ export const handleLoginSuccess: RequestHandler = async (req, res, next) => {
 
 export const handleOAuthCallback: RequestHandler = async (req, res, next) => {
   try {
+    // Редиректим на config.frontendUrl, а не на относительный путь: относительный '/'
+    // браузер разрешает относительно ТЕКУЩЕГО origin — а после OAuth-редиректа текущий
+    // origin это сам Express (localhost:3000), не фронтенд (localhost:3001 в dev,
+    // на проде — тот же домен, но за Ingress-путём '/', тоже не совпадает 1:1 с API).
     if (!req.user || !authService.isValidUser(req.user)) {
-      res.redirect('/login?error=auth_failed');
+      res.redirect(`${config.frontendUrl}/login?error=auth_failed`);
       return;
     }
 
@@ -100,7 +105,7 @@ export const handleOAuthCallback: RequestHandler = async (req, res, next) => {
 
     jwtService.setTokensCookies(res, accessToken, refreshToken);
 
-    res.redirect('/');
+    res.redirect(config.frontendUrl);
   } catch (error) {
     next(error);
   }
