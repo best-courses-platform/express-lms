@@ -20,7 +20,11 @@ import { COURSE_MESSAGES } from './course.constants';
 
 export const createCourse: RequestHandler = async (req, res, next) => {
   try {
-    const course = await courseService.create(req.body);
+    if (!isAuthenticatedRequest(req)) {
+      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+    }
+    const userId = getUserIdFromRequest(req);
+    const course = await courseService.create(req.body, userId);
     res.status(201).json({
       message: COURSE_MESSAGES.SUCCESS.COURSE_CREATED,
       course,
@@ -69,6 +73,11 @@ export const getCoursesByDifficulty: RequestHandler = async (req, res, next) => 
 export const getCourse: RequestHandler = async (req, res, next) => {
   try {
     const course = await courseService.getById(req.params.id);
+
+    if (!courseService.canAccess(course, req.user?._id)) {
+      throw new AppError(403, COURSE_MESSAGES.ERROR.FORBIDDEN);
+    }
+
     res.json(course);
   } catch (e) {
     next(e);
@@ -77,7 +86,11 @@ export const getCourse: RequestHandler = async (req, res, next) => {
 
 export const updateCourse: RequestHandler = async (req, res, next) => {
   try {
-    const updated = await courseService.update(req.params.id, req.body);
+    if (!isAuthenticatedRequest(req)) {
+      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+    }
+    const userId = getUserIdFromRequest(req);
+    const updated = await courseService.update(req.params.id, req.body, userId);
     res.json({
       message: COURSE_MESSAGES.SUCCESS.COURSE_UPDATED,
       course: updated,
@@ -89,7 +102,11 @@ export const updateCourse: RequestHandler = async (req, res, next) => {
 
 export const deleteCourse: RequestHandler = async (req, res, next) => {
   try {
-    await courseService.delete(req.params.id);
+    if (!isAuthenticatedRequest(req)) {
+      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+    }
+    const userId = getUserIdFromRequest(req);
+    await courseService.delete(req.params.id, userId);
     res.json({ message: COURSE_MESSAGES.SUCCESS.COURSE_DELETED });
   } catch (e) {
     next(e);

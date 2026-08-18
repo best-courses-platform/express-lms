@@ -1,7 +1,9 @@
-### Запрос списка всех курсов
-GET {{baseUrl}}/api/courses
-
-### POST /api/courses
+### Создание курса
+### Требует роль author/admin (requireRole(['author','admin'])) — обычный student получит 403.
+### Повысить роль: db.users.updateOne({email:"..."}, {$set:{role:"author"}}) в mongosh, затем перелогиниться
+### (JWT содержит role на момент выпуска токена, старый токен со student не обновится сам).
+### author в теле запроса больше не принимается — сервер всегда берёт его из токена (req.user._id),
+### подмена автора отправкой чужого id в body теперь игнорируется.
 POST {{baseUrl}}/api/courses
 Content-Type: application/json
 Authorization: Bearer {{auth_token}}
@@ -12,6 +14,107 @@ Authorization: Bearer {{auth_token}}
   "previewImage": "https://placehold.co/1200x600/png?text=Course+Preview",
   "tags": ["node.js", "backend"],
   "difficulty": "beginner",
-  "isPublished": false,
-  "author": "{{author_id}}"
+  "isPublished": true
 }
+
+> {%
+  if (response.status === 201) {
+    client.global.set("course_id", response.body.course._id);
+    client.log("course_id = " + response.body.course._id);
+  }
+%}
+
+###
+
+### Список курсов — теперь реально публичный, без Authorization тоже работает
+### (глобальный refreshTokenMiddleware, требовавший логин на каждый /api/*, убран из app.ts)
+GET {{baseUrl}}/api/courses
+
+###
+
+### Только опубликованные курсы
+GET {{baseUrl}}/api/courses/published
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Курсы конкретного автора
+GET {{baseUrl}}/api/courses/author/{{user_id}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Курсы по уровню сложности (beginner | intermediate | advanced)
+GET {{baseUrl}}/api/courses/difficulty/beginner
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Курс по ID
+### Если курс не опубликован (isPublished: false) — виден только автору и allowedUsers,
+### анонимный или посторонний запрос получит 403 (courseService.canAccess).
+GET {{baseUrl}}/api/courses/{{course_id}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Обновление курса — теперь проверяет владение, 403 у всех кроме автора
+PATCH {{baseUrl}}/api/courses/{{course_id}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "title": "Тестовый курс по Node.js (обновлён)"
+}
+
+###
+
+### Добавить урок в курс (проверка владения ЕСТЬ — courseService.addLesson)
+POST {{baseUrl}}/api/courses/{{course_id}}/lessons/{{lesson_id}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Убрать урок из курса
+DELETE {{baseUrl}}/api/courses/{{course_id}}/lessons/{{lesson_id}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Дать пользователю доступ к непубличному курсу (allowedUsers)
+POST {{baseUrl}}/api/courses/{{course_id}}/allowed-users
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "userId": "{{managed_user_id}}"
+}
+
+###
+
+### Забрать доступ
+DELETE {{baseUrl}}/api/courses/{{course_id}}/allowed-users/{{managed_user_id}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Поставить оценку курсу (1-5); повторный вызов от того же пользователя заменяет старую оценку
+POST {{baseUrl}}/api/courses/{{course_id}}/ratings
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "value": 5
+}
+
+###
+
+### Список оценок курса
+GET {{baseUrl}}/api/courses/{{course_id}}/ratings
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Удаление курса — тоже теперь проверяет владение, 403 у всех кроме автора
+DELETE {{baseUrl}}/api/courses/{{course_id}}
+Authorization: Bearer {{auth_token}}

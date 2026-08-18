@@ -7,24 +7,28 @@ import { CreateCourseInput, UpdateCourseInput } from './course.schema';
 import { COURSE_MESSAGES } from './course.constants';
 
 class CourseService {
-  async create(input: CreateCourseInput): Promise<Course> {
+  async create(input: CreateCourseInput, authorId: Types.ObjectId): Promise<Course> {
     const exists = await courseRepository.findByTitle(input.title);
 
     if (exists) {throw new AppError(409, COURSE_MESSAGES.ERROR.ALREADY_EXISTS);}
 
     const courseData: NewCourse = {
       ...input,
-      author: new Types.ObjectId(input.author),
+      author: authorId,
       isPublished: input.isPublished ?? false,
     };
 
     return courseRepository.create(courseData);
   }
 
-  async update(id: string, patch: UpdateCourseInput): Promise<Course> {
+  async update(id: string, patch: UpdateCourseInput, userId: Types.ObjectId): Promise<Course> {
     const course = await courseRepository.findById(id);
 
     if (!course) {throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);}
+
+    if (!course.author.equals(userId)) {
+      throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
+    }
 
     if (patch.title && patch.title !== course.title) {
       const exists = await courseRepository.findByTitle(patch.title);
@@ -57,7 +61,33 @@ class CourseService {
     return course;
   }
 
-  async delete(id: string): Promise<void> {
+  /**
+   * Доступ к непубликованному курсу — только автор и явно разрешённые пользователи (allowedUsers).
+   * Опубликованный курс виден всем, включая анонимных пользователей (userId не передан).
+   */
+  canAccess(course: Course, userId?: Types.ObjectId): boolean {
+    if (course.isPublished) {
+      return true;
+    }
+
+    if (!userId) {
+      return false;
+    }
+
+    const isAuthor = course.author.equals(userId);
+    const isAllowedUser = course.allowedUsers?.some(allowedUserId => allowedUserId.equals(userId)) ?? false;
+
+    return isAuthor || isAllowedUser;
+  }
+
+  async delete(id: string, userId: Types.ObjectId): Promise<void> {
+    const course = await courseRepository.findById(id);
+    if (!course) {throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);}
+
+    if (!course.author.equals(userId)) {
+      throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
+    }
+
     const ok = await courseRepository.delete(id);
     if (!ok) {throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);}
   }

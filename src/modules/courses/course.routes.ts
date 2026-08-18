@@ -42,20 +42,21 @@
 
 import { Router } from 'express';
 import { CourseController } from './course.controller';
-import { jwtAuth } from '../../middleware/auth';
-import { requireVerifiedEmail } from '../../middleware/access';
+import { jwtAuth, optionalAuth } from '../../middleware/auth';
+import { requireVerifiedEmail, requireRole } from '../../middleware/access';
 
 const r = Router();
 
-// публичные
+// публичные (доступны анонимно), но /:id учитывает req.user, если он есть —
+// непубликованный курс виден только автору/allowedUsers (см. CourseController.getCourse)
 r.get('/', CourseController.listCourse);
 r.get('/published', CourseController.getPublishedCourses);
 r.get('/author/:authorId', ...CourseController.getCoursesByAuthor);
 r.get('/difficulty/:level', ...CourseController.getCoursesByDifficulty);
-r.get('/:id', ...CourseController.getCourse);
+r.get('/:id', optionalAuth, ...CourseController.getCourse);
 
 // защищённые
-r.post('/', jwtAuth, requireVerifiedEmail, ...CourseController.createCourse);
+r.post('/', jwtAuth, requireVerifiedEmail, requireRole(['author', 'admin']), ...CourseController.createCourse);
 r.patch('/:id', jwtAuth, requireVerifiedEmail, ...CourseController.updateCourse);
 r.delete('/:id', jwtAuth, requireVerifiedEmail, ...CourseController.deleteCourse);
 

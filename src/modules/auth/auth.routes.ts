@@ -10,12 +10,20 @@ import {
 } from '../../middleware/auth';
 import { AuthController } from './auth.controller';
 import { requireVerifiedEmail } from '../../middleware/access';
+import { authRateLimiter } from '../../middleware/rate-limit';
 
 const r = Router();
 
-r.post('/register', ...AuthController.register);
-r.post('/login', ...AuthController.login);
-r.post('/login/local', localAuth, AuthController.handleLoginSuccess);
+// authRateLimiter() — на всё, что позволяет перебирать пароли/email (brute-force, user
+// enumeration): вход, регистрация, рефреш, верификация/сброс пароля. verify-email/reset-password
+// сюда же — токен непредсказуем (256 бит), но лимит не помешает и этим роутам.
+// Каждый вызов authRateLimiter() — отдельный бюджет; /login и /login/local — два пути к одному
+// и тому же действию (подбор пароля), поэтому у них один общий лимитер, не два независимых.
+const loginRateLimiter = authRateLimiter();
+
+r.post('/register', authRateLimiter(), ...AuthController.register);
+r.post('/login', loginRateLimiter, ...AuthController.login);
+r.post('/login/local', loginRateLimiter, localAuth, AuthController.handleLoginSuccess);
 
 r.get('/google', googleAuth);
 r.get('/google/callback', googleAuthCallback, AuthController.handleOAuthCallback);
@@ -23,7 +31,7 @@ r.get('/google/callback', googleAuthCallback, AuthController.handleOAuthCallback
 r.get('/github', githubAuth);
 r.get('/github/callback', githubAuthCallback, AuthController.handleOAuthCallback);
 
-r.post('/refresh', ...AuthController.refreshToken);
+r.post('/refresh', authRateLimiter(), ...AuthController.refreshToken);
 
 // защищённые зоны
 r.post('/logout', jwtAuth, requireVerifiedEmail, AuthController.logout);
@@ -32,9 +40,9 @@ r.patch('/profile', jwtAuth, requireVerifiedEmail, ...AuthController.updateProfi
 r.post('/change-password', jwtAuth, requireVerifiedEmail, ...AuthController.changePassword);
 
 // email-verify
-r.post('/verify-email', ...AuthController.verifyEmail);
-r.post('/resend-verification', ...AuthController.resendVerification);
-r.post('/request-password-reset', ...AuthController.requestPasswordReset);
-r.post('/reset-password', ...AuthController.resetPassword);
+r.post('/verify-email', authRateLimiter(), ...AuthController.verifyEmail);
+r.post('/resend-verification', authRateLimiter(), ...AuthController.resendVerification);
+r.post('/request-password-reset', authRateLimiter(), ...AuthController.requestPasswordReset);
+r.post('/reset-password', authRateLimiter(), ...AuthController.resetPassword);
 
 export default r;

@@ -1,0 +1,51 @@
+### Все запросы ниже — admin only (jwtAuth + requireVerifiedEmail + requireRole(['admin'])).
+### Получить admin-токен: залогиниться под аккаунтом с role="admin" (см. auth.http -> auth_token),
+### либо вручную в Mongo: db.users.updateOne({email:"..."}, {$set:{role:"admin"}})
+
+### Создание пользователя (admin создаёт пользователя за пользователя)
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "name": "Created By Admin",
+  "email": "created-by-admin@example.com",
+  "password": "password123",
+  "confirmPassword": "password123",
+  "role": "student"
+}
+
+> {%
+  if (response.status === 201) {
+    client.global.set("managed_user_id", response.body.user.id || response.body.user._id);
+  }
+%}
+
+###
+
+### Список всех пользователей
+GET {{baseUrl}}/api/users
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Пользователь по ID
+GET {{baseUrl}}/api/users/{{managed_user_id}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Обновление пользователя (admin меняет любое поле, включая role)
+PATCH {{baseUrl}}/api/users/{{managed_user_id}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "name": "Renamed By Admin"
+}
+
+###
+
+### Удаление пользователя
+DELETE {{baseUrl}}/api/users/{{managed_user_id}}
+Authorization: Bearer {{auth_token}}

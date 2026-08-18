@@ -16,8 +16,6 @@ const passwordSchema = z
   .min(6, AUTH_MESSAGES.VALIDATION.PASSWORD_TOO_SHORT)
   .max(30, AUTH_MESSAGES.VALIDATION.PASSWORD_TOO_LONG);
 
-const roleSchema = z.enum(['student', 'author', 'admin']);
-
 export const registerSchema = z.object({
   body: z
     .object({
@@ -25,7 +23,6 @@ export const registerSchema = z.object({
       email: emailSchema,
       password: passwordSchema,
       confirmPassword: z.string().min(1, AUTH_MESSAGES.VALIDATION.CONFIRM_PASSWORD_REQUIRED),
-      role: roleSchema.default('student'),
     })
     .refine(data => data.password === data.confirmPassword, {
       message: AUTH_MESSAGES.VALIDATION.PASSWORDS_DONT_MATCH,

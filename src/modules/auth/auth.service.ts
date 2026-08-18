@@ -9,26 +9,22 @@ import { emailService } from 'email/email.service';
 import crypto from 'crypto'; // Импортируем crypto
 
 export class AuthService {
-  async register(userData: {
-    name: string;
-    email: string;
-    password: string;
-    role: string;
-  }): Promise<{ user: User; accessToken: string; refreshToken: string }> {
+  async register(userData: { name: string; email: string; password: string }): Promise<{ user: User }> {
     try {
+      // Роль для публичной саморегистрации всегда 'student' — назначается сервером,
+      // а не берётся из тела запроса (иначе анонимный клиент мог бы прислать role: 'admin').
       // userService.create сам решает isEmailVerified/токен (false + токен для локальной регистрации, true для OAuth)
-      const user = await userService.create(userData as NewUser);
+      const user = await userService.create({ ...userData, role: 'student' } as NewUser);
 
       // Отправляем email для подтверждения
       if (emailService.isConfigured() && user.emailVerificationToken) {
         await emailService.sendVerificationEmail(user.email, user.emailVerificationToken, user.name);
       }
 
-      // Генерируем токены (доступ ограничен до подтверждения email)
-      const accessToken = this.generateAccessToken(user);
-      const refreshToken = this.generateRefreshToken(user);
-
-      return { user, accessToken, refreshToken };
+      // Токены здесь намеренно НЕ выдаются: login() блокирует неподтверждённых
+      // (403 EMAIL_NOT_VERIFIED) — register() должен вести себя так же, а не выдавать
+      // рабочую сессию в обход этой же проверки. Логин — только после подтверждения email.
+      return { user };
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
@@ -146,7 +142,7 @@ export class AuthService {
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
-    const user = await userRepository.findByEmailWithPassword(userId);
+    const user = await userRepository.findByIdWithPassword(userId);
 
     if (!user) {
       throw new AppError(404, AUTH_MESSAGES.ERROR.AUTH_FAILED);
@@ -161,9 +157,8 @@ export class AuthService {
       throw new AppError(400, AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
-    const userWithMethods = user as User & { save: () => Promise<void> };
-    userWithMethods.password = newPassword;
-    await userWithMethods.save();
+    user.password = newPassword;
+    await user.save();
   }
 
   // Оставляем один метод login с проверкой подтверждения email

@@ -1,6 +1,6 @@
 // jwt/jwt.service.ts
 import jwt from 'jsonwebtoken';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { config } from '../../config';
 import { User } from 'users/user.types';
 import { JWTPayload, validateJWTPayload } from './jwt.schema';
@@ -34,28 +34,26 @@ export class JWTService {
     };
 
     const validatedPayload = validateJWTPayload(payload);
-    const secret = config.jwtRefreshSecret || config.jwtSecret;
 
-    return jwt.sign(validatedPayload, secret, {
+    return jwt.sign(validatedPayload, config.jwtRefreshSecret, {
       expiresIn: config.jwtRefreshExpiresIn,
       algorithm: 'HS256',
     } as jwt.SignOptions);
   }
 
-  verifyAccessToken(token: string): JWTPayload {
-    try {
-      const payload = jwt.verify(token, config.jwtSecret);
-      return validateJWTPayload(payload);
-    } catch {
-      throw new Error(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
-    }
-  }
-
   verifyRefreshToken(token: string): JWTPayload {
     try {
-      const secret = config.jwtRefreshSecret || config.jwtSecret;
-      const payload = jwt.verify(token, secret);
-      return validateJWTPayload(payload);
+      const payload = jwt.verify(token, config.jwtRefreshSecret);
+      const validatedPayload = validateJWTPayload(payload);
+
+      // Без этой проверки access-токен (подписанный тем же алгоритмом) мог бы быть
+      // подсунут в /api/auth/refresh как будто это refresh-токен — claim type это исключает
+      // как второй, независимый от секрета барьер.
+      if (validatedPayload.type !== 'refresh') {
+        throw new Error(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
+      }
+
+      return validatedPayload;
     } catch {
       throw new Error(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
     }
@@ -82,30 +80,6 @@ export class JWTService {
   clearTokensCookies(res: Response): void {
     res.clearCookie('access_token');
     res.clearCookie('refresh_token');
-  }
-
-  getTokensFromRequest(req: Request): {
-    accessToken: string | null;
-    refreshToken: string | null;
-  } {
-    const authHeader = req.headers.authorization;
-    let accessToken: string | null = null;
-    let refreshToken: string | null = null;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      accessToken = authHeader.substring(7);
-    }
-
-    if (req.cookies) {
-      accessToken = (req.cookies.access_token as string) || accessToken;
-      refreshToken = req.cookies.refresh_token as string;
-    }
-
-    if (req.query.token && typeof req.query.token === 'string') {
-      accessToken = req.query.token;
-    }
-
-    return { accessToken, refreshToken };
   }
 }
 

@@ -30,10 +30,10 @@ export const courseBaseSchema = z.object({
 });
 
 // Создание курса
+// author НЕ часть тела запроса — берётся из req.user на сервере (см. course.controller.ts),
+// иначе любой залогиненный пользователь мог бы создать курс "от имени" чужого автора.
 export const createCourseSchema = z.object({
-  body: courseBaseSchema.extend({
-    author: z.string().min(1, COURSE_MESSAGES.VALIDATION.AUTHOR_REQUIRED),
-  }),
+  body: courseBaseSchema,
 });
 
 // Обновление курса

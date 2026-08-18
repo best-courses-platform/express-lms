@@ -29,5 +29,6 @@ export const COMMON_MESSAGES = {
     INTERNAL_SERVER_ERROR: 'Внутренняя ошибка сервера',
     VALIDATION_ERROR: 'Ошибка валидации',
     NOT_AUTHOR: 'Только автор курса может выполнять это действие',
+    TOO_MANY_REQUESTS: 'Слишком много запросов. Попробуйте позже',
   },
 } as const;

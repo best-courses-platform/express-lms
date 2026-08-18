@@ -30,6 +30,14 @@ class UserRepository {
     return await UserModel.findOne({ email: email.toLowerCase() }).select('+password').exec();
   }
 
+  async findByIdWithPassword(id: string): Promise<UserDocument | null> {
+    if (!Types.ObjectId.isValid(id)) {
+      return null;
+    }
+
+    return await UserModel.findById(id).select('+password').exec();
+  }
+
   async findByGoogleId(googleId: string): Promise<UserDocument | null> {
     return await UserModel.findOne({ googleId }).select('-password -emailVerificationToken -passwordResetToken').exec();
   }
