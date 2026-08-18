@@ -18,7 +18,13 @@ const userSchema = new Schema<IUser, UserModelType, IUserMethods>(
       unique: true,
       trim: true,
       lowercase: true,
-      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email'],
+      // Zod (auth.schema.ts/user.schema.ts) уже строго валидирует формат email на входе для
+      // обычной регистрации — эта проверка здесь лишь defense-in-depth backstop для путей,
+      // которые Zod не проходят (например, OAuth: email приходит от Google/GitHub напрямую,
+      // см. userService.findOrCreateFromOAuth). Старая regex ограничивала TLD 2-3 символами
+      // и отклоняла реальные адреса (.info, .name, внутренние .local/.test) — здесь этого
+      // ограничения нет намеренно.
+      match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email'],
     },
     password: {
       type: String,

@@ -30,6 +30,14 @@ class UserRepository {
     return await UserModel.findOne({ email: email.toLowerCase() }).select('+password').exec();
   }
 
+  async findByIdWithPassword(id: string): Promise<UserDocument | null> {
+    if (!Types.ObjectId.isValid(id)) {
+      return null;
+    }
+
+    return await UserModel.findById(id).select('+password').exec();
+  }
+
   async findByGoogleId(googleId: string): Promise<UserDocument | null> {
     return await UserModel.findOne({ googleId }).select('-password -emailVerificationToken -passwordResetToken').exec();
   }
@@ -112,34 +120,6 @@ class UserRepository {
 
     const result = await UserModel.findByIdAndDelete(id).exec();
     return result !== null;
-  }
-
-  async verifyEmail(token: string): Promise<UserDocument | null> {
-    const user = await this.findByEmailVerificationToken(token);
-
-    if (!user) {
-      return null;
-    }
-
-    user.isEmailVerified = true;
-    user.emailVerificationToken = null;
-    user.emailVerificationExpires = null;
-
-    return await user.save();
-  }
-
-  async resetPassword(token: string, newPassword: string): Promise<UserDocument | null> {
-    const user = await this.findByPasswordResetToken(token);
-
-    if (!user) {
-      return null;
-    }
-
-    user.password = newPassword;
-    user.passwordResetToken = null;
-    user.passwordResetExpires = null;
-
-    return await user.save();
   }
 }
 

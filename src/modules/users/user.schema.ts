@@ -29,10 +29,6 @@ const avatarSchema = z.string().url(USER_MESSAGES.VALIDATION.AVATAR_INVALID).opt
 
 const idSchema = z.string().min(1, USER_MESSAGES.VALIDATION.USER_ID_REQUIRED);
 
-// Добавляем схемы для токенов
-const verificationTokenSchema = z.string().min(1, 'Токен подтверждения обязателен');
-const resetTokenSchema = z.string().min(1, 'Токен сброса пароля обязателен');
-
 // Базовые схемы для тела запроса
 export const userBaseSchema = z.object({
   name: nameSchema,
@@ -89,41 +85,6 @@ export const idParamSchema = z.object({
   }),
 });
 
-// Схема для верификации email
-export const verifyEmailSchema = z.object({
-  query: z.object({
-    token: verificationTokenSchema,
-  }),
-});
-
-// Схема для повторной отправки верификации
-export const resendVerificationSchema = z.object({
-  body: z.object({
-    email: emailSchema,
-  }),
-});
-
-// Схема для запроса сброса пароля
-export const requestPasswordResetSchema = z.object({
-  body: z.object({
-    email: emailSchema,
-  }),
-});
-
-// Схема для сброса пароля
-export const resetPasswordSchema = z.object({
-  body: z
-    .object({
-      token: resetTokenSchema,
-      newPassword: passwordSchema,
-      confirmPassword: z.string().min(1, USER_MESSAGES.VALIDATION.CONFIRM_PASSWORD_REQUIRED),
-    })
-    .refine(data => data.newPassword === data.confirmPassword, {
-      message: USER_MESSAGES.VALIDATION.PASSWORDS_DONT_MATCH,
-      path: ['confirmPassword'],
-    }),
-});
-
 // Схема для поиска пользователей с пагинацией
 export const userListSchema = z.object({
   query: z
@@ -151,7 +112,3 @@ export type UpdateUserInput = z.infer<typeof updateUserSchema>['body'];
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>['body'];
 export type IdParamInput = z.infer<typeof idParamSchema>['params'];
 export type UserListQuery = z.infer<typeof userListSchema>['query'];
-export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>['query'];
-export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>['body'];
-export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>['body'];
-export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>['body'];

@@ -13,6 +13,7 @@ export const CONFIG_MESSAGES = {
     APP_START_FAILED: 'Не удалось запустить приложение',
     SSL_CERTS_MISSING: 'SSL сертификаты не найдены',
     JWT_SECRET_REQUIRED: 'JWT_SECRET обязателен',
+    JWT_REFRESH_SECRET_REQUIRED: 'JWT_REFRESH_SECRET обязателен и должен отличаться от JWT_SECRET',
     GOOGLE_CLIENT_ID_REQUIRED: 'GOOGLE_CLIENT_ID обязателен',
     GOOGLE_CLIENT_SECRET_REQUIRED: 'GOOGLE_CLIENT_SECRET обязателен',
     GITHUB_CLIENT_ID_REQUIRED: 'GITHUB_CLIENT_ID обязателен',

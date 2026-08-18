@@ -9,36 +9,22 @@ import { emailService } from 'email/email.service';
 import crypto from 'crypto'; // Импортируем crypto
 
 export class AuthService {
-  async register(userData: {
-    name: string;
-    email: string;
-    password: string;
-    role: string;
-  }): Promise<{ user: User; accessToken: string; refreshToken: string; verificationToken: string }> {
+  async register(userData: { name: string; email: string; password: string }): Promise<{ user: User }> {
     try {
-      // Создаем пользователя с неподтвержденным email
-      const user = await userService.create({
-        ...userData,
-        isEmailVerified: false,
-        emailVerificationToken: crypto.randomBytes(32).toString('hex'),
-        emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 часа
-      } as NewUser);
+      // Роль для публичной саморегистрации всегда 'student' — назначается сервером,
+      // а не берётся из тела запроса (иначе анонимный клиент мог бы прислать role: 'admin').
+      // userService.create сам решает isEmailVerified/токен (false + токен для локальной регистрации, true для OAuth)
+      const user = await userService.create({ ...userData, role: 'student' } as NewUser);
 
       // Отправляем email для подтверждения
       if (emailService.isConfigured() && user.emailVerificationToken) {
         await emailService.sendVerificationEmail(user.email, user.emailVerificationToken, user.name);
       }
 
-      // Генерируем токены (доступ ограничен до подтверждения email)
-      const accessToken = this.generateAccessToken(user);
-      const refreshToken = this.generateRefreshToken(user);
-
-      return {
-        user,
-        accessToken,
-        refreshToken,
-        verificationToken: user.emailVerificationToken!,
-      };
+      // Токены здесь намеренно НЕ выдаются: login() блокирует неподтверждённых
+      // (403 EMAIL_NOT_VERIFIED) — register() должен вести себя так же, а не выдавать
+      // рабочую сессию в обход этой же проверки. Логин — только после подтверждения email.
+      return { user };
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
@@ -59,45 +45,32 @@ export class AuthService {
       throw new AppError(400, AUTH_MESSAGES.ERROR.VERIFICATION_TOKEN_EXPIRED);
     }
 
-    // Подтверждаем email
-    const userWithMethods = user as User & { save: () => Promise<void> }; // Приведение типа
-    userWithMethods.isEmailVerified = true;
-    userWithMethods.emailVerificationToken = undefined;
-    userWithMethods.emailVerificationExpires = undefined;
+    // Подтверждаем email (user уже UserDocument — findByEmailVerificationToken так типизирован)
+    user.isEmailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
 
-    await userWithMethods.save();
-
-    // Возвращаем обновленного пользователя без методов
-    const { save: _, ...userWithoutMethods } = userWithMethods;
-    return userWithoutMethods as User;
+    return await user.save();
   }
 
   async resendVerificationEmail(email: string): Promise<void> {
     const user = await userRepository.findByEmail(email);
 
-    if (!user) {
-      // Не сообщаем, что пользователь не найден (security)
+    // Единообразный тихий ответ и для "email не найден", и для "уже подтверждён" —
+    // иначе разница в ответе (400 EMAIL_ALREADY_VERIFIED vs тихий успех) палит user enumeration.
+    if (!user || user.isEmailVerified) {
       return;
     }
 
-    if (user.isEmailVerified) {
-      throw new AppError(400, AUTH_MESSAGES.ERROR.EMAIL_ALREADY_VERIFIED);
-    }
-
     // Генерируем новый токен
-    const userWithMethods = user as User & { save: () => Promise<void> };
-    userWithMethods.emailVerificationToken = crypto.randomBytes(32).toString('hex');
-    userWithMethods.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    user.emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    await userWithMethods.save();
+    await user.save();
 
     // Отправляем email
-    if (emailService.isConfigured() && userWithMethods.emailVerificationToken) {
-      await emailService.sendVerificationEmail(
-        userWithMethods.email,
-        userWithMethods.emailVerificationToken,
-        userWithMethods.name
-      );
+    if (emailService.isConfigured()) {
+      await emailService.sendVerificationEmail(user.email, user.emailVerificationToken, user.name);
     }
   }
 
@@ -110,19 +83,14 @@ export class AuthService {
     }
 
     // Генерируем токен для сброса пароля
-    const userWithMethods = user as User & { save: () => Promise<void> };
-    userWithMethods.passwordResetToken = crypto.randomBytes(32).toString('hex');
-    userWithMethods.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
+    user.passwordResetToken = crypto.randomBytes(32).toString('hex');
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
 
-    await userWithMethods.save();
+    await user.save();
 
     // Отправляем email
-    if (emailService.isConfigured() && userWithMethods.passwordResetToken) {
-      await emailService.sendPasswordResetEmail(
-        userWithMethods.email,
-        userWithMethods.passwordResetToken,
-        userWithMethods.name
-      );
+    if (emailService.isConfigured()) {
+      await emailService.sendPasswordResetEmail(user.email, user.passwordResetToken, user.name);
     }
   }
 
@@ -139,12 +107,11 @@ export class AuthService {
     }
 
     // Обновляем пароль
-    const userWithMethods = user as User & { save: () => Promise<void> };
-    userWithMethods.password = newPassword;
-    userWithMethods.passwordResetToken = undefined;
-    userWithMethods.passwordResetExpires = undefined;
+    user.password = newPassword;
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
 
-    await userWithMethods.save();
+    await user.save();
   }
 
   async authenticate(email: string, password: string): Promise<User> {
@@ -175,7 +142,7 @@ export class AuthService {
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
-    const user = await userRepository.findByEmailWithPassword(userId);
+    const user = await userRepository.findByIdWithPassword(userId);
 
     if (!user) {
       throw new AppError(404, AUTH_MESSAGES.ERROR.AUTH_FAILED);
@@ -190,9 +157,8 @@ export class AuthService {
       throw new AppError(400, AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
-    const userWithMethods = user as User & { save: () => Promise<void> };
-    userWithMethods.password = newPassword;
-    await userWithMethods.save();
+    user.password = newPassword;
+    await user.save();
   }
 
   // Оставляем один метод login с проверкой подтверждения email

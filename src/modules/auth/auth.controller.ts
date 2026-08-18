@@ -14,18 +14,19 @@ import {
   resendVerificationSchema,
   resetPasswordSchema,
   updateProfileSchema,
+  verifyEmailSchema,
 } from './auth.schema';
 import { AUTH_MESSAGES } from './auth.constants';
 
 export const register: RequestHandler = async (req, res, next) => {
   try {
-    const { user, accessToken, refreshToken } = await authService.register(req.body);
+    const { user } = await authService.register(req.body);
 
-    jwtService.setTokensCookies(res, accessToken, refreshToken);
-
+    // Без токенов и без cookie — email ещё не подтверждён, рабочей сессии быть не должно
+    // (симметрично тому, что login() требует подтверждённый email). Войти можно только
+    // после POST /api/auth/verify-email, затем обычным POST /api/auth/login.
     res.status(201).json({
       message: AUTH_MESSAGES.SUCCESS.REGISTERED,
-      token: accessToken,
       user: {
         id: user._id.toString(),
         email: user.email,
@@ -207,11 +208,7 @@ export const changePassword: RequestHandler = async (req, res, next) => {
 
 export const verifyEmail: RequestHandler = async (req, res, next) => {
   try {
-    const { token } = req.query;
-
-    if (typeof token !== 'string') {
-      return res.status(400).json({ error: 'Invalid token' });
-    }
+    const { token } = req.body;
 
     const user = await authService.verifyEmail(token);
 
@@ -283,7 +280,7 @@ export const AuthController = {
   getCurrentUser,
   updateProfile: [validate(updateProfileSchema), updateProfile],
   changePassword: [validate(changePasswordSchema), changePassword],
-  verifyEmail,
+  verifyEmail: [validate(verifyEmailSchema), verifyEmail],
   resendVerification: [validate(resendVerificationSchema), resendVerification],
   requestPasswordReset: [validate(requestPasswordResetSchema), requestPasswordReset],
   resetPassword: [validate(resetPasswordSchema), resetPassword],

@@ -10,7 +10,6 @@ import {
   accessCheckSchema,
   courseIdParamSchema,
   createLessonForCourseSchema,
-  createLessonSchema,
   deleteFileSchema,
   deleteResourceSchema,
   idParamSchema,
@@ -58,23 +57,6 @@ export const createLessonForCourse: RequestHandler = async (req, res, next) => {
   }
 };
 
-export const createLesson: RequestHandler = async (req, res, next) => {
-  try {
-    if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, LESSON_MESSAGES.ERROR.UNAUTHORIZED);
-    }
-
-    const lesson = await lessonService.create(req.body);
-    res.status(201).json({
-      success: true,
-      message: LESSON_MESSAGES.SUCCESS.LESSON_CREATED,
-      data: lesson,
-    });
-  } catch (e) {
-    next(e);
-  }
-};
-
 export const listLessons: RequestHandler = async (_req, res, next) => {
   try {
     const lessons = await lessonService.list();
@@ -90,6 +72,12 @@ export const listLessons: RequestHandler = async (_req, res, next) => {
 export const getLesson: RequestHandler = async (req, res, next) => {
   try {
     const lesson = await lessonService.getById(req.params.id);
+    const course = await courseService.getById(lesson.courseId.toString());
+
+    if (!courseService.canAccess(course, req.user?._id)) {
+      throw new AppError(403, LESSON_MESSAGES.ERROR.ACCESS_DENIED);
+    }
+
     res.json({
       success: true,
       data: lesson,
@@ -133,6 +121,12 @@ export const deleteLesson: RequestHandler = async (req, res, next) => {
 
 export const getLessonsByCourse: RequestHandler = async (req, res, next) => {
   try {
+    const course = await courseService.getById(req.params.courseId);
+
+    if (!courseService.canAccess(course, req.user?._id)) {
+      throw new AppError(403, LESSON_MESSAGES.ERROR.ACCESS_DENIED);
+    }
+
     const lessons = await lessonService.getByCourseId(req.params.courseId);
     res.json({
       success: true,
@@ -251,7 +245,6 @@ export const deleteLessonResource: RequestHandler = async (req, res, next) => {
 
 // Экспорт с валидацией для использования в routes
 export const LessonController = {
-  createLesson: [validate(createLessonSchema), createLesson],
   createLessonForCourse: [validate(createLessonForCourseSchema), createLessonForCourse],
   listLessons,
   getLesson: [validate(idParamSchema), getLesson],

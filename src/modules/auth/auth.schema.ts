@@ -16,8 +16,6 @@ const passwordSchema = z
   .min(6, AUTH_MESSAGES.VALIDATION.PASSWORD_TOO_SHORT)
   .max(30, AUTH_MESSAGES.VALIDATION.PASSWORD_TOO_LONG);
 
-const roleSchema = z.enum(['student', 'author', 'admin']);
-
 export const registerSchema = z.object({
   body: z
     .object({
@@ -25,7 +23,6 @@ export const registerSchema = z.object({
       email: emailSchema,
       password: passwordSchema,
       confirmPassword: z.string().min(1, AUTH_MESSAGES.VALIDATION.CONFIRM_PASSWORD_REQUIRED),
-      role: roleSchema.default('student'),
     })
     .refine(data => data.password === data.confirmPassword, {
       message: AUTH_MESSAGES.VALIDATION.PASSWORDS_DONT_MATCH,
@@ -78,7 +75,7 @@ export const changePasswordSchema = z.object({
 });
 
 export const verifyEmailSchema = z.object({
-  query: z.object({
+  body: z.object({
     token: z.string().min(1, 'Токен подтверждения обязателен'),
   }),
 });
@@ -113,7 +110,7 @@ export type RegisterInput = z.infer<typeof registerSchema>['body'];
 export type LoginInput = z.infer<typeof loginSchema>['body'];
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>['body'];
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>['body'];
-export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>['query'];
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>['body'];
 export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>['body'];
 export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>['body'];
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>['body'];

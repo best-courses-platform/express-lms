@@ -164,24 +164,22 @@ class LessonRepository {
       throw new Error('Invalid lesson ID');
     }
 
-    // Создаем ключ для удаления элемента массива по индексу
+    // Два шага неизбежны: $unset зануляет элемент по индексу, не сдвигая остальные (в отличие
+    // от $pull, у которого нет способа адресовать элемент по позиции), а $pull потом убирает
+    // образовавшийся null. Раньше клиенту возвращали результат ПЕРВОГО шага (ещё с null внутри) —
+    // здесь возвращаем результат второго, уже очищенного запроса.
     const updateQuery: Record<string, 1> = {};
     updateQuery[`resources.${resourceIndex}`] = 1;
 
-    const updatedLesson = await LessonModel.findByIdAndUpdate(
-      lessonId,
-      { $unset: updateQuery },
-      { new: true, runValidators: true }
-    )
+    await LessonModel.findByIdAndUpdate(lessonId, { $unset: updateQuery }, { runValidators: true }).exec();
+
+    const updatedLesson = await LessonModel.findByIdAndUpdate(lessonId, { $pull: { resources: null } }, { new: true })
       .populate('courseId', 'title description author')
       .exec();
 
     if (!updatedLesson) {
       throw new Error('Lesson not found');
     }
-
-    // Убираем null значения из массива
-    await LessonModel.findByIdAndUpdate(lessonId, { $pull: { resources: null } }).exec();
 
     return updatedLesson;
   }

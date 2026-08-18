@@ -1,33 +1,73 @@
-@courseId = 69c395e79d1944b27c939903
-@lessonId = 69c396ca9d1944b27c93990a
-
-### Получить детали конкретного урока
-GET {{baseUrl}}/api/lessons/{{lessonId}}
-Authorization: Bearer {{auth_token}}
-
-### Создание нового урока в курсе
-POST {{baseUrl}}/api/lessons/course/{{courseId}}
+### Создание урока — ЕДИНСТВЕННЫЙ путь (восстановлен в lesson.routes.ts 2026-08-18).
+### Проверяет course.author.equals(userId) — создать урок может только автор курса.
+### Небезопасный POST /api/lessons (без courseId-контекста, без проверки владения) удалён совсем.
+### order и courseId проставляются автоматически контроллером, в теле их указывать не нужно.
+POST {{baseUrl}}/api/lessons/course/{{course_id}}
 Content-Type: application/json
 Authorization: Bearer {{auth_token}}
 
 {
-  "title": "Тестовый урок по JavaScript 1",
-  "description": "Введение в основы JavaScript: переменные, типы данных и функции 1",
-  "courseId": "{{courseId}}",
-  "order": 2,
-  "tags": ["javascript", "программирование", "основы"]
+  "title": "Тестовый урок по JavaScript",
+  "description": "Введение в основы JavaScript: переменные, типы данных и функции.",
+  "tags": ["javascript", "основы"]
 }
 
-### Загрузка файла ресурса к уроку
-POST {{baseUrl}}/api/lessons/{{lessonId}}/files/resource
+> {%
+  if (response.status === 201) {
+    client.global.set("lesson_id", response.body.data._id);
+    client.log("lesson_id = " + response.body.data._id);
+  }
+%}
+
+###
+
+### Список всех уроков
+GET {{baseUrl}}/api/lessons
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Урок по ID
+### Если родительский курс не опубликован — виден только автору/allowedUsers, иначе 403
+GET {{baseUrl}}/api/lessons/{{lesson_id}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Уроки конкретного курса
+### Если курс не опубликован — виден только автору/allowedUsers, иначе 403 (courseService.canAccess)
+GET {{baseUrl}}/api/lessons/course/{{course_id}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Проверка доступа пользователя к уроку (просто диагностика, ничего не защищает само по себе)
+GET {{baseUrl}}/api/lessons/{{lesson_id}}/access/{{user_id}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Обновление урока (проверка владения ЕСТЬ — validateLessonManagementPermissions)
+PATCH {{baseUrl}}/api/lessons/{{lesson_id}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "description": "Введение в основы JavaScript — обновлённое описание."
+}
+
+###
+
+### Загрузка ресурса урока (картинка/PDF/Word/Excel, лимит 10MB)
+POST {{baseUrl}}/api/lessons/{{lesson_id}}/files/resource
 Authorization: Bearer {{auth_token}}
 Content-Type: multipart/form-data; boundary=boundary
 
 --boundary
-Content-Disposition: form-data; name="file"; filename="test-courses.txt"
-Content-Type: text/plain
+Content-Disposition: form-data; name="file"; filename="test-image.png"
+Content-Type: image/png
 
-< ./resources/files/test-courses.txt
+< ./resources/files/test-image.png
 --boundary
 Content-Disposition: form-data; name="fileType"
 
@@ -35,11 +75,13 @@ resource
 --boundary
 Content-Disposition: form-data; name="title"
 
-Тестовый файл 2 excel
+Тестовое изображение
 --boundary--
 
-### Загрузка видео к уроку
-POST {{baseUrl}}/api/lessons/{{lessonId}}/files/video
+###
+
+### Загрузка видео урока (видео/картинка/PDF/ZIP/документы, лимит 100MB)
+POST {{baseUrl}}/api/lessons/{{lesson_id}}/files/video
 Authorization: Bearer {{auth_token}}
 Content-Type: multipart/form-data; boundary=boundary
 
@@ -53,3 +95,29 @@ Content-Disposition: form-data; name="fileType"
 
 video
 --boundary--
+
+###
+
+### Удаление видео/файла урока (fileUrl — то, что вернул upload в поле fileUrl)
+DELETE {{baseUrl}}/api/lessons/{{lesson_id}}/files
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "fileUrl": "{{uploaded_file_url}}",
+  "fileType": "video"
+}
+
+###
+
+### Удаление ресурса по индексу в массиве resources
+### Исправлено 2026-08-18: раньше ответ содержал "протухший" resources: [null] (результат
+### промежуточного $unset) вместо очищенного массива. Теперь возвращается результат $pull.
+DELETE {{baseUrl}}/api/lessons/{{lesson_id}}/resources/0
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Удаление урока (проверка владения ЕСТЬ, плюс чистит файлы урока из S3)
+DELETE {{baseUrl}}/api/lessons/{{lesson_id}}
+Authorization: Bearer {{auth_token}}

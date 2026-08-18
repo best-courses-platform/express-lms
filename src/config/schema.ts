@@ -7,8 +7,11 @@ export const configSchema = z.object({
   mongoUri: z.string().url().default('mongodb://localhost:27017/best-courses-ever'),
 
   // JWT
+  // Разные секреты для access и refresh намеренно: это независимый второй барьер поверх
+  // проверки claim'а type ('access'/'refresh') — токен, подписанный одним секретом,
+  // физически не пройдёт jwt.verify() с другим, даже если проверка type где-то забыта.
   jwtSecret: z.string().min(1, CONFIG_MESSAGES.ERROR.JWT_SECRET_REQUIRED),
-  jwtRefreshSecret: z.string().default(() => process.env.JWT_SECRET || ''),
+  jwtRefreshSecret: z.string().min(1, CONFIG_MESSAGES.ERROR.JWT_REFRESH_SECRET_REQUIRED),
   jwtAccessExpiresIn: z.string().default('8h'),
   jwtRefreshExpiresIn: z.string().default('30d'),
 
@@ -49,6 +52,9 @@ export const configSchema = z.object({
     endpoint: z.string().url().default('https://s3.ru-1.storage.selcloud.ru'),
     publicUrl: z.string().url().default('https://best-courses-ever.s3.ru-1.storage.selcloud.ru'),
   }),
+}).refine(cfg => cfg.jwtSecret !== cfg.jwtRefreshSecret, {
+  message: CONFIG_MESSAGES.ERROR.JWT_REFRESH_SECRET_REQUIRED,
+  path: ['jwtRefreshSecret'],
 });
 
 export type Config = z.infer<typeof configSchema>;

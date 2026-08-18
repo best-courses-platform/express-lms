@@ -1,16 +1,166 @@
-### Авторизация пользователя
+### [ВАЖНО] С 2026-08-18 на всех роутах этого файла — authRateLimiter: 10 запросов / 15 минут
+### НА КАЖДЫЙ роут отдельно (у /login и /login/local — общий бюджет, у остальных — свой).
+### При активном тестировании легко словить 429 — это ожидаемо, не баг.
+
+### Регистрация (студент, роль по умолчанию)
+### С 2026-08-18 НЕ выдаёт токены/cookie — email не подтверждён, рабочей сессии быть не должно
+### (симметрично тому, что login() блокирует неподтверждённых). Дальше: verify-email, потом login.
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test Student",
+  "email": "student@example.com",
+  "password": "password123",
+  "confirmPassword": "password123"
+}
+
+> {%
+  if (response.status === 201) {
+    client.global.set("student_email", "student@example.com");
+    client.log("Студент зарегистрирован, email не подтверждён — токен смотреть в Mongo (emailVerificationToken) или письмом, если настроен SMTP.");
+  }
+%}
+
+### [Регрессионный тест] Попытка регистрации сразу с role=admin
+### Раньше (до 2026-08-18) это создавало пользователя с role: "admin" — критичная дыра, см. Obsidian:
+### 3. Уязвимости безопасности. Исправлено: role убран из registerSchema, authService.register
+### всегда жёстко проставляет role: 'student'. Поле "role" в теле теперь просто игнорируется —
+### GET /api/auth/me после логина должен показать role: "student".
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Self-Made Admin",
+  "email": "totally-not-admin@example.com",
+  "password": "password123",
+  "confirmPassword": "password123",
+  "role": "admin"
+}
+
+###
+
+### Подтверждение email — токен взять из Mongo (isEmailVerified/emailVerificationToken в коллекции users)
+### mongosh: db.users.findOne({email:"student@example.com"}).emailVerificationToken
+POST {{baseUrl}}/api/auth/verify-email
+Content-Type: application/json
+
+{
+  "token": "{{verification_token}}"
+}
+
+###
+
+### Повторная отправка письма подтверждения
+### Единый ответ 200 и для несуществующего email, и для уже подтверждённого (иначе user enumeration)
+POST {{baseUrl}}/api/auth/resend-verification
+Content-Type: application/json
+
+{
+  "email": "student@example.com"
+}
+
+###
+
+### Логин — требует подтверждённый email (иначе 403 EMAIL_NOT_VERIFIED)
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "test@mail.ru",
-  "password": "123123"
+  "email": "student@example.com",
+  "password": "password123"
 }
 
 > {%
   if (response.status === 200) {
     client.global.set("auth_token", response.body.token);
-    client.global.set("author_id", response.body.user.id);
-    client.log("Токен успешно сохранен!");
+    client.global.set("user_id", response.body.user.id);
+    client.log("Токен сохранён. IntelliJ также сохранил access_token/refresh_token как cookies для этого окружения.");
   }
 %}
+
+### Логин через passport-local стратегию (тот же email/password, другой механизм аутентификации)
+POST {{baseUrl}}/api/auth/login/local
+Content-Type: application/json
+
+{
+  "email": "student@example.com",
+  "password": "password123"
+}
+
+###
+
+### Google OAuth — редиректит на accounts.google.com (запустить в браузере, не в HTTP-клиенте)
+GET {{baseUrl}}/api/auth/google
+
+###
+
+### GitHub OAuth — редиректит на github.com (запустить в браузере, не в HTTP-клиенте)
+GET {{baseUrl}}/api/auth/github
+
+###
+
+### Обновление access/refresh токенов (refresh_token берётся из cookie, сохранённой при логине)
+### С 2026-08-18 подписывается отдельным JWT_REFRESH_SECRET и проверяет claim type: "refresh" —
+### access-токен, подсунутый сюда вместо refresh, теперь отклоняется (INVALID_REFRESH_TOKEN).
+POST {{baseUrl}}/api/auth/refresh
+Content-Type: application/json
+
+###
+
+### Текущий пользователь (требует jwtAuth + подтверждённый email)
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Обновление профиля (только name/email — role не в схеме, mass-assignment через req.body отдельно задокументирован)
+PATCH {{baseUrl}}/api/auth/profile
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "name": "Test Student Updated"
+}
+
+###
+
+### Смена пароля (исправлено 2026-08-18: добавлен userRepository.findByIdWithPassword,
+### раньше changePassword ошибочно искал пользователя по email, передавая туда userId)
+POST {{baseUrl}}/api/auth/change-password
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "currentPassword": "password123",
+  "newPassword": "newpassword456",
+  "confirmPassword": "newpassword456"
+}
+
+###
+
+### Запрос сброса пароля — единый ответ 200 независимо от того, существует email или нет
+POST {{baseUrl}}/api/auth/request-password-reset
+Content-Type: application/json
+
+{
+  "email": "student@example.com"
+}
+
+###
+
+### Сброс пароля — токен взять из Mongo (passwordResetToken)
+POST {{baseUrl}}/api/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "{{reset_token}}",
+  "newPassword": "newpassword456",
+  "confirmPassword": "newpassword456"
+}
+
+###
+
+### Выход — чистит cookies на клиенте, сам JWT остаётся валиден до истечения (нет revocation)
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{auth_token}}

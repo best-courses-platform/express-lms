@@ -1,5 +1,11 @@
 // file-storage.service.ts
-import { DeleteObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { config, getSelectelPublicUrl, isSelectelConfigured } from '../../config';
 import { MulterS3File, UploadedFile, UploadOptions } from './file-storage.types';
 import { FILE_STORAGE_MESSAGES } from './file-storage.constants';
@@ -90,28 +96,26 @@ export class FileStorageService {
         return;
       }
 
-      // Удаляем каждый файл по отдельности
-      const deletePromises = listResult.Contents.map(async object => {
-        try {
-          const deleteCommand = new DeleteObjectCommand({
-            Bucket: config.selectel.bucketName,
-            Key: object.Key!,
-          });
+      // DeleteObjectsCommand принимает до 1000 ключей за один запрос — вместо N отдельных
+      // запросов к S3 (по одному на файл) делаем ceil(N/1000) batch-запросов. Для типичного
+      // урока (единицы-десятки файлов) это буквально один запрос вместо N.
+      const keys = listResult.Contents.map(object => object.Key!);
+      const BATCH_SIZE = 1000;
 
-          await s3Client.send(deleteCommand);
-          return true;
-        } catch (error) {
-          // Используем normalizeError для логирования
-          const normalizedError = this.normalizeError(error);
-          console.warn(
-            `${FILE_STORAGE_MESSAGES.WARN.INDIVIDUAL_FILE_DELETE_FAILED} ${object.Key}:`,
-            normalizedError.message
-          );
-          return false;
-        }
-      });
+      for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+        const batch = keys.slice(i, i + BATCH_SIZE);
 
-      await Promise.all(deletePromises);
+        const deleteCommand = new DeleteObjectsCommand({
+          Bucket: config.selectel.bucketName,
+          Delete: { Objects: batch.map(Key => ({ Key })) },
+        });
+
+        const result = await s3Client.send(deleteCommand);
+
+        result.Errors?.forEach(err => {
+          console.warn(`${FILE_STORAGE_MESSAGES.WARN.INDIVIDUAL_FILE_DELETE_FAILED} ${err.Key}:`, err.Message);
+        });
+      }
     } catch (error) {
       // Нормализуем ошибку и бросаем новую AppError с контекстом
       const normalizedError = this.normalizeError(error);
@@ -260,16 +264,8 @@ export class FileStorageService {
     }
 
     try {
-      let key: string;
-
-      if (fileUrl.startsWith('https://')) {
-        const url = new URL(fileUrl);
-        key = url.pathname.substring(1);
-      } else if (fileUrl.includes('best-courses-ever/')) {
-        key = fileUrl;
-      } else {
-        key = fileUrl;
-      }
+      // Если это полный URL — вычисляем ключ из пути; иначе fileUrl уже и есть ключ.
+      let key = fileUrl.startsWith('https://') ? new URL(fileUrl).pathname.substring(1) : fileUrl;
 
       if (key.startsWith(`${config.selectel.bucketName}/`)) {
         key = key.replace(`${config.selectel.bucketName}/`, '');

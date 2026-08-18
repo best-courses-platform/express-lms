@@ -1,4 +1,4 @@
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Model, Types } from 'mongoose';
 
 export type UserRole = 'student' | 'author' | 'admin';
 
@@ -25,6 +25,18 @@ export type User = {
 
 // Полный Mongoose-документ с методами .save(), .toObject(), методами схемы и т.д.
 export type UserDocument = HydratedDocument<User>;
+
+// Типы для схемы user.model.ts (Schema<DocType, ModelType, TInstanceMethods>)
+export type IUser = User;
+
+export interface IUserMethods {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+  canPerformAction(): boolean;
+  generateEmailVerificationToken(): void;
+  generatePasswordResetToken(): void;
+}
+
+export type UserModelType = Model<IUser, object, IUserMethods>;
 
 export type NewUser = Omit<User, '_id' | 'createdAt' | 'updatedAt'> & {
   password?: string;
