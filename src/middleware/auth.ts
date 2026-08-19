@@ -1,8 +1,8 @@
-// middleware/auth.ts
 import { NextFunction, Request, Response } from 'express';
 import passport from 'passport';
 import { AUTH_MESSAGES } from 'auth/auth.constants';
 import { isAuthenticatedRequest } from '../utils/typeGuards';
+import { config } from '../config';
 
 // Passport стратегии
 export const jwtAuth = passport.authenticate('jwt', { session: false });
@@ -25,9 +25,13 @@ export const googleAuth = passport.authenticate('google', {
   scope: ['profile', 'email'],
 });
 
+// failureRedirect — абсолютный URL на фронтенд, не относительный путь: относительный
+// '/login' резолвился бы на сам Express (нет своего /login после выпиливания
+// hbs-вьюх), а не на lms-web. Та же причина и тот же паттерн, что и в
+// handleOAuthCallback (auth.controller.ts) для успешного случая.
 export const googleAuthCallback = passport.authenticate('google', {
   session: false,
-  failureRedirect: '/login',
+  failureRedirect: `${config.frontendUrl}/login?error=auth_failed`,
 });
 
 export const githubAuth = passport.authenticate('github', {
@@ -36,7 +40,7 @@ export const githubAuth = passport.authenticate('github', {
 
 export const githubAuthCallback = passport.authenticate('github', {
   session: false,
-  failureRedirect: '/login',
+  failureRedirect: `${config.frontendUrl}/login?error=auth_failed`,
 });
 
 // Проверка ролей

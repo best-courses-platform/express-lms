@@ -17,7 +17,6 @@ module.exports = {
     '.eslintrc.js',
     'dist/**/*',
     'node_modules/**/*',
-    'src/public/js/**/*',
     'src/modules/**/__tests__/**',
   ],
   rules: {
