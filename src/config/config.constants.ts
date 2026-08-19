@@ -1,4 +1,3 @@
-// config/config.constants.ts
 export const CONFIG_MESSAGES = {
   SUCCESS: {
     CONFIG_LOADED: 'Конфигурация загружена',

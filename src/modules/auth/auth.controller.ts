@@ -1,4 +1,3 @@
-// domains/auth/auth.controller.ts
 import { RequestHandler } from 'express';
 import { authService } from './auth.service';
 import { jwtService } from 'jwt/jwt.service';

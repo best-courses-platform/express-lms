@@ -1,4 +1,3 @@
-// jwt/jwt.service.ts
 import jwt from 'jsonwebtoken';
 import { Response } from 'express';
 import { config } from '../../config';

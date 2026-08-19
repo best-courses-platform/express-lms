@@ -1,4 +1,3 @@
-// shared/constants/messages.ts
 import { ENTITY_MESSAGES } from './entity-messages';
 
 export const COMMON_MESSAGES = {

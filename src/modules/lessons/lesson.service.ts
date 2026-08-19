@@ -1,4 +1,3 @@
-// domains/lessons/lesson.service.ts
 import { Lesson, LessonResource, NewLesson, VideoFile } from './lesson.types';
 import { lessonRepository } from './lesson.repository';
 import { courseService } from 'courses/course.service';

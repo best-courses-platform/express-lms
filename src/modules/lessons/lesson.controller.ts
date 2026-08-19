@@ -1,4 +1,3 @@
-// domains/lessons/lesson.controller.ts
 import { RequestHandler } from 'express';
 import { lessonService } from './lesson.service';
 import { courseService } from 'courses/course.service';
