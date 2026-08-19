@@ -1,4 +1,3 @@
-// middleware/upload-file.ts
 import multer from 'multer';
 import { S3Client } from '@aws-sdk/client-s3';
 import multerS3 from 'multer-s3';
@@ -69,6 +68,10 @@ const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
       baseConfig.storage = multerS3({
         s3: s3Client,
         bucket: config.selectel.bucketName,
+        // Без этого multer-s3 не прокидывает MIME-тип в PutObject — все файлы уходят
+        // в S3 с Content-Type: application/octet-stream, из-за чего <video> отказывается
+        // проигрывать загруженные уроки (браузер не распознаёт октет-стрим как медиа).
+        contentType: multerS3.AUTO_CONTENT_TYPE,
         metadata: function (req: UploadRequest, file, cb) {
           cb(null, {
             fieldName: file.fieldname,

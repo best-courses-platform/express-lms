@@ -1,4 +1,3 @@
-// domains/auth/auth.schema.ts
 import { z } from 'zod';
 import { AUTH_MESSAGES } from './auth.constants';
 

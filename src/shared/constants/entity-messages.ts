@@ -1,4 +1,3 @@
-// shared/constants/entity-messages.ts
 export const ENTITY_MESSAGES = {
   NOT_FOUND: (entity: string) => `${entity} не найден`,
   ID_REQUIRED: (entity: string) => `ID ${entity} обязателен`,

@@ -1,4 +1,3 @@
-// jwt/jwt.schema.ts
 import { z } from 'zod';
 import { COMMON_MESSAGES } from '../../shared/constants/messages';
 

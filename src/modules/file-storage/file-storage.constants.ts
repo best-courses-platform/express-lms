@@ -1,4 +1,3 @@
-// file-storage/file-storage.constants.ts
 import { ENTITY_MESSAGES } from '../../shared/constants/entity-messages';
 
 export const FILE_STORAGE_MESSAGES = {

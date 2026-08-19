@@ -1,4 +1,3 @@
-// domains/courses/course.schema.ts
 import { z } from 'zod';
 import { COURSE_MESSAGES } from './course.constants';
 

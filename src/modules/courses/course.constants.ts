@@ -1,4 +1,3 @@
-// domains/courses/course.constants.ts
 import { COMMON_MESSAGES } from '../../shared/constants/messages';
 import { ENTITY_MESSAGES, ENTITY_SUCCESS, ENTITY_VALIDATION } from '../../shared/constants/entity-messages';
 
