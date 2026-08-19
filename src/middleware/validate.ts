@@ -1,4 +1,3 @@
-// middleware/validate.ts
 import { z, ZodError, ZodObject } from 'zod';
 import { RequestHandler } from 'express';
 import { COMMON_MESSAGES } from '../shared/constants/messages';

@@ -1,4 +1,3 @@
-// domains/lessons/lesson.repository.ts
 import { Lesson, LessonResource, NewLesson, UpdateLesson, VideoFile } from './lesson.types';
 import { LessonModel } from './lesson.model';
 import { Types } from 'mongoose';

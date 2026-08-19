@@ -1,4 +1,3 @@
-// auth.types.ts
 export interface OAuthProfile {
   id: string;
   displayName?: string;

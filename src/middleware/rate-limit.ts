@@ -1,4 +1,3 @@
-// middleware/rate-limit.ts
 import rateLimit from 'express-rate-limit';
 import { COMMON_MESSAGES } from '../shared/constants/messages';
 

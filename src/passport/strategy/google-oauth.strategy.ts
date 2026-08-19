@@ -1,4 +1,3 @@
-// google-oauth.strategy.ts
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { userService } from 'users/user.service';
 import { config } from '../../config';

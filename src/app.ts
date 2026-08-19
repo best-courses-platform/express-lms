@@ -1,72 +1,19 @@
 import express from 'express';
-import { engine } from 'express-handlebars';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import passport from 'passport';
-import path from 'path';
 import authRoutes from './modules/auth/auth.routes';
 import usersRoutes from './modules/users/user.routes';
 import coursesRouter from './modules/courses/course.routes';
 import lessonsRouter from './modules/lessons/lesson.routes';
-import viewsRouter from './modules/views/view.routes';
 import { initializePassport } from './passport/config';
 import { errorHandler } from './middleware/error-handler';
 import { apiRateLimiter } from './middleware/rate-limit';
+import { COMMON_MESSAGES } from './shared/constants/messages';
 import { config } from './config';
 
-const __dirname = path.resolve();
-
 const app = express();
-
-// Используем Record для индексной сигнатуры
-type HelperFunction = (...args: unknown[]) => unknown;
-type HandlebarsHelpers = Record<string, HelperFunction>;
-
-const handlebarsHelpers: HandlebarsHelpers = {
-  eq: <T>(a: T, b: T): boolean => a === b,
-  json: (context: unknown): string => JSON.stringify(context),
-  formatDate: (date: unknown): string => {
-    if (date instanceof Date && !isNaN(date.getTime())) {
-      return date.toLocaleDateString('ru-RU');
-    }
-
-    if (typeof date === 'string') {
-      const parsedDate = new Date(date);
-
-      if (!isNaN(parsedDate.getTime())) {
-        return parsedDate.toLocaleDateString('ru-RU');
-      }
-    }
-    return 'Invalid Date';
-  },
-};
-
-app.engine(
-  'hbs',
-  engine({
-    extname: '.hbs',
-    defaultLayout: 'main',
-    layoutsDir: path.join(__dirname, 'src', 'views', 'layouts'),
-    partialsDir: path.join(__dirname, 'src', 'views', 'partials'),
-    // false — дефолт express-handlebars, оставлен явным. С true шаблон получает доступ
-    // к прототипным методам/свойствам любого переданного объекта (Object.prototype,
-    // методы Mongoose-документов и т.д.) — расширяет поверхность для атак вроде
-    // prototype pollution через данные, попавшие в шаблон. Ни один текущий .hbs
-    // не использует ничего, кроме собственных полей моделей.
-    runtimeOptions: {
-      allowProtoPropertiesByDefault: false,
-      allowProtoMethodsByDefault: false,
-    },
-    helpers: handlebarsHelpers,
-  })
-);
-
-app.set('view engine', 'hbs');
-app.set('views', path.join(__dirname, 'src', 'views'));
-
-// Статические файлы
-app.use(express.static(path.join(__dirname, 'src', 'public')));
 
 app.use(helmet());
 
@@ -100,8 +47,12 @@ app.use('/api/users', usersRoutes);
 app.use('/api/courses', coursesRouter);
 app.use('/api/lessons', lessonsRouter);
 
-// View routes
-app.use('/', viewsRouter);
+// Чисто API-бэкенд — фронтенд отдельно (lms-web, Next.js). Любой не сматчившийся
+// путь — JSON 404, не дефолтная HTML-страница Express (тот же контракт ошибок,
+// что и errorHandler ниже: клиент везде получает { error: string }).
+app.use((_req, res) => {
+  res.status(404).json({ error: COMMON_MESSAGES.ERROR.RESOURCE_NOT_FOUND });
+});
 
 // Должен быть подключён последним — Express находит error-middleware по количеству
 // параметров (err, req, res, next), а не по порядку объявления, но применяется только

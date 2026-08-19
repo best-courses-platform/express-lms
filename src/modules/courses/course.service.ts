@@ -1,4 +1,3 @@
-// domains/courses/course.service.ts
 import { Course, NewCourse, Rating } from './course.types';
 import { courseRepository } from './course.repository';
 import { AppError } from '../../utils/errors';
@@ -48,6 +47,18 @@ class CourseService {
 
   async getCoursesByAuthor(authorId: string): Promise<Course[]> {
     return courseRepository.findByAuthor(authorId);
+  }
+
+  /**
+   * "Мои курсы" для личного кабинета: у автора/админа — курсы, которые он ведёт,
+   * у студента — курсы, куда его добавили в allowedUsers (своего списка "изучаю" ещё нет).
+   */
+  async getMyCourses(userId: Types.ObjectId, role: string): Promise<Course[]> {
+    if (role === 'author' || role === 'admin') {
+      return courseRepository.findByAuthor(userId.toString());
+    }
+
+    return courseRepository.findByAllowedUser(userId.toString());
   }
 
   async getCoursesByDifficulty(difficulty: string): Promise<Course[]> {

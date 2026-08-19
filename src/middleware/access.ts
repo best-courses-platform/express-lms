@@ -1,4 +1,3 @@
-// middleware/access.ts
 import { NextFunction, Request, Response } from 'express';
 import { USER_MESSAGES } from 'users/user.constants';
 import { COMMON_MESSAGES } from '../shared/constants/messages';
