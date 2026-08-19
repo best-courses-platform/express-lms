@@ -4,6 +4,7 @@ import { AppError } from '../../utils/errors';
 import { Types } from 'mongoose';
 import { CreateCourseInput, UpdateCourseInput } from './course.schema';
 import { COURSE_MESSAGES } from './course.constants';
+import { lessonService } from 'lessons/lesson.service';
 
 class CourseService {
   async create(input: CreateCourseInput, authorId: Types.ObjectId): Promise<Course> {
@@ -98,6 +99,11 @@ class CourseService {
     if (!course.author.equals(userId)) {
       throw new AppError(403, COURSE_MESSAGES.ERROR.NOT_AUTHOR);
     }
+
+    // Уроки курса и их файлы в S3 иначе остаются висеть навсегда — ничего, кроме этого
+    // вызова, их не подчищает (см. Obsidian: та же проблема "сирот", что и при прямом
+    // удалении курса через mongosh, только теперь она была и в штатном API-пути).
+    await lessonService.deleteAllForCourse(id);
 
     const ok = await courseRepository.delete(id);
     if (!ok) {throw new AppError(404, COURSE_MESSAGES.ERROR.NOT_FOUND);}

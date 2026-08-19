@@ -11,8 +11,6 @@ export const LESSON_MESSAGES = {
     DESCRIPTION_TOO_LONG: ENTITY_VALIDATION.FIELD_TOO_LONG('Описание', 'урока', 2000),
     ORDER_REQUIRED: 'Порядковый номер обязателен',
     ORDER_MIN: 'Порядковый номер должен быть не менее 1',
-    INPUT_EXAMPLES_TOO_LONG: 'Примеры входных данных не должны превышать 1000 символов',
-    OUTPUT_EXAMPLES_TOO_LONG: 'Примеры выходных данных не должны превышать 1000 символов',
     FILE_TYPE_REQUIRED: 'Тип файла обязателен',
     FILE_TYPE_INVALID: 'Тип файла должен быть video или resource',
     FILE_TITLE_REQUIRED: 'Название файла обязательно',

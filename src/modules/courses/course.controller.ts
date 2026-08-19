@@ -1,5 +1,6 @@
 import { RequestHandler } from 'express';
 import { courseService } from './course.service';
+import { fileStorageService } from '../file-storage/file-storage.service';
 import { AppError } from '../../utils/errors';
 import { isAuthenticatedRequest, getUserIdFromRequest } from '../../utils/typeGuards';
 import { Types } from 'mongoose';
@@ -68,6 +69,27 @@ export const getMyCourses: RequestHandler = async (req, res, next) => {
     const userId = getUserIdFromRequest(req);
     const courses = await courseService.getMyCourses(userId, req.user.role);
     res.json(courses);
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const uploadCoursePreviewImage: RequestHandler = async (req, res, next) => {
+  try {
+    if (!isAuthenticatedRequest(req)) {
+      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+    }
+    if (!req.file) {
+      throw new AppError(400, COURSE_MESSAGES.ERROR.PREVIEW_IMAGE_NOT_UPLOADED);
+    }
+
+    const uploaded = await fileStorageService.uploadFile(req.file.buffer, {
+      folder: 'courses/previews',
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
+    });
+
+    res.json({ message: COURSE_MESSAGES.SUCCESS.PREVIEW_IMAGE_UPLOADED, url: uploaded.url });
   } catch (e) {
     next(e);
   }
@@ -225,6 +247,7 @@ export const CourseController = {
   getPublishedCourses,
   getCoursesByAuthor: [validate(authorParamSchema), getCoursesByAuthor],
   getMyCourses,
+  uploadCoursePreviewImage,
   getCoursesByDifficulty: [validate(difficultyParamSchema), getCoursesByDifficulty],
   getCourse: [validate(idParamSchema), getCourse],
   updateCourse: [validate(updateCourseSchema), updateCourse],

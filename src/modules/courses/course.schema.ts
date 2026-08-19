@@ -1,8 +1,15 @@
 import { z } from 'zod';
 import { COURSE_MESSAGES } from './course.constants';
 
-// Базовые схемы для переиспользования
-export const courseBaseSchema = z.object({
+// Поля без .default() — единственный источник правил валидации, переиспользуется и
+// созданием (через courseBaseSchema ниже), и обновлением (courseFieldsSchema.partial()
+// напрямую). Если бы updateCourseSchema строился через courseBaseSchema.partial(),
+// каждое отсутствующее в PATCH-теле поле с .default() (tags/difficulty/isPublished)
+// тихо получало бы дефолт вместо того, чтобы остаться нетронутым — Zod применяет
+// .default() к отсутствующему значению независимо от внешней .optional()-обёртки,
+// которую добавляет .partial(). На практике это стирало теги/публикацию при PATCH
+// с одним изменённым полем (например, только title).
+const courseFieldsSchema = z.object({
   title: z
     .string()
     .min(1, COURSE_MESSAGES.VALIDATION.TITLE_REQUIRED)
@@ -17,15 +24,21 @@ export const courseBaseSchema = z.object({
     .min(1, COURSE_MESSAGES.VALIDATION.PREVIEW_IMAGE_REQUIRED),
   tags: z
     .array(z.string().max(30, COURSE_MESSAGES.VALIDATION.TAG_TOO_LONG))
-    .max(10, COURSE_MESSAGES.VALIDATION.TAGS_TOO_MANY)
-    .default([]),
+    .max(10, COURSE_MESSAGES.VALIDATION.TAGS_TOO_MANY),
   difficulty: z
     .enum(['beginner', 'intermediate', 'advanced'])
     .refine(val => ['beginner', 'intermediate', 'advanced'].includes(val), {
       message: COURSE_MESSAGES.VALIDATION.DIFFICULTY_INVALID,
-    })
-    .default('beginner'),
-  isPublished: z.boolean().default(false),
+    }),
+  isPublished: z.boolean(),
+});
+
+// Базовая схема для создания — те же поля, но с дефолтами (создание допускает
+// частичный набор полей и хочет получить осмысленные значения по умолчанию).
+export const courseBaseSchema = courseFieldsSchema.extend({
+  tags: courseFieldsSchema.shape.tags.default([]),
+  difficulty: courseFieldsSchema.shape.difficulty.default('beginner'),
+  isPublished: courseFieldsSchema.shape.isPublished.default(false),
 });
 
 // Создание курса
@@ -35,12 +48,13 @@ export const createCourseSchema = z.object({
   body: courseBaseSchema,
 });
 
-// Обновление курса
+// Обновление курса — courseFieldsSchema (без .default()), не courseBaseSchema, см.
+// комментарий выше про Zod .partial() + .default().
 export const updateCourseSchema = z.object({
   params: z.object({
     id: z.string().min(1, COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED),
   }),
-  body: courseBaseSchema.partial().refine(data => Object.keys(data).length > 0, {
+  body: courseFieldsSchema.partial().refine(data => Object.keys(data).length > 0, {
     message: COURSE_MESSAGES.VALIDATION.AT_LEAST_ONE_FIELD,
   }),
 });

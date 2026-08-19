@@ -1,3 +1,20 @@
+### Загрузка обложки курса в S3 — отдельно от создания курса (курса ещё нет на момент
+### загрузки: сначала грузим файл, получаем url, потом кладём его в previewImage при
+### POST /api/courses). multipart/form-data, поле "file", только image/* (multer fileFilter),
+### лимит FILE_STORAGE_MESSAGES.FILE_LIMITS.SMALL (10MB). Требует роль author/admin.
+POST {{baseUrl}}/api/courses/preview-image
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="preview.png"
+Content-Type: image/png
+
+< ./resources/preview.png
+--boundary--
+
+###
+
 ### Создание курса
 ### Требует роль author/admin (requireRole(['author','admin'])) — обычный student получит 403.
 ### Повысить роль: db.users.updateOne({email:"..."}, {$set:{role:"author"}}) в mongosh — перелогиниваться

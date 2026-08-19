@@ -31,8 +31,6 @@ export type Lesson = {
   order: number; // Порядковый номер урока в курсе
   videoFile?: VideoFile; // для загруженных видео через Selectel
   resources?: LessonResource[]; // Дополнительные ресурсы
-  inputExamples?: string; // Примеры входных данных
-  outputExamples?: string; // Примеры выходных данных
   tags: string[]; // Теги (например, "алгоритмы", "структуры данных")
   createdAt: Date;
   updatedAt: Date;

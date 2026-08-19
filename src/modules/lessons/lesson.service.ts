@@ -74,6 +74,24 @@ class LessonService {
   }
 
   /**
+   * Удаление всех уроков курса вместе с их файлами в S3 — вызывается из
+   * courseService.delete() перед удалением самого курса. Права уже проверены на уровне
+   * курса (author), здесь не дублируются. Не трогает course.lessons — сам курс будет
+   * удалён следующим шагом, поддерживать его массив уроков в актуальном виде бессмысленно.
+   */
+  async deleteAllForCourse(courseId: string): Promise<void> {
+    const lessons = await lessonRepository.findByCourseId(courseId);
+
+    for (const lesson of lessons) {
+      const lessonId = lesson._id.toString();
+      await this.cleanupLessonFiles(lessonId);
+      await lessonRepository.delete(lessonId);
+    }
+
+    console.log(`Уроки курса ${courseId} удалены (${lessons.length} шт., БД + S3)`);
+  }
+
+  /**
    * Получение следующего порядкового номера для урока в курсе
    */
   async getNextOrderNumber(courseId: string): Promise<number> {
