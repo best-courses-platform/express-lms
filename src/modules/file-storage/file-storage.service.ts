@@ -1,4 +1,3 @@
-// file-storage.service.ts
 import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
@@ -220,10 +219,16 @@ export class FileStorageService {
    * Загрузка через Multer (для использования в middleware)
    */
   async uploadMulterFile(multerFile: MulterS3File, lessonId: string): Promise<UploadedFile> {
-    // Если файл уже загружен через multer-s3 (автоматическая загрузка)
-    if (multerFile.location && multerFile.key) {
+    // Файл уже загружен через multer-s3 (автоматическая загрузка) — есть ключ объекта.
+    // Намеренно НЕ используем multerFile.location: multer-s3 строит его сам из S3-эндпоинта
+    // клиента (protocol-адрес, требующий подписи запроса на каждое чтение) — а не из
+    // публичного домена бакета (SELECTEL_PUBLIC_URL). Ссылка из .location была бы
+    // синтаксически похожа на рабочую, но реально недоступна анонимному GET (см. Obsidian —
+    // именно так эта дыра и стояла необнаруженной весь день, пока не проверили вживую).
+    if (multerFile.key) {
+      const url = getSelectelPublicUrl(multerFile.key);
       return {
-        url: multerFile.location,
+        url,
         originalName: multerFile.originalname,
         size: multerFile.size,
         mimeType: multerFile.mimetype,
@@ -233,17 +238,6 @@ export class FileStorageService {
     // Если файл в памяти (при использовании memoryStorage)
     if (multerFile.buffer) {
       return this.uploadLessonFile(multerFile.buffer, lessonId, multerFile.originalname, multerFile.mimetype);
-    }
-
-    // Если файл загружен, но нет location (обработка edge case)
-    if (multerFile.key) {
-      const url = getSelectelPublicUrl(multerFile.key);
-      return {
-        url,
-        originalName: multerFile.originalname,
-        size: multerFile.size,
-        mimeType: multerFile.mimetype,
-      };
     }
 
     // Бросаем AppError напрямую (без normalizeError, так как это не runtime ошибка)

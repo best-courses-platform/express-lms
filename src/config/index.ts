@@ -1,4 +1,3 @@
-// config/index.ts
 import dotenv from 'dotenv';
 import { Config, configSchema } from './schema';
 import { CONFIG_MESSAGES } from './config.constants';
@@ -56,10 +55,22 @@ export function logConfigValidation(): void {
 
 // Вспомогательные функции для Selectel
 export function isSelectelConfigured(): boolean {
-  return !!(config.selectel.accessKeyId && config.selectel.secretAccessKey && config.selectel.bucketName);
+  // publicUrl — тоже обязательное условие: без него загрузка в S3 отработает "успешно",
+  // но вернёт клиенту ссылку, по которой ничего никогда не откроется (см. Obsidian —
+  // именно так эта дыра и стояла необнаруженной, пока не проверили загруженный файл вживую).
+  return !!(
+    config.selectel.accessKeyId &&
+    config.selectel.secretAccessKey &&
+    config.selectel.bucketName &&
+    config.selectel.publicUrl
+  );
 }
 
 export function getSelectelPublicUrl(key: string): string {
+  if (!config.selectel.publicUrl) {
+    throw new Error('SELECTEL_PUBLIC_URL не настроен');
+  }
+
   const cleanKey = key.startsWith('/') ? key.substring(1) : key;
   return `${config.selectel.publicUrl}/${cleanKey}`;
 }
