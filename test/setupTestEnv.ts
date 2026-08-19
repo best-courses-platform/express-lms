@@ -32,4 +32,14 @@ process.env.FRONTEND_URL = 'http://localhost:3001';
 process.env.EMAIL_USER = '';
 process.env.EMAIL_PASSWORD = '';
 
+// Тот же класс утечки, что и с EMAIL_*, только через S3: isSelectelConfigured() требует
+// accessKeyId + secretAccessKey + bucketName + publicUrl ВСЕ сразу (см. config/index.ts) —
+// одной пустой переменной достаточно, чтобы гарантированно вернуть false. Без этого
+// оверрайда fileStorageService в тестах подхватил бы настоящие Selectel-креды из .env
+// и любой тест, касающийся загрузки/удаления файлов урока (включая каскадное удаление
+// курса — courseService.delete → lessonService.deleteAllForCourse → deleteLessonFolder),
+// реально бил бы по продовому бакету по сети.
+process.env.SELECTEL_ACCESS_KEY_ID = '';
+process.env.SELECTEL_SECRET_ACCESS_KEY = '';
+
 export {};
