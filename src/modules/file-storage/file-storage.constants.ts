@@ -18,6 +18,7 @@ export const FILE_STORAGE_MESSAGES = {
     INVALID_FILE_TYPE_SMALL: 'Неверный тип файла для небольших файлов',
     INVALID_FILE_TYPE_LARGE:
       'Неверный тип файла. Разрешенные типы: видео, изображения, PDF, ZIP, текст, Word документы, Excel файлы',
+    INVALID_FILE_TYPE_IMAGE: 'Неверный тип файла. Разрешены только изображения',
   },
   WARN: {
     INDIVIDUAL_FILE_DELETE_FAILED: 'Не удалось удалить файл',
@@ -35,6 +36,7 @@ export const FILE_STORAGE_MESSAGES = {
     LARGE: 100 * 1024 * 1024, // 100MB
   },
   MIME_TYPES: {
+    IMAGE: ['image/'],
     SMALL: [
       'image/',
       'application/pdf',
