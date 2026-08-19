@@ -32,6 +32,14 @@ class CourseRepository {
     return await CourseModel.find({ author: authorId }).populate('lessons', 'title duration').exec();
   }
 
+  async findByAllowedUser(userId: string): Promise<Course[]> {
+    if (!Types.ObjectId.isValid(userId)) {return [];}
+    return await CourseModel.find({ allowedUsers: userId })
+      .populate('author', 'name email avatar')
+      .populate('lessons', 'title duration')
+      .exec();
+  }
+
   async findByDifficulty(difficulty: string): Promise<Course[]> {
     return await CourseModel.find({ difficulty })
       .populate('author', 'name email avatar')
