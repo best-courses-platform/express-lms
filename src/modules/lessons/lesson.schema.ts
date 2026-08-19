@@ -1,8 +1,12 @@
 import { z } from 'zod';
 import { LESSON_MESSAGES } from './lesson.constants';
 
-// Базовые схемы для переиспользования
-export const lessonBaseSchema = z.object({
+// Поля без .default() — единственный источник правил валидации. updateLessonSchema
+// строится из этой схемы напрямую (не из lessonBaseSchema), иначе .partial() не спасает:
+// Zod применяет .default() к отсутствующему в PATCH-теле полю независимо от внешней
+// .optional()-обёртки, которую добавляет .partial() — order/tags тихо сбрасывались бы
+// на 1/[] при PATCH, не трогающем эти поля (см. симметричный фикс в course.schema.ts).
+const lessonFieldsSchema = z.object({
   title: z
     .string()
     .min(1, LESSON_MESSAGES.VALIDATION.TITLE_REQUIRED)
@@ -11,17 +15,16 @@ export const lessonBaseSchema = z.object({
     .string()
     .min(10, LESSON_MESSAGES.VALIDATION.DESCRIPTION_TOO_SHORT)
     .max(2000, LESSON_MESSAGES.VALIDATION.DESCRIPTION_TOO_LONG),
-  order: z
-    .number()
-    .int('Порядковый номер должен быть целым числом')
-    .min(1, LESSON_MESSAGES.VALIDATION.ORDER_MIN)
-    .default(1),
-  inputExamples: z.string().max(1000, LESSON_MESSAGES.VALIDATION.INPUT_EXAMPLES_TOO_LONG).optional(),
-  outputExamples: z.string().max(1000, LESSON_MESSAGES.VALIDATION.OUTPUT_EXAMPLES_TOO_LONG).optional(),
+  order: z.number().int('Порядковый номер должен быть целым числом').min(1, LESSON_MESSAGES.VALIDATION.ORDER_MIN),
   tags: z
     .array(z.string().max(30, LESSON_MESSAGES.VALIDATION.TAG_TOO_LONG))
-    .max(10, LESSON_MESSAGES.VALIDATION.TAGS_TOO_MANY)
-    .default([]),
+    .max(10, LESSON_MESSAGES.VALIDATION.TAGS_TOO_MANY),
+});
+
+// Базовая схема для создания — те же поля, но с дефолтами.
+export const lessonBaseSchema = lessonFieldsSchema.extend({
+  order: lessonFieldsSchema.shape.order.default(1),
+  tags: lessonFieldsSchema.shape.tags.default([]),
 });
 
 // Загрузка файлов
@@ -70,12 +73,13 @@ export const createLessonForCourseSchema = z.object({
   body: lessonBaseSchema.omit({ order: true }), // order генерируется автоматически
 });
 
-// Обновление урока
+// Обновление урока — lessonFieldsSchema (без .default()), не lessonBaseSchema, см.
+// комментарий выше про Zod .partial() + .default().
 export const updateLessonSchema = z.object({
   params: z.object({
     id: z.string().min(1, LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED),
   }),
-  body: lessonBaseSchema.partial().refine(data => Object.keys(data).length > 0, {
+  body: lessonFieldsSchema.partial().refine(data => Object.keys(data).length > 0, {
     message: LESSON_MESSAGES.VALIDATION.AT_LEAST_ONE_FIELD,
   }),
 });

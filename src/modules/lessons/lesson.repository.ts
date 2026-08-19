@@ -121,11 +121,15 @@ class LessonRepository {
       throw new Error('Invalid lesson ID');
     }
 
-    const updatedLesson = await LessonModel.findByIdAndUpdate(
-      lessonId,
-      { videoFile },
-      { new: true, runValidators: true }
-    )
+    // { videoFile: undefined } молча теряет ключ при сборке update-объекта в Mongoose —
+    // MongoDB его просто не видит, поле не удаляется, хотя ответ выглядит успешным.
+    // $unset — единственный способ реально убрать поле при videoFile === undefined.
+    const update = videoFile ? { $set: { videoFile } } : { $unset: { videoFile: 1 } };
+
+    const updatedLesson = await LessonModel.findByIdAndUpdate(lessonId, update, {
+      new: true,
+      runValidators: true,
+    })
       .populate('courseId', 'title description author')
       .exec();
 
