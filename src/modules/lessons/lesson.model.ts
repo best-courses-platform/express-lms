@@ -54,8 +54,6 @@ const lessonSchema = new Schema<Lesson>(
     },
     videoFile: videoFileSchema,
     resources: [lessonResourceSchema],
-    inputExamples: String,
-    outputExamples: String,
     tags: [
       {
         type: String,
