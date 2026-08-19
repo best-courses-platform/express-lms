@@ -114,3 +114,22 @@ const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
 
 export const uploadFile = multer(createMulterConfig(false));
 export const uploadSmallFilesMiddleware = multer(createMulterConfig(true));
+
+// Обложка курса: всегда memoryStorage, не multer-s3 — курса ещё нет в БД на момент
+// загрузки (создаётся формой на фронтенде ДО POST /api/courses), поэтому нет lessonId-
+// подобного идентификатора для multer-s3 key(). Дальше буфер уходит в
+// fileStorageService.uploadFile() — тот же путь, что multer-s3 использует под капотом
+// (PutObjectCommand + ACL: public-read + getSelectelPublicUrl), просто без прямого стрима.
+export const uploadImage = multer({
+  limits: { fileSize: FILE_STORAGE_MESSAGES.FILE_LIMITS.SMALL },
+  fileFilter: (_req, file, cb) => {
+    const isValidType = FILE_STORAGE_MESSAGES.MIME_TYPES.IMAGE.some(type => file.mimetype.startsWith(type));
+
+    if (isValidType) {
+      cb(null, true);
+    } else {
+      cb(new AppError(400, FILE_STORAGE_MESSAGES.ERROR.INVALID_FILE_TYPE_IMAGE, { mimetype: file.mimetype }));
+    }
+  },
+  storage: multer.memoryStorage(),
+});

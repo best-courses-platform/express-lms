@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { CourseController } from './course.controller';
 import { jwtAuth, optionalAuth } from '../../middleware/auth';
 import { requireVerifiedEmail, requireRole } from '../../middleware/access';
+import { uploadImage } from '../../middleware/upload-file';
 
 const r = Router();
 
@@ -15,6 +16,14 @@ r.get('/mine', jwtAuth, requireVerifiedEmail, CourseController.getMyCourses);
 r.get('/:id', optionalAuth, ...CourseController.getCourse);
 
 // защищённые
+r.post(
+  '/preview-image',
+  jwtAuth,
+  requireVerifiedEmail,
+  requireRole(['author', 'admin']),
+  uploadImage.single('file'),
+  CourseController.uploadCoursePreviewImage
+);
 r.post('/', jwtAuth, requireVerifiedEmail, requireRole(['author', 'admin']), ...CourseController.createCourse);
 r.patch('/:id', jwtAuth, requireVerifiedEmail, ...CourseController.updateCourse);
 r.delete('/:id', jwtAuth, requireVerifiedEmail, ...CourseController.deleteCourse);

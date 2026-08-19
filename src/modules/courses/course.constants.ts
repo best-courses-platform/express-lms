@@ -27,6 +27,7 @@ export const COURSE_MESSAGES = {
     USER_NOT_FOUND_IN_ALLOWED: 'Пользователь не найден в списке доступа',
     RATING_ALREADY_EXISTS: 'Вы уже оценили этот курс',
     INVALID_DIFFICULTY: 'Недопустимый уровень сложности',
+    PREVIEW_IMAGE_NOT_UPLOADED: 'Файл обложки не передан',
   },
   SUCCESS: {
     COURSE_CREATED: ENTITY_SUCCESS.CREATED('Курс'),
@@ -34,6 +35,7 @@ export const COURSE_MESSAGES = {
     COURSE_DELETED: ENTITY_SUCCESS.DELETED('Курс'),
     LESSON_ADDED: 'Урок успешно добавлен в курс',
     LESSON_REMOVED: 'Урок успешно удален из курса',
+    PREVIEW_IMAGE_UPLOADED: 'Обложка успешно загружена',
     USER_ADDED_TO_ALLOWED: 'Пользователь успешно добавлен в список доступа',
     USER_REMOVED_FROM_ALLOWED: 'Пользователь успешно удален из списка доступа',
     RATING_ADDED: 'Рейтинг успешно добавлен',
