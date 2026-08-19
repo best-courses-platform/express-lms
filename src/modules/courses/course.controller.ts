@@ -1,4 +1,3 @@
-// domains/courses/course.controller.ts
 import { RequestHandler } from 'express';
 import { courseService } from './course.service';
 import { AppError } from '../../utils/errors';
@@ -55,6 +54,19 @@ export const getPublishedCourses: RequestHandler = async (_req, res, next) => {
 export const getCoursesByAuthor: RequestHandler = async (req, res, next) => {
   try {
     const courses = await courseService.getCoursesByAuthor(req.params.authorId);
+    res.json(courses);
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const getMyCourses: RequestHandler = async (req, res, next) => {
+  try {
+    if (!isAuthenticatedRequest(req)) {
+      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+    }
+    const userId = getUserIdFromRequest(req);
+    const courses = await courseService.getMyCourses(userId, req.user.role);
     res.json(courses);
   } catch (e) {
     next(e);
@@ -212,6 +224,7 @@ export const CourseController = {
   listCourse,
   getPublishedCourses,
   getCoursesByAuthor: [validate(authorParamSchema), getCoursesByAuthor],
+  getMyCourses,
   getCoursesByDifficulty: [validate(difficultyParamSchema), getCoursesByDifficulty],
   getCourse: [validate(idParamSchema), getCourse],
   updateCourse: [validate(updateCourseSchema), updateCourse],
