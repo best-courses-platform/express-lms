@@ -1,4 +1,3 @@
-// domains/lessons/lesson.schema.ts
 import { z } from 'zod';
 import { LESSON_MESSAGES } from './lesson.constants';
 

@@ -1,7 +1,8 @@
 ### Создание курса
 ### Требует роль author/admin (requireRole(['author','admin'])) — обычный student получит 403.
-### Повысить роль: db.users.updateOne({email:"..."}, {$set:{role:"author"}}) в mongosh, затем перелогиниться
-### (JWT содержит role на момент выпуска токена, старый токен со student не обновится сам).
+### Повысить роль: db.users.updateOne({email:"..."}, {$set:{role:"author"}}) в mongosh — перелогиниваться
+### НЕ нужно: jwt.strategy.ts на каждый запрос заново читает пользователя из БД (userService.getById),
+### роль в самом JWT-payload для авторизационных проверок не используется, только email/sub.
 ### author в теле запроса больше не принимается — сервер всегда берёт его из токена (req.user._id),
 ### подмена автора отправкой чужого id в body теперь игнорируется.
 POST {{baseUrl}}/api/courses

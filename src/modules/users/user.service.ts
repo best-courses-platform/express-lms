@@ -108,6 +108,17 @@ class UserService {
         }
       }
 
+      // Успешный OAuth-коллбэк сам по себе подтверждает владение почтой — провайдер это
+      // уже проверил. Гарантируем isEmailVerified: true на КАЖДОМ входе через OAuth, а не
+      // только в момент создания (строка выше): иначе аккаунт, у которого это поле почему-то
+      // не выставлено (старые записи, созданные до появления этой логики, ручные правки БД),
+      // навсегда виснет с 403 EMAIL_NOT_VERIFIED — без единого самостоятельного способа
+      // это исправить (для OAuth-аккаунта нет "письма с подтверждением", которое можно
+      // переотправить).
+      if (!user.isEmailVerified) {
+        user = await userRepository.updateWithSensitiveFields(user._id.toString(), { isEmailVerified: true });
+      }
+
       return user;
     } catch (error) {
       if (error instanceof AppError) {

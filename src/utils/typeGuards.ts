@@ -1,4 +1,3 @@
-// typeGuards.ts
 import { Types } from 'mongoose';
 import { Request } from 'express';
 import { User } from 'users/user.types';

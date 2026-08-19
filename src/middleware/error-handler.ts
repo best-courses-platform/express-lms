@@ -1,4 +1,3 @@
-// middleware/error-handler.ts
 import { NextFunction, Request, Response } from 'express';
 import { AppError } from '../utils/errors';
 import { COMMON_MESSAGES } from '../shared/constants/messages';

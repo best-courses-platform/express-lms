@@ -1,4 +1,3 @@
-// domains/auth/auth.constants.ts
 import { COMMON_MESSAGES } from '../../shared/constants/messages';
 
 export const AUTH_MESSAGES = {

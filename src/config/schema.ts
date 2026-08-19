@@ -1,4 +1,3 @@
-// config/schema.ts
 import { z } from 'zod';
 import { CONFIG_MESSAGES } from './config.constants';
 
@@ -49,8 +48,14 @@ export const configSchema = z.object({
     secretAccessKey: z.string().optional(),
     bucketName: z.string().default('best-courses-ever'),
     region: z.string().default('ru-1'),
+    // S3 API endpoint (для PutObject/DeleteObject и т.п.) — всегда требует подписи запроса,
+    // Selectel не поддерживает анонимный доступ по этому адресу ни при каких настройках бакета.
     endpoint: z.string().url().default('https://s3.ru-1.storage.selcloud.ru'),
-    publicUrl: z.string().url().default('https://best-courses-ever.s3.ru-1.storage.selcloud.ru'),
+    // Публичный домен бакета — СОВСЕМ ДРУГОЙ адрес (вида https://<bucket-uuid>.selstorage.ru,
+    // смотреть в панели: бакет → вкладка "Домены" → "Основной домен"), не вариация S3-эндпоинта
+    // с именем бакета вместо поддомена. Раньше это было спутано (см. Obsidian) — здесь без
+    // дефолта намеренно: у каждого бакета свой UUID, угадать/захардкодить нельзя.
+    publicUrl: z.string().url().optional(),
   }),
 }).refine(cfg => cfg.jwtSecret !== cfg.jwtRefreshSecret, {
   message: CONFIG_MESSAGES.ERROR.JWT_REFRESH_SECRET_REQUIRED,

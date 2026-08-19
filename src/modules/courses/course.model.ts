@@ -98,8 +98,11 @@ courseSchema.index({ isPublished: 1 });
 courseSchema.index({ averageRating: -1 });
 courseSchema.index({ createdAt: -1 });
 
-// Middleware для пересчета averageRating при изменении рейтингов
-const calculateAverageRating = (ratings: Rating[]): number => {
+// Пересчёт averageRating при изменении рейтингов. Экспортирован: пригождается и здесь
+// (pre('save') хук — реально срабатывает только при создании курса, ratings тогда пуст),
+// и в course.repository.ts (addRating всегда идёт через findByIdAndUpdate/$push, а не
+// document.save() — pre('save') на такие запросы Mongoose не вызывает вообще).
+export const calculateAverageRating = (ratings: Rating[]): number => {
   if (ratings.length === 0) {
     return 0;
   }

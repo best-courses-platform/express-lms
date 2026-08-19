@@ -9,7 +9,6 @@
     "src/@types/**/*.d.ts"
   ],
   "exclude": [
-    "src/public/**/*",
     "src/**/__tests__/**/*",
     "src/**/__mocks__/**/*",
     "src/**/*.spec.ts",

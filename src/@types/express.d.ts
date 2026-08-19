@@ -1,4 +1,3 @@
-// src/@types/express.d.ts
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import {User as AppUser} from 'users/user.types';
 

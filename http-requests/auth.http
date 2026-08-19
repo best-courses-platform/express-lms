@@ -46,7 +46,7 @@ POST {{baseUrl}}/api/auth/verify-email
 Content-Type: application/json
 
 {
-  "token": "{{verification_token}}"
+  "token": "0686d536be2895e2b67096525e2bfaba7175bf7aca31a80f303f14c70df98d26"
 }
 
 ###

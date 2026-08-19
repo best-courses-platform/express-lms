@@ -1,4 +1,3 @@
-// passport/strategy/github-oauth.strategy.ts
 import { Strategy as GitHubStrategy } from 'passport-github2';
 import { userService } from 'users/user.service';
 import { config } from '../../config';
