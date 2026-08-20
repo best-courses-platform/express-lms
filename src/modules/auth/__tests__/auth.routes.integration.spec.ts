@@ -158,6 +158,66 @@ describe('Auth routes (integration)', () => {
     });
   });
 
+  describe('POST /api/auth/login/local', () => {
+    describe('Когда email не подтверждён', () => {
+      it('должен вернуть 403, не выдавая сессию (регрессия — тот же путь, что и /login, должен требовать то же самое)', async () => {
+        // Given — этот роут идёт через passport localAuth -> local.strategy.ts ->
+        // authService.authenticate() напрямую, а НЕ через authService.login() (как /login),
+        // а именно authService.login() — единственное место, где проверяется isEmailVerified.
+        // handleLoginSuccess, вызываемый после localAuth, тоже такой проверки не делает —
+        // до фикса этот роут выдавал полноценную сессию непроверенному email, тем же классом
+        // проблемы, что и баг №9 ("register() выдавал сессию до подтверждения email"), только
+        // через другой, менее очевидный вход.
+        await request(app).post('/api/auth/register').send({
+          name: 'Not Verified Local',
+          email: 'notverified-local@example.com',
+          password: 'password123',
+          confirmPassword: 'password123',
+        });
+
+        // When
+        const response = await request(app)
+          .post('/api/auth/login/local')
+          .send({ email: 'notverified-local@example.com', password: 'password123' });
+
+        // Then
+        expect(response.status).toBe(403);
+        expect(response.headers['set-cookie']).toBeUndefined();
+      });
+    });
+
+    describe('Когда email подтверждён и пароль верный', () => {
+      it('должен выдать httpOnly cookie с access и refresh токенами', async () => {
+        // Given
+        const { email, password } = await registerVerifiedUser({ email: 'login-local@example.com' });
+
+        // When
+        const response = await request(app).post('/api/auth/login/local').send({ email, password });
+
+        // Then
+        expect(response.status).toBe(200);
+        const cookies = response.headers['set-cookie'] as unknown as string[];
+        expect(cookies.some(c => c.startsWith('access_token=') && c.includes('HttpOnly'))).toBe(true);
+        expect(cookies.some(c => c.startsWith('refresh_token=') && c.includes('HttpOnly'))).toBe(true);
+      });
+    });
+
+    describe('Когда пароль неверный', () => {
+      it('должен вернуть 401', async () => {
+        // Given
+        const { email } = await registerVerifiedUser({ email: 'wrongpass-local@example.com' });
+
+        // When
+        const response = await request(app)
+          .post('/api/auth/login/local')
+          .send({ email, password: 'wrong-password' });
+
+        // Then
+        expect(response.status).toBe(401);
+      });
+    });
+  });
+
   describe('GET /api/auth/me', () => {
     describe('Когда запрос без cookie', () => {
       it('должен вернуть 401', async () => {
