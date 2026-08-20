@@ -53,38 +53,6 @@ export function hasComparePassword(obj: unknown): obj is { comparePassword: (pas
   }
 }
 
-export function hasObjectId(obj: unknown): obj is { _id: Types.ObjectId } {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-
-  const candidate = obj as { _id?: unknown };
-  return candidate._id instanceof Types.ObjectId;
-}
-
-export function hasEmail(obj: unknown): obj is { email: string } {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-
-  const candidate = obj as { email?: unknown };
-  return typeof candidate.email === 'string' && candidate.email.includes('@');
-}
-
-export function hasPassword(obj: unknown): obj is { password: string } {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-
-  const candidate = obj as { password?: unknown };
-  return typeof candidate.password === 'string' && candidate.password.length > 0;
-}
-
-// Основной type guard для User документа
-export function isUserDocument(obj: unknown): obj is UserDocument {
-  return isMongooseDocument(obj) && hasComparePassword(obj) && hasObjectId(obj) && hasEmail(obj) && hasPassword(obj);
-}
-
 // Type guard для проверки что это plain User объект
 export function isPlainUser(obj: unknown): obj is User {
   if (typeof obj !== 'object' || obj === null) {
@@ -166,17 +134,6 @@ export function toObjectIdString(id: unknown): string {
     return id;
   }
   throw new Error('Invalid ObjectId');
-}
-
-export function isObjectIdArray(ids: unknown[]): ids is Types.ObjectId[] {
-  return Array.isArray(ids) && ids.every(id => isObjectId(id));
-}
-
-export function toObjectIdStringArray(ids: unknown[]): string[] {
-  if (!Array.isArray(ids)) {
-    throw new Error('Input is not an array');
-  }
-  return ids.map(id => toObjectIdString(id));
 }
 
 export function isAuthenticatedRequest(req: Request): req is Request & { user: User } {
