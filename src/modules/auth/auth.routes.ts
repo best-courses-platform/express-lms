@@ -22,7 +22,13 @@ const loginRateLimiter = authRateLimiter();
 
 r.post('/register', authRateLimiter(), ...AuthController.register);
 r.post('/login', loginRateLimiter, ...AuthController.login);
-r.post('/login/local', loginRateLimiter, localAuth, AuthController.handleLoginSuccess);
+// requireVerifiedEmail после localAuth — иначе неподтверждённый email получал бы полноценную
+// сессию: local.strategy.ts делегирует в authService.authenticate() (только пароль), не в
+// authService.login() (пароль + проверка isEmailVerified) — эта проверка живёт только в
+// login(), не в authenticate(). Без requireVerifiedEmail здесь этот роут был вторым, менее
+// очевидным способом обойти ту же защиту, что уже чинили в баге №9 ("register() выдавал
+// сессию до подтверждения email") — только через другой вход, не через сам register().
+r.post('/login/local', loginRateLimiter, localAuth, requireVerifiedEmail, AuthController.handleLoginSuccess);
 
 r.get('/google', googleAuth);
 r.get('/google/callback', googleAuthCallback, AuthController.handleOAuthCallback);
