@@ -11,3 +11,7 @@ http-requests/resources/
 http-requests/resources/**
 dist
 dist/
+
+# Публикуется test/e2eServer.ts после старта — runtime-артефакт для Playwright (lms-web),
+# не для коммита.
+test/.e2e-mongo-uri
