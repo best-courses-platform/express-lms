@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import passport from 'passport';
+import swaggerUi from 'swagger-ui-express';
 import authRoutes from './modules/auth/auth.routes';
 import usersRoutes from './modules/users/user.routes';
 import coursesRouter from './modules/courses/course.routes';
@@ -12,6 +13,7 @@ import { errorHandler } from './middleware/error-handler';
 import { apiRateLimiter } from './middleware/rate-limit';
 import { COMMON_MESSAGES } from './shared/constants/messages';
 import { config } from './config';
+import { buildOpenApiDocument } from './openapi/document';
 
 const app = express();
 
@@ -46,6 +48,16 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/courses', coursesRouter);
 app.use('/api/lessons', lessonsRouter);
+
+// Сгенерировано из тех же Zod-схем, что реально валидируют запросы (см. src/openapi/) —
+// не отдельный, вручную поддерживаемый документ, который может разойтись с кодом.
+// /api-docs.json — сырой документ, готовый к импорту на editor.swagger.io (курс явно
+// требует именно такой файл, см. Obsidian: "0.1 Требования от курса"). Вне префикса /api —
+// apiRateLimiter (строка выше) на неё не распространяется, это не действие пользователя,
+// а просмотр документации.
+const openApiDocument = buildOpenApiDocument();
+app.get('/api-docs.json', (_req, res) => res.json(openApiDocument));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
 // Чисто API-бэкенд — фронтенд отдельно (lms-web, Next.js). Любой не сматчившийся
 // путь — JSON 404, не дефолтная HTML-страница Express (тот же контракт ошибок,
