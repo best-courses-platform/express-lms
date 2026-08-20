@@ -42,6 +42,12 @@ module.exports = {
         'src/**/*.ts',
         '!src/**/*.spec.ts',
         '!src/**/*.test.ts',
+        // Bootstrap-файл процесса: реальное подключение к MongoDB, app.listen()/HTTPS с
+        // сертификатами, SIGINT-хендлер, process.exit(). Юнит-тест здесь означал бы мокать
+        // сам процесс (process.exit, mongoose.connect, поднятие HTTPS-сервера) ради кода,
+        // который не содержит бизнес-логики — цена высокая, ценность около нуля. Он и так
+        // проверяется каждым `npm run dev`/`npm start`.
+        '!src/server.ts',
     ],
     coverageDirectory: 'coverage',
     coverageReporters: ['text', 'lcov', 'html'],
