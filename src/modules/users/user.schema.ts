@@ -29,13 +29,24 @@ const avatarSchema = z.string().url(USER_MESSAGES.VALIDATION.AVATAR_INVALID).opt
 
 const idSchema = z.string().min(1, USER_MESSAGES.VALIDATION.USER_ID_REQUIRED);
 
-// Базовые схемы для тела запроса
-export const userBaseSchema = z.object({
+// Поля без .default() — единственный источник правил валидации, переиспользуется и
+// созданием (через userBaseSchema ниже), и обновлением (userFieldsSchema.partial()
+// напрямую). Если бы updateUserSchema строился через userBaseSchema.partial(), PATCH без
+// явного role тихо получал бы role: 'student' — Zod применяет .default() к отсутствующему
+// значению независимо от внешней .optional()-обёртки, которую добавляет .partial(). На
+// практике это тихо понижало бы роль автора/админа до student при любом PATCH, не
+// указывающем role явно (см. course.schema.ts/lesson.schema.ts — тот же баг, тот же фикс).
+const userFieldsSchema = z.object({
   name: nameSchema,
   email: emailSchema,
-  role: roleSchema.default('student'),
+  role: roleSchema,
   avatar: avatarSchema,
   isEmailVerified: z.boolean().optional(),
+});
+
+// Базовые схемы для тела запроса
+export const userBaseSchema = userFieldsSchema.extend({
+  role: userFieldsSchema.shape.role.default('student'),
 });
 
 // Создание пользователя (для админских операций)
@@ -51,12 +62,13 @@ export const createUserSchema = z.object({
     }),
 });
 
-// Обновление пользователя
+// Обновление пользователя — userFieldsSchema (без .default()), не userBaseSchema, см.
+// комментарий выше про Zod .partial() + .default().
 export const updateUserSchema = z.object({
   params: z.object({
     id: idSchema,
   }),
-  body: userBaseSchema.partial().refine(data => Object.keys(data).length > 0, {
+  body: userFieldsSchema.partial().refine(data => Object.keys(data).length > 0, {
     message: USER_MESSAGES.VALIDATION.AT_LEAST_ONE_FIELD,
   }),
 });
