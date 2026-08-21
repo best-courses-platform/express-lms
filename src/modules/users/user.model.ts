@@ -1,6 +1,6 @@
 import { model, Schema } from 'mongoose';
-import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { comparePassword as comparePasswordHash, hashPassword } from './password-hasher';
 import { IUser, IUserMethods, UserModelType } from './user.types';
 
 // Определяем схему с правильными типами
@@ -94,7 +94,7 @@ userSchema.methods.comparePassword = async function (candidatePassword: string):
   if (!this.password) {
     return false;
   }
-  return await bcrypt.compare(candidatePassword, this.password);
+  return await comparePasswordHash(candidatePassword, this.password);
 };
 
 userSchema.methods.canPerformAction = function (): boolean {
@@ -118,8 +118,7 @@ userSchema.pre('save', async function (next) {
   }
 
   try {
-    const salt = await bcrypt.genSalt(12);
-    this.password = await bcrypt.hash(this.password, salt);
+    this.password = await hashPassword(this.password);
     next();
   } catch (error: unknown) {
     next(error as Error);
