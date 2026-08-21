@@ -7,6 +7,7 @@ import path from 'path';
 import { config, logConfigValidation } from './config';
 import { CONFIG_MESSAGES } from './config/config.constants';
 import mongoose from 'mongoose';
+import { closePasswordHasherPool } from './modules/users/password-hasher';
 
 // Подключение к MongoDB
 mongoose
@@ -71,6 +72,7 @@ function startHttpServer() {
 
 process.on('SIGINT', async () => {
   console.log(CONFIG_MESSAGES.SUCCESS.APP_CLOSED);
+  await closePasswordHasherPool();
   await mongoose.connection.close();
   process.exit();
 });
