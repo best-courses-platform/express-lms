@@ -6,6 +6,7 @@ import { AUTH_MESSAGES } from './auth.constants';
 import { isPlainUser, isUserDocumentStrict, isUserWithPassword, toSafeUser } from '../../utils/typeGuards';
 import { userRepository } from 'users/user.repository';
 import { emailService } from 'email/email.service';
+import { enqueuePasswordResetEmail, enqueueVerificationEmail } from 'email/email.queue';
 import crypto from 'crypto'; // Импортируем crypto
 
 export class AuthService {
@@ -16,9 +17,11 @@ export class AuthService {
       // userService.create сам решает isEmailVerified/токен (false + токен для локальной регистрации, true для OAuth)
       const user = await userService.create({ ...userData, role: 'student' } as NewUser);
 
-      // Отправляем email для подтверждения
+      // Кладём в очередь, не ждём SMTP синхронно — регистрация не должна виснуть/падать
+      // из-за медленного или недоступного почтового сервера (см. Obsidian: email раньше
+      // лежал в критическом пути этого запроса).
       if (emailService.isConfigured() && user.emailVerificationToken) {
-        await emailService.sendVerificationEmail(user.email, user.emailVerificationToken, user.name);
+        await enqueueVerificationEmail(user.email, user.emailVerificationToken, user.name);
       }
 
       // Токены здесь намеренно НЕ выдаются: login() блокирует неподтверждённых
@@ -68,9 +71,9 @@ export class AuthService {
 
     await user.save();
 
-    // Отправляем email
+    // Кладём в очередь, не ждём SMTP синхронно
     if (emailService.isConfigured()) {
-      await emailService.sendVerificationEmail(user.email, user.emailVerificationToken, user.name);
+      await enqueueVerificationEmail(user.email, user.emailVerificationToken, user.name);
     }
   }
 
@@ -88,9 +91,9 @@ export class AuthService {
 
     await user.save();
 
-    // Отправляем email
+    // Кладём в очередь, не ждём SMTP синхронно
     if (emailService.isConfigured()) {
-      await emailService.sendPasswordResetEmail(user.email, user.passwordResetToken, user.name);
+      await enqueuePasswordResetEmail(user.email, user.passwordResetToken, user.name);
     }
   }
 

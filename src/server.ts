@@ -8,6 +8,8 @@ import { config, logConfigValidation } from './config';
 import { CONFIG_MESSAGES } from './config/config.constants';
 import mongoose from 'mongoose';
 import { closePasswordHasherPool } from './modules/users/password-hasher';
+// Импорт запускает Worker (BullMQ) — подписка на очередь начинается сразу при старте процесса.
+import { closeEmailWorker } from './modules/email/email.worker';
 
 // Подключение к MongoDB
 mongoose
@@ -73,6 +75,7 @@ function startHttpServer() {
 process.on('SIGINT', async () => {
   console.log(CONFIG_MESSAGES.SUCCESS.APP_CLOSED);
   await closePasswordHasherPool();
+  await closeEmailWorker();
   await mongoose.connection.close();
   process.exit();
 });

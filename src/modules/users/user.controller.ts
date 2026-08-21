@@ -4,6 +4,7 @@ import { validate } from '../../middleware/validate';
 import { createUserSchema, idParamSchema, updateUserSchema } from './user.schema';
 import { USER_MESSAGES } from './user.constants';
 import { emailService } from 'email/email.service';
+import { enqueueVerificationEmail } from 'email/email.queue';
 
 export const createUser: RequestHandler = async (req, res, next) => {
   try {
@@ -11,7 +12,7 @@ export const createUser: RequestHandler = async (req, res, next) => {
 
     // Отправляем email для подтверждения (если не OAuth)
     if (!user.googleId && !user.githubId && emailService.isConfigured()) {
-      await emailService.sendVerificationEmail(user.email, user.emailVerificationToken!, user.name);
+      await enqueueVerificationEmail(user.email, user.emailVerificationToken!, user.name);
     }
 
     res.status(201).json({
@@ -47,7 +48,7 @@ export const updateUser: RequestHandler = async (req, res, next) => {
 
     // Если изменили email, отправляем письмо с подтверждением
     if (req.body.email && req.body.email !== updated.email && emailService.isConfigured()) {
-      await emailService.sendVerificationEmail(updated.email, updated.emailVerificationToken!, updated.name);
+      await enqueueVerificationEmail(updated.email, updated.emailVerificationToken!, updated.name);
     }
 
     res.json({
