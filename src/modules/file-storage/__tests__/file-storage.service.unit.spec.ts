@@ -40,7 +40,6 @@ jest.mock('../../../config', () => ({
   getSelectelPublicUrl: jest.fn<(key: string) => string>((key: string) => `https://test-bucket.selcdn.ru/${key}`),
 }));
 
-/* eslint-disable @typescript-eslint/no-var-requires */
 const { FileStorageService } = require('../file-storage.service') as { FileStorageService: typeof FileStorageServiceClass };
 const { isSelectelConfigured, getSelectelPublicUrl } = require('../../../config') as {
   isSelectelConfigured: jest.Mock<() => boolean>;
@@ -53,7 +52,6 @@ const {
   DeleteObjectsCommand,
   ListObjectsV2Command,
 } = require('@aws-sdk/client-s3') as Record<string, jest.Mock<(input: S3CommandInput) => S3CommandInput>>;
-/* eslint-enable @typescript-eslint/no-var-requires */
 
 function createConfiguredService(): FileStorageServiceClass {
   isSelectelConfigured.mockReturnValue(true);

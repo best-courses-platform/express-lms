@@ -17,7 +17,6 @@ module.exports = {
     '.eslintrc.js',
     'dist/**/*',
     'node_modules/**/*',
-    'src/modules/**/__tests__/**',
   ],
   rules: {
     '@typescript-eslint/interface-name-prefix': 'off',
@@ -39,6 +38,14 @@ module.exports = {
       files: ['**/*.js'],
       rules: {
         '@typescript-eslint/no-var-requires': 'off',
+      },
+    },
+    {
+      // require() после jest.mock() — обязательный паттерн для @swc/jest (не хойстит
+      // jest.mock() выше import, в отличие от babel-jest) — см. Obsidian: Jest/4.
+      files: ['**/__tests__/**'],
+      rules: {
+        '@typescript-eslint/no-require-imports': 'off',
       },
     },
   ],

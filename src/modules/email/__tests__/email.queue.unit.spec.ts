@@ -17,9 +17,7 @@ jest.mock('bullmq', () => ({
 const originalNodeEnv = process.env.NODE_ENV;
 process.env.NODE_ENV = 'development';
 
-/* eslint-disable @typescript-eslint/no-var-requires */
 const emailQueueModule = require('../email.queue') as typeof import('../email.queue');
-/* eslint-enable @typescript-eslint/no-var-requires */
 
 process.env.NODE_ENV = originalNodeEnv;
 

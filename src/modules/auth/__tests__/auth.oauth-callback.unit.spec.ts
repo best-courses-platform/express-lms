@@ -30,14 +30,12 @@ jest.mock('jwt/jwt.service', () => ({
   },
 }));
 
-/* eslint-disable @typescript-eslint/no-var-requires */
 const { authService } = require('../auth.service') as { authService: typeof AuthServiceInstance };
 const { jwtService } = require('jwt/jwt.service') as { jwtService: typeof JwtServiceInstance };
 const { handleLoginSuccess, handleOAuthCallback } = require('../auth.controller') as {
   handleLoginSuccess: (req: Request, res: Response, next: (err?: unknown) => void) => Promise<void>;
   handleOAuthCallback: (req: Request, res: Response, next: (err?: unknown) => void) => Promise<void>;
 };
-/* eslint-enable @typescript-eslint/no-var-requires */
 
 const mockAuthService = authService as jest.Mocked<typeof authService>;
 const mockJwtService = jwtService as jest.Mocked<typeof jwtService>;

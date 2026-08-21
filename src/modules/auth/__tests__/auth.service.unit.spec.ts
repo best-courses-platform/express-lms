@@ -48,14 +48,12 @@ jest.mock('email/email.service', () => ({
 // require() — обычный вызов функции, не хойстится — выполняется строго в порядке чтения
 // файла, поэтому единственный надёжный способ здесь: jest.mock() и следом require(),
 // не import, для всего, что мокается или на мокаемое транзитивно ссылается.
-/* eslint-disable @typescript-eslint/no-var-requires */
 const { authService } = require('../auth.service') as { authService: typeof AuthServiceInstance };
 const { userService } = require('users/user.service') as { userService: typeof UserServiceInstance };
 const { userRepository } = require('users/user.repository') as {
   userRepository: typeof UserRepositoryInstance;
 };
 const { emailService } = require('email/email.service') as { emailService: typeof EmailServiceInstance };
-/* eslint-enable @typescript-eslint/no-var-requires */
 
 const mockUserService = userService as jest.Mocked<typeof userService>;
 const mockUserRepository = userRepository as jest.Mocked<typeof userRepository>;

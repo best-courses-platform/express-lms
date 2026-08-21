@@ -21,7 +21,6 @@ function loadRateLimitModule(nodeEnv: string): typeof RateLimitModule {
   jest.resetModules();
   process.env.NODE_ENV = nodeEnv;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('../rate-limit') as typeof RateLimitModule;
   } finally {
     process.env.NODE_ENV = originalNodeEnv;

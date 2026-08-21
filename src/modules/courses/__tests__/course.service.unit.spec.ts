@@ -37,11 +37,9 @@ jest.mock('lessons/lesson.service', () => ({
   },
 }));
 
-/* eslint-disable @typescript-eslint/no-var-requires */
 const { courseRepository } = require('../course.repository') as { courseRepository: typeof CourseRepositoryInstance };
 const { lessonService } = require('lessons/lesson.service') as { lessonService: typeof LessonServiceInstance };
 const { courseService } = require('../course.service') as { courseService: typeof CourseServiceInstance };
-/* eslint-enable @typescript-eslint/no-var-requires */
 
 const mockCourseRepository = courseRepository as jest.Mocked<typeof courseRepository>;
 const mockLessonService = lessonService as jest.Mocked<typeof lessonService>;
