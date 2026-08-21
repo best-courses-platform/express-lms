@@ -33,6 +33,11 @@ export const config: Config = configSchema.parse({
     verificationUrl: process.env.EMAIL_VERIFICATION_URL,
   },
   frontendUrl: process.env.FRONTEND_URL,
+  // Redis
+  redis: {
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+  },
   // Selectel S3
   selectel: {
     accessKeyId: process.env.SELECTEL_ACCESS_KEY_ID,

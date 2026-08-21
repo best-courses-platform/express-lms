@@ -42,6 +42,13 @@ export const configSchema = z.object({
   // Фронтенд URL для ссылок подтверждения
   frontendUrl: z.string().url().default('http://localhost:3000'),
 
+  // Redis — очередь фоновых задач (BullMQ). Дефолты совпадают с docker-compose.yml
+  // (redis:7-alpine, порт 6379:6379), локальный dev работает без единой переменной окружения.
+  redis: z.object({
+    host: z.string().default('localhost'),
+    port: z.coerce.number().default(6379),
+  }),
+
   // Selectel S3
   selectel: z.object({
     accessKeyId: z.string().optional(),
