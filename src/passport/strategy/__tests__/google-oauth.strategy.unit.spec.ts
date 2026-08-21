@@ -16,12 +16,10 @@ jest.mock('users/user.service', () => ({
   userService: { findOrCreateFromOAuth: jest.fn() },
 }));
 
-/* eslint-disable @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports */
 const { userService } = require('users/user.service') as { userService: typeof UserServiceInstance };
 const { googleOAuthStrategy } = require('../google-oauth.strategy') as {
   googleOAuthStrategy: { _verify: (...args: unknown[]) => void };
 };
-/* eslint-enable @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports */
 
 const mockUserService = userService as jest.Mocked<typeof userService>;
 

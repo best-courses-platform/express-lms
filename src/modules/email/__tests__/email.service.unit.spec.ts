@@ -1,4 +1,4 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import type { EmailService as EmailServiceClass } from '../email.service';
 
 // Unit-слой: nodemailer и config замокан — впервые проверяется ветка "email реально
@@ -28,9 +28,7 @@ const mockCreateTransport = jest.fn().mockReturnValue({ sendMail: mockSendMail }
 jest.mock('../../../config', () => ({ config: mockConfig }));
 jest.mock('nodemailer', () => ({ createTransport: (...args: unknown[]) => mockCreateTransport(...args) }));
 
-/* eslint-disable @typescript-eslint/no-var-requires */
 const { EmailService } = require('../email.service') as { EmailService: typeof EmailServiceClass };
-/* eslint-enable @typescript-eslint/no-var-requires */
 
 function createConfiguredService(): EmailServiceClass {
   mockConfig.email.auth = { user: 'bot@example.com', pass: 'secret-app-password' };

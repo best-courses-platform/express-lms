@@ -27,10 +27,8 @@ jest.mock('../user.repository', () => ({
   },
 }));
 
-/* eslint-disable @typescript-eslint/no-var-requires */
 const { userRepository } = require('../user.repository') as { userRepository: typeof UserRepositoryInstance };
 const { userService } = require('../user.service') as { userService: typeof UserServiceInstance };
-/* eslint-enable @typescript-eslint/no-var-requires */
 
 const mockUserRepository = userRepository as jest.Mocked<typeof userRepository>;
 

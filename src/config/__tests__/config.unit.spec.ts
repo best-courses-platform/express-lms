@@ -36,7 +36,6 @@ function loadConfigModule(envOverrides: Record<string, string | undefined>): typ
 
   jest.resetModules();
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('../index') as typeof ConfigModule;
   } finally {
     for (const key of Object.keys(previous)) {
