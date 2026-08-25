@@ -8,7 +8,7 @@ import {
 import { config, getSelectelPublicUrl, isSelectelConfigured } from '../../config';
 import { MulterS3File, UploadedFile, UploadOptions } from './file-storage.types';
 import { FILE_STORAGE_MESSAGES } from './file-storage.constants';
-import { AppError } from '../../utils/errors';
+import { AppError, BadRequestError, InternalError } from '../../utils/errors';
 
 export class FileStorageService {
   private s3Client: S3Client | null = null;
@@ -36,7 +36,7 @@ export class FileStorageService {
    */
   private getS3Client(): S3Client {
     if (!this.s3Client) {
-      throw new AppError(500, FILE_STORAGE_MESSAGES.ERROR.S3_CLIENT_NOT_INITIALIZED);
+      throw new InternalError(FILE_STORAGE_MESSAGES.ERROR.S3_CLIENT_NOT_INITIALIZED);
     }
     return this.s3Client;
   }
@@ -52,7 +52,7 @@ export class FileStorageService {
 
     // Если это стандартная Error - конвертируем в AppError
     if (error instanceof Error) {
-      return new AppError(500, error.message, {
+      return new InternalError(error.message, {
         originalError: error.name,
         stack: error.stack,
       });
@@ -60,11 +60,11 @@ export class FileStorageService {
 
     // Если это строка - создаем AppError с этой строкой как сообщением
     if (typeof error === 'string') {
-      return new AppError(500, error);
+      return new InternalError(error);
     }
 
     // Для любых других типов ошибок
-    return new AppError(500, FILE_STORAGE_MESSAGES.ERROR.UNKNOWN_ERROR_FORMAT, {
+    return new InternalError(FILE_STORAGE_MESSAGES.ERROR.UNKNOWN_ERROR_FORMAT, {
       originalError: error,
       type: typeof error,
     });
@@ -122,7 +122,7 @@ export class FileStorageService {
       // Безопасное извлечение stack из details
       const stack = (normalizedError.details as { stack?: string })?.stack;
 
-      throw new AppError(500, FILE_STORAGE_MESSAGES.ERROR.FOLDER_DELETE_FAILED, {
+      throw new InternalError(FILE_STORAGE_MESSAGES.ERROR.FOLDER_DELETE_FAILED, {
         lessonId,
         folder,
         originalError: normalizedError.message,
@@ -184,7 +184,7 @@ export class FileStorageService {
 
       const stack = (normalizedError.details as { stack?: string })?.stack;
 
-      throw new AppError(500, FILE_STORAGE_MESSAGES.ERROR.UPLOAD_FAILED, {
+      throw new InternalError(FILE_STORAGE_MESSAGES.ERROR.UPLOAD_FAILED, {
         filename,
         folder,
         contentType,
@@ -241,7 +241,7 @@ export class FileStorageService {
     }
 
     // Бросаем AppError напрямую (без normalizeError, так как это не runtime ошибка)
-    throw new AppError(400, FILE_STORAGE_MESSAGES.ERROR.UNSUPPORTED_FILE_FORMAT, {
+    throw new BadRequestError(FILE_STORAGE_MESSAGES.ERROR.UNSUPPORTED_FILE_FORMAT, {
       hasLocation: !!multerFile.location,
       hasKey: !!multerFile.key,
       hasBuffer: !!multerFile.buffer,
@@ -284,7 +284,7 @@ export class FileStorageService {
 
       const stack = (normalizedError.details as { stack?: string })?.stack;
 
-      throw new AppError(500, FILE_STORAGE_MESSAGES.ERROR.DELETE_FAILED, {
+      throw new InternalError(FILE_STORAGE_MESSAGES.ERROR.DELETE_FAILED, {
         fileUrl,
         originalError: normalizedError.message,
         originalDetails: normalizedError.details,

@@ -1,7 +1,7 @@
 import { RequestHandler } from 'express';
 import { lessonService } from './lesson.service';
 import { courseService } from 'courses/course.service';
-import { AppError } from '../../utils/errors';
+import { BadRequestError, ForbiddenError, UnauthorizedError } from '../../utils/errors';
 import { getUserIdFromRequest, isAuthenticatedRequest } from '../../utils/typeGuards';
 import { fileStorageService } from 'file-storage/file-storage.service';
 import { validate } from '../../middleware/validate';
@@ -20,7 +20,7 @@ import { LESSON_MESSAGES } from './lesson.constants';
 export const createLessonForCourse: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, LESSON_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(LESSON_MESSAGES.ERROR.UNAUTHORIZED);
     }
 
     const userId = getUserIdFromRequest(req);
@@ -29,7 +29,7 @@ export const createLessonForCourse: RequestHandler = async (req, res, next) => {
     // Проверяем, что пользователь - автор курса
     const course = await courseService.getById(courseId);
     if (!course.author.equals(userId)) {
-      throw new AppError(403, LESSON_MESSAGES.ERROR.NOT_AUTHOR);
+      throw new ForbiddenError(LESSON_MESSAGES.ERROR.NOT_AUTHOR);
     }
 
     // Автоматически определяем порядковый номер
@@ -74,7 +74,7 @@ export const getLesson: RequestHandler = async (req, res, next) => {
     const course = await courseService.getById(lesson.courseId.toString());
 
     if (!courseService.canAccess(course, req.user?._id)) {
-      throw new AppError(403, LESSON_MESSAGES.ERROR.ACCESS_DENIED);
+      throw new ForbiddenError(LESSON_MESSAGES.ERROR.ACCESS_DENIED);
     }
 
     res.json({
@@ -89,7 +89,7 @@ export const getLesson: RequestHandler = async (req, res, next) => {
 export const updateLesson: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, LESSON_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(LESSON_MESSAGES.ERROR.UNAUTHORIZED);
     }
 
     const userId = getUserIdFromRequest(req);
@@ -107,7 +107,7 @@ export const updateLesson: RequestHandler = async (req, res, next) => {
 export const deleteLesson: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, LESSON_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(LESSON_MESSAGES.ERROR.UNAUTHORIZED);
     }
 
     const userId = getUserIdFromRequest(req);
@@ -123,7 +123,7 @@ export const getLessonsByCourse: RequestHandler = async (req, res, next) => {
     const course = await courseService.getById(req.params.courseId);
 
     if (!courseService.canAccess(course, req.user?._id)) {
-      throw new AppError(403, LESSON_MESSAGES.ERROR.ACCESS_DENIED);
+      throw new ForbiddenError(LESSON_MESSAGES.ERROR.ACCESS_DENIED);
     }
 
     const lessons = await lessonService.getByCourseId(req.params.courseId);
@@ -162,7 +162,7 @@ export const uploadLessonFile: RequestHandler = async (req, res, next) => {
     const userId = req.user?._id;
 
     if (!req.file) {
-      throw new AppError(400, LESSON_MESSAGES.ERROR.FILE_NOT_UPLOADED);
+      throw new BadRequestError(LESSON_MESSAGES.ERROR.FILE_NOT_UPLOADED);
     }
 
     const multerFile = req.file as MulterFileWithS3;
@@ -197,7 +197,7 @@ export const uploadLessonFile: RequestHandler = async (req, res, next) => {
 export const deleteLessonFile: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, LESSON_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(LESSON_MESSAGES.ERROR.UNAUTHORIZED);
     }
 
     const userId = getUserIdFromRequest(req);
@@ -219,7 +219,7 @@ export const deleteLessonFile: RequestHandler = async (req, res, next) => {
 export const deleteLessonResource: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, LESSON_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(LESSON_MESSAGES.ERROR.UNAUTHORIZED);
     }
 
     const userId = getUserIdFromRequest(req);
@@ -227,7 +227,7 @@ export const deleteLessonResource: RequestHandler = async (req, res, next) => {
     const resourceIndex = parseInt(req.params.resourceIndex);
 
     if (isNaN(resourceIndex)) {
-      throw new AppError(400, LESSON_MESSAGES.VALIDATION.RESOURCE_INDEX_INVALID);
+      throw new BadRequestError(LESSON_MESSAGES.VALIDATION.RESOURCE_INDEX_INVALID);
     }
 
     const updatedLesson = await lessonService.deleteResourceByIndex(lessonId, resourceIndex, userId);

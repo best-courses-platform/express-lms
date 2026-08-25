@@ -1,6 +1,6 @@
 import { NewUser, UpdateUser, User } from './user.types';
 import { userRepository } from './user.repository';
-import { AppError } from '../../utils/errors';
+import { AppError, BadRequestError, ConflictError, InternalError, NotFoundError } from '../../utils/errors';
 import { USER_MESSAGES } from './user.constants';
 import { OAuthProfile } from 'auth/auth.types';
 import crypto from 'crypto';
@@ -11,7 +11,7 @@ class UserService {
     const exists = await userRepository.findByEmail(normalizedEmail);
 
     if (exists) {
-      throw new AppError(409, USER_MESSAGES.ERROR.ALREADY_EXISTS);
+      throw new ConflictError(USER_MESSAGES.ERROR.ALREADY_EXISTS);
     }
 
     // Если пользователь создается через OAuth, email считается подтвержденным
@@ -34,7 +34,7 @@ class UserService {
     const user = await userRepository.findById(id);
 
     if (!user) {
-      throw new AppError(404, USER_MESSAGES.ERROR.NOT_FOUND);
+      throw new NotFoundError(USER_MESSAGES.ERROR.NOT_FOUND);
     }
 
     return user;
@@ -44,14 +44,14 @@ class UserService {
     const user = await userRepository.findById(id);
 
     if (!user) {
-      throw new AppError(404, USER_MESSAGES.ERROR.NOT_FOUND);
+      throw new NotFoundError(USER_MESSAGES.ERROR.NOT_FOUND);
     }
 
     if (patch.email && patch.email !== user.email) {
       const isTaken = await userRepository.isEmailTaken(patch.email, id);
 
       if (isTaken) {
-        throw new AppError(409, USER_MESSAGES.ERROR.ALREADY_EXISTS);
+        throw new ConflictError(USER_MESSAGES.ERROR.ALREADY_EXISTS);
       }
 
       // При смене email сбрасываем подтверждение
@@ -67,14 +67,14 @@ class UserService {
     const ok = await userRepository.delete(id);
 
     if (!ok) {
-      throw new AppError(404, USER_MESSAGES.ERROR.NOT_FOUND);
+      throw new NotFoundError(USER_MESSAGES.ERROR.NOT_FOUND);
     }
   }
 
   async findOrCreateFromOAuth(profile: OAuthProfile): Promise<User> {
     try {
       if (!profile.emails?.[0]?.value) {
-        throw new AppError(400, USER_MESSAGES.ERROR.USER_DATA_PROCESSING_ERROR);
+        throw new BadRequestError(USER_MESSAGES.ERROR.USER_DATA_PROCESSING_ERROR);
       }
 
       const isGithub = profile.provider === 'github';
@@ -124,7 +124,7 @@ class UserService {
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError(500, USER_MESSAGES.ERROR.USER_DATA_PROCESSING_ERROR, error);
+      throw new InternalError(USER_MESSAGES.ERROR.USER_DATA_PROCESSING_ERROR, error);
     }
   }
 }

@@ -1,7 +1,14 @@
 import { userService } from 'users/user.service';
 import { NewUser, User } from 'users/user.types';
 import { jwtService } from 'jwt/jwt.service';
-import { AppError } from '../../utils/errors';
+import {
+  AppError,
+  BadRequestError,
+  ForbiddenError,
+  InternalError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../../utils/errors';
 import { AUTH_MESSAGES } from './auth.constants';
 import { isPlainUser, isUserDocumentStrict, isUserWithPassword, toSafeUser } from '../../utils/typeGuards';
 import { userRepository } from 'users/user.repository';
@@ -32,7 +39,7 @@ export class AuthService {
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTH_FAILED, error);
+      throw new InternalError(AUTH_MESSAGES.ERROR.AUTH_FAILED, error);
     }
   }
 
@@ -40,12 +47,12 @@ export class AuthService {
     const user = await userRepository.findByEmailVerificationToken(token);
 
     if (!user) {
-      throw new AppError(400, AUTH_MESSAGES.ERROR.INVALID_VERIFICATION_TOKEN);
+      throw new BadRequestError(AUTH_MESSAGES.ERROR.INVALID_VERIFICATION_TOKEN);
     }
 
     // Проверяем срок действия токена
     if (user.emailVerificationExpires && user.emailVerificationExpires < new Date()) {
-      throw new AppError(400, AUTH_MESSAGES.ERROR.VERIFICATION_TOKEN_EXPIRED);
+      throw new BadRequestError(AUTH_MESSAGES.ERROR.VERIFICATION_TOKEN_EXPIRED);
     }
 
     // Подтверждаем email (user уже UserDocument — findByEmailVerificationToken так типизирован)
@@ -101,12 +108,12 @@ export class AuthService {
     const user = await userRepository.findByPasswordResetToken(token);
 
     if (!user) {
-      throw new AppError(400, AUTH_MESSAGES.ERROR.INVALID_RESET_TOKEN);
+      throw new BadRequestError(AUTH_MESSAGES.ERROR.INVALID_RESET_TOKEN);
     }
 
     // Проверяем срок действия токена
     if (user.passwordResetExpires && user.passwordResetExpires < new Date()) {
-      throw new AppError(400, AUTH_MESSAGES.ERROR.RESET_TOKEN_EXPIRED);
+      throw new BadRequestError(AUTH_MESSAGES.ERROR.RESET_TOKEN_EXPIRED);
     }
 
     // Обновляем пароль
@@ -121,23 +128,23 @@ export class AuthService {
     const user = await userRepository.findByEmailWithPassword(email);
 
     if (!user) {
-      throw new AppError(401, AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
+      throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
     if (!isUserDocumentStrict(user)) {
-      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTHENTICATION_ERROR);
+      throw new InternalError(AUTH_MESSAGES.ERROR.AUTHENTICATION_ERROR);
     }
 
     const isValidPassword = await user.comparePassword(password);
 
     if (!isValidPassword) {
-      throw new AppError(401, AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
+      throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
     const userPlainObject = user.toObject<User & { password: string }>();
 
     if (!isUserWithPassword(userPlainObject)) {
-      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTH_FAILED);
+      throw new InternalError(AUTH_MESSAGES.ERROR.AUTH_FAILED);
     }
 
     const { password: _, ...userWithoutPassword } = userPlainObject;
@@ -148,16 +155,16 @@ export class AuthService {
     const user = await userRepository.findByIdWithPassword(userId);
 
     if (!user) {
-      throw new AppError(404, AUTH_MESSAGES.ERROR.AUTH_FAILED);
+      throw new NotFoundError(AUTH_MESSAGES.ERROR.AUTH_FAILED);
     }
 
     if (!isUserDocumentStrict(user)) {
-      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTHENTICATION_ERROR);
+      throw new InternalError(AUTH_MESSAGES.ERROR.AUTHENTICATION_ERROR);
     }
 
     const isCurrentPasswordValid = await user.comparePassword(currentPassword);
     if (!isCurrentPasswordValid) {
-      throw new AppError(400, AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
+      throw new BadRequestError(AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
     user.password = newPassword;
@@ -171,7 +178,7 @@ export class AuthService {
 
       // Проверяем, подтвержден ли email
       if (!user.isEmailVerified) {
-        throw new AppError(403, AUTH_MESSAGES.ERROR.EMAIL_NOT_VERIFIED);
+        throw new ForbiddenError(AUTH_MESSAGES.ERROR.EMAIL_NOT_VERIFIED);
       }
 
       const accessToken = this.generateAccessToken(user);
@@ -182,7 +189,7 @@ export class AuthService {
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError(500, AUTH_MESSAGES.ERROR.AUTH_FAILED, error);
+      throw new InternalError(AUTH_MESSAGES.ERROR.AUTH_FAILED, error);
     }
   }
 
@@ -192,7 +199,7 @@ export class AuthService {
       const user = await userService.getById(payload.sub);
 
       if (!user) {
-        throw new AppError(401, AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
+        throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
       }
 
       const newAccessToken = this.generateAccessToken(user);
@@ -203,7 +210,7 @@ export class AuthService {
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError(401, AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN, error);
+      throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN, error);
     }
   }
 

@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import { config } from '../../config';
-import { AppError } from '../../utils/errors';
+import { InternalError } from '../../utils/errors';
 import { EMAIL_MESSAGES } from './email.constants';
 
 interface EmailOptions {
@@ -41,7 +41,7 @@ export class EmailService {
       });
     } catch (error) {
       console.error('Email sending error:', error);
-      throw new AppError(500, EMAIL_MESSAGES.ERROR.SEND_FAILED, error);
+      throw new InternalError(EMAIL_MESSAGES.ERROR.SEND_FAILED, error);
     }
   }
 
