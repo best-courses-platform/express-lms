@@ -1,5 +1,15 @@
 import { z } from 'zod';
 import { COURSE_MESSAGES } from './course.constants';
+import { objectIdSchema } from '../../shared/validation/object-id.schema';
+
+// Path-параметры — валидируются по формату ObjectId, не только по непустоте (см. объяснение
+// в object-id.schema.ts). Именно path-параметры участвуют в маршрутизации Express, поэтому
+// только они здесь ужесточены; поля тела запроса (например, userId в addUserToAllowedSchema)
+// маршрутизацию не затрагивают и остаются на прежней z.string().min(1, ...) проверке.
+const courseIdParam = objectIdSchema(COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED, COURSE_MESSAGES.VALIDATION.COURSE_ID_INVALID);
+const authorIdParam = objectIdSchema(COURSE_MESSAGES.VALIDATION.AUTHOR_REQUIRED, COURSE_MESSAGES.VALIDATION.AUTHOR_INVALID);
+const lessonIdParam = objectIdSchema(COURSE_MESSAGES.VALIDATION.LESSON_ID_REQUIRED, COURSE_MESSAGES.VALIDATION.LESSON_ID_INVALID);
+const userIdParam = objectIdSchema(COURSE_MESSAGES.VALIDATION.USER_ID_REQUIRED, COURSE_MESSAGES.VALIDATION.USER_ID_INVALID);
 
 // Поля без .default() — единственный источник правил валидации, переиспользуется и
 // созданием (через courseBaseSchema ниже), и обновлением (courseFieldsSchema.partial()
@@ -52,7 +62,7 @@ export const createCourseSchema = z.object({
 // комментарий выше про Zod .partial() + .default().
 export const updateCourseSchema = z.object({
   params: z.object({
-    id: z.string().min(1, COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED),
+    id: courseIdParam,
   }),
   body: courseFieldsSchema.partial().refine(data => Object.keys(data).length > 0, {
     message: COURSE_MESSAGES.VALIDATION.AT_LEAST_ONE_FIELD,
@@ -62,14 +72,14 @@ export const updateCourseSchema = z.object({
 // ID параметр
 export const idParamSchema = z.object({
   params: z.object({
-    id: z.string().min(1, COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED),
+    id: courseIdParam,
   }),
 });
 
 // Параметры автора
 export const authorParamSchema = z.object({
   params: z.object({
-    authorId: z.string().min(1, COURSE_MESSAGES.VALIDATION.AUTHOR_REQUIRED),
+    authorId: authorIdParam,
   }),
 });
 
@@ -87,15 +97,15 @@ export const difficultyParamSchema = z.object({
 // Управление уроками
 export const lessonManagementSchema = z.object({
   params: z.object({
-    id: z.string().min(1, COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED),
-    lessonId: z.string().min(1, COURSE_MESSAGES.VALIDATION.LESSON_ID_REQUIRED),
+    id: courseIdParam,
+    lessonId: lessonIdParam,
   }),
 });
 
 // Управление доступом пользователей
 export const addUserToAllowedSchema = z.object({
   params: z.object({
-    id: z.string().min(1, COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED),
+    id: courseIdParam,
   }),
   body: z.object({
     userId: z.string().min(1, COURSE_MESSAGES.VALIDATION.USER_ID_REQUIRED),
@@ -104,15 +114,15 @@ export const addUserToAllowedSchema = z.object({
 
 export const removeUserFromAllowedSchema = z.object({
   params: z.object({
-    id: z.string().min(1, COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED),
-    userId: z.string().min(1, COURSE_MESSAGES.VALIDATION.USER_ID_REQUIRED),
+    id: courseIdParam,
+    userId: userIdParam,
   }),
 });
 
 // Рейтинги
 export const addRatingSchema = z.object({
   params: z.object({
-    id: z.string().min(1, COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED),
+    id: courseIdParam,
   }),
   body: z.object({
     value: z.number().min(1, COURSE_MESSAGES.VALIDATION.RATING_MIN).max(5, COURSE_MESSAGES.VALIDATION.RATING_MAX),

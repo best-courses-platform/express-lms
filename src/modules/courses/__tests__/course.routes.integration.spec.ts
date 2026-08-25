@@ -175,6 +175,17 @@ describe('Course routes (integration)', () => {
         expect(response.status).toBe(404);
       });
     });
+
+    // Регрессия: /:id объявлен ниже /published, /author/:authorId и /difficulty/:level в
+    // course.routes.ts — но это держится на порядке регистрации, а не на формате самого id.
+    // Литеральный сегмент, не похожий на ObjectId, должен отбиваться валидацией параметров
+    // раньше, чем дойдёт до Mongoose, независимо от порядка роутов.
+    describe('Когда id в пути не похож на ObjectId', () => {
+      it('должен вернуть 400, а не 404/500', async () => {
+        const response = await request(app).get('/api/courses/not-an-object-id');
+        expect(response.status).toBe(400);
+      });
+    });
   });
 
   describe('PATCH /api/courses/:id', () => {

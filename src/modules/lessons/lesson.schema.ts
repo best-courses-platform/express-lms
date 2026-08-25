@@ -1,5 +1,13 @@
 import { z } from 'zod';
 import { LESSON_MESSAGES } from './lesson.constants';
+import { objectIdSchema } from '../../shared/validation/object-id.schema';
+
+// Path-параметры — валидируются по формату ObjectId, не только по непустоте (см. объяснение
+// в object-id.schema.ts и course.schema.ts). courseId в body createLessonSchema маршрутизацию
+// не затрагивает, поэтому остаётся на прежней z.string().min(1, ...) проверке.
+const lessonIdParam = objectIdSchema(LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED, LESSON_MESSAGES.VALIDATION.LESSON_ID_INVALID);
+const courseIdParam = objectIdSchema(LESSON_MESSAGES.VALIDATION.COURSE_ID_REQUIRED, LESSON_MESSAGES.VALIDATION.COURSE_ID_INVALID);
+const userIdParam = objectIdSchema(LESSON_MESSAGES.VALIDATION.USER_ID_REQUIRED, LESSON_MESSAGES.VALIDATION.USER_ID_INVALID);
 
 // Поля без .default() — единственный источник правил валидации. updateLessonSchema
 // строится из этой схемы напрямую (не из lessonBaseSchema), иначе .partial() не спасает:
@@ -30,7 +38,7 @@ export const lessonBaseSchema = lessonFieldsSchema.extend({
 // Загрузка файлов
 export const uploadFileSchema = z.object({
   params: z.object({
-    lessonId: z.string().min(1, LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED),
+    lessonId: lessonIdParam,
   }),
   body: z.object({
     fileType: z
@@ -48,7 +56,7 @@ export const uploadFileSchema = z.object({
 // Удаление файла
 export const deleteFileSchema = z.object({
   params: z.object({
-    lessonId: z.string().min(1, LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED),
+    lessonId: lessonIdParam,
   }),
   body: z.object({
     fileUrl: z.string().min(1, LESSON_MESSAGES.VALIDATION.FILE_URL_REQUIRED),
@@ -68,7 +76,7 @@ export const createLessonSchema = z.object({
 // Создание урока для курса (через параметры)
 export const createLessonForCourseSchema = z.object({
   params: z.object({
-    courseId: z.string().min(1, LESSON_MESSAGES.VALIDATION.COURSE_ID_REQUIRED),
+    courseId: courseIdParam,
   }),
   body: lessonBaseSchema.omit({ order: true }), // order генерируется автоматически
 });
@@ -77,7 +85,7 @@ export const createLessonForCourseSchema = z.object({
 // комментарий выше про Zod .partial() + .default().
 export const updateLessonSchema = z.object({
   params: z.object({
-    id: z.string().min(1, LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED),
+    id: lessonIdParam,
   }),
   body: lessonFieldsSchema.partial().refine(data => Object.keys(data).length > 0, {
     message: LESSON_MESSAGES.VALIDATION.AT_LEAST_ONE_FIELD,
@@ -87,29 +95,29 @@ export const updateLessonSchema = z.object({
 // ID параметр
 export const idParamSchema = z.object({
   params: z.object({
-    id: z.string().min(1, LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED),
+    id: lessonIdParam,
   }),
 });
 
 // Параметры курса
 export const courseIdParamSchema = z.object({
   params: z.object({
-    courseId: z.string().min(1, LESSON_MESSAGES.VALIDATION.COURSE_ID_REQUIRED),
+    courseId: courseIdParam,
   }),
 });
 
 // Проверка доступа
 export const accessCheckSchema = z.object({
   params: z.object({
-    lessonId: z.string().min(1, LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED),
-    userId: z.string().min(1, LESSON_MESSAGES.VALIDATION.USER_ID_REQUIRED),
+    lessonId: lessonIdParam,
+    userId: userIdParam,
   }),
 });
 
 // Удаление ресурса по индексу
 export const deleteResourceSchema = z.object({
   params: z.object({
-    lessonId: z.string().min(1, LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED),
+    lessonId: lessonIdParam,
     resourceIndex: z.string().regex(/^\d+$/, LESSON_MESSAGES.VALIDATION.RESOURCE_INDEX_INVALID),
   }),
 });

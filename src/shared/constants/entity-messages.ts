@@ -1,6 +1,7 @@
 export const ENTITY_MESSAGES = {
   NOT_FOUND: (entity: string) => `${entity} не найден`,
   ID_REQUIRED: (entity: string) => `ID ${entity} обязателен`,
+  ID_INVALID: (entity: string) => `Некорректный ID ${entity}`,
   ALREADY_EXISTS: (entity: string) => `${entity} уже существует`,
   ACCESS_DENIED: (entity: string) => `Доступ к ${entity} запрещен`,
 } as const;

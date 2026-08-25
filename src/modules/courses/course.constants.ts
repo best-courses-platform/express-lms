@@ -12,6 +12,7 @@ export const COURSE_MESSAGES = {
     PREVIEW_IMAGE_REQUIRED: 'Изображение предпросмотра обязательно',
     PREVIEW_IMAGE_INVALID: 'Изображение предпросмотра должно быть валидным URL',
     AUTHOR_REQUIRED: ENTITY_MESSAGES.ID_REQUIRED('автора'),
+    AUTHOR_INVALID: ENTITY_MESSAGES.ID_INVALID('автора'),
     DIFFICULTY_INVALID: 'Сложность должна быть: beginner, intermediate или advanced',
     RATING_REQUIRED: 'Рейтинг обязателен',
     RATING_MIN: 'Рейтинг должен быть не менее 1',
