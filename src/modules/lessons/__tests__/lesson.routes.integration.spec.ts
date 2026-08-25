@@ -181,6 +181,16 @@ describe('Lesson routes (integration)', () => {
         expect(response.status).toBe(404);
       });
     });
+
+    // Регрессия: любой будущий литеральный роут вида /api/lessons/xxx, объявленный после
+    // /:id, был бы недостижим — /:id перехватывал бы его первым при линейном матчинге
+    // Express. Валидация формата id закрывает это на уровне params, а не порядка роутов.
+    describe('Когда id в пути не похож на ObjectId', () => {
+      it('должен вернуть 400, а не 404/500', async () => {
+        const response = await request(app).get('/api/lessons/not-an-object-id');
+        expect(response.status).toBe(400);
+      });
+    });
   });
 
   describe('GET /api/lessons/course/:courseId', () => {

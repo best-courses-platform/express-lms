@@ -165,6 +165,18 @@ describe('User routes (integration)', () => {
         expect(response.status).toBe(404);
       });
 
+      // Регрессия на кейс, из-за которого появилась вся эта проверка: literal-роут вроде
+      // /api/users/download, объявленный после /:id в user.routes.ts, был бы недостижим —
+      // /:id перехватил бы "download" как id первым (Express матчит роуты линейно). Формат
+      // id теперь валидируется до контроллера/репозитория, а не полагается на порядок роутов.
+      it('должен вернуть 400 для id, не похожего на ObjectId (не 404 и не долетает до Mongo)', async () => {
+        const { agent } = await loginAgent(app, { role: 'admin' });
+
+        const response = await agent.get('/api/users/download');
+
+        expect(response.status).toBe(400);
+      });
+
       it('должен вернуть пользователя по id без поля password', async () => {
         const { agent } = await loginAgent(app, { role: 'admin' });
         const { email: targetEmail } = await loginAgent(app, { role: 'student' });
