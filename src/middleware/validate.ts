@@ -1,7 +1,7 @@
 import { z, ZodError, ZodObject } from 'zod';
 import { RequestHandler } from 'express';
 import { COMMON_MESSAGES } from '../shared/constants/messages';
-import { AppError } from '../utils/errors';
+import { BadRequestError } from '../utils/errors';
 
 type ValidationSource = 'body' | 'params' | 'query' | 'cookies';
 
@@ -42,7 +42,7 @@ export const validate = (
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        return next(new AppError(400, COMMON_MESSAGES.ERROR.VALIDATION_ERROR, error.flatten()));
+        return next(new BadRequestError(COMMON_MESSAGES.ERROR.VALIDATION_ERROR, error.flatten()));
       }
       next(error);
     }

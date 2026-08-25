@@ -2,7 +2,7 @@ import { Lesson, LessonResource, NewLesson, VideoFile } from './lesson.types';
 import { lessonRepository } from './lesson.repository';
 import { courseService } from 'courses/course.service';
 import { Types } from 'mongoose';
-import { AppError } from '../../utils/errors';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../utils/errors';
 import { isValidObjectIdString, toObjectIdString } from '../../utils/typeGuards';
 import { fileStorageService } from 'file-storage/file-storage.service';
 import { UploadedFile } from 'file-storage/file-storage.types';
@@ -16,7 +16,7 @@ class LessonService {
    */
   async create(input: CreateLessonInput): Promise<Lesson> {
     if (!isValidObjectIdString(input.courseId)) {
-      throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_COURSE_ID);
+      throw new BadRequestError(LESSON_MESSAGES.ERROR.INVALID_COURSE_ID);
     }
 
     const courseIdString = toObjectIdString(input.courseId);
@@ -36,7 +36,7 @@ class LessonService {
    */
   async update(id: string, patch: UpdateLessonInput, userId: Types.ObjectId): Promise<Lesson> {
     if (!isValidObjectIdString(id)) {
-      throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_LESSON_ID);
+      throw new BadRequestError(LESSON_MESSAGES.ERROR.INVALID_LESSON_ID);
     }
 
     const { lesson } = await this.validateLessonManagementPermissions(id, userId);
@@ -53,7 +53,7 @@ class LessonService {
    */
   async delete(id: string, userId: Types.ObjectId): Promise<void> {
     if (!isValidObjectIdString(id)) {
-      throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_LESSON_ID);
+      throw new BadRequestError(LESSON_MESSAGES.ERROR.INVALID_LESSON_ID);
     }
 
     const { course } = await this.validateLessonManagementPermissions(id, userId);
@@ -64,7 +64,7 @@ class LessonService {
     // Удаляем урок из БД
     const ok = await lessonRepository.delete(id);
     if (!ok) {
-      throw new AppError(404, LESSON_MESSAGES.ERROR.NOT_FOUND);
+      throw new NotFoundError(LESSON_MESSAGES.ERROR.NOT_FOUND);
     }
 
     // Удаляем урок из курса
@@ -110,12 +110,12 @@ class LessonService {
    */
   async getById(id: string): Promise<Lesson> {
     if (!isValidObjectIdString(id)) {
-      throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_LESSON_ID);
+      throw new BadRequestError(LESSON_MESSAGES.ERROR.INVALID_LESSON_ID);
     }
 
     const lesson = await lessonRepository.findById(id);
     if (!lesson) {
-      throw new AppError(404, LESSON_MESSAGES.ERROR.NOT_FOUND);
+      throw new NotFoundError(LESSON_MESSAGES.ERROR.NOT_FOUND);
     }
 
     return lesson;
@@ -126,7 +126,7 @@ class LessonService {
    */
   async getByCourseId(courseId: string): Promise<Lesson[]> {
     if (!isValidObjectIdString(courseId)) {
-      throw new AppError(400, LESSON_MESSAGES.ERROR.INVALID_COURSE_ID);
+      throw new BadRequestError(LESSON_MESSAGES.ERROR.INVALID_COURSE_ID);
     }
 
     return lessonRepository.findByCourseId(courseId);
@@ -205,7 +205,7 @@ class LessonService {
       const resourceIndex = this.findResourceIndexByUrl(lesson, fileUrl);
 
       if (resourceIndex === -1) {
-        throw new AppError(404, LESSON_MESSAGES.ERROR.RESOURCE_NOT_FOUND);
+        throw new NotFoundError(LESSON_MESSAGES.ERROR.RESOURCE_NOT_FOUND);
       }
 
       return lessonRepository.removeResourceByIndex(lessonId, resourceIndex);
@@ -243,7 +243,7 @@ class LessonService {
     const course = await courseService.getById(lesson.courseId.toString());
 
     if (!course.author.equals(userId)) {
-      throw new AppError(403, LESSON_MESSAGES.ERROR.NOT_AUTHOR);
+      throw new ForbiddenError(LESSON_MESSAGES.ERROR.NOT_AUTHOR);
     }
 
     return { lesson, course };
@@ -259,7 +259,7 @@ class LessonService {
 
     const course = await courseService.getById(lesson.courseId.toString());
     if (!course.author.equals(userId)) {
-      throw new AppError(403, LESSON_MESSAGES.ERROR.NOT_AUTHOR);
+      throw new ForbiddenError(LESSON_MESSAGES.ERROR.NOT_AUTHOR);
     }
   }
 
@@ -269,7 +269,7 @@ class LessonService {
   private async validateUniqueLessonTitle(title: string, courseId: string): Promise<void> {
     const exists = await lessonRepository.findByTitleAndCourse(title, courseId);
     if (exists) {
-      throw new AppError(409, LESSON_MESSAGES.ERROR.ALREADY_EXISTS);
+      throw new ConflictError(LESSON_MESSAGES.ERROR.ALREADY_EXISTS);
     }
   }
 
@@ -278,7 +278,7 @@ class LessonService {
    */
   private validateResourceExists(lesson: Lesson, resourceIndex: number): LessonResource {
     if (!lesson.resources || resourceIndex >= lesson.resources.length) {
-      throw new AppError(404, LESSON_MESSAGES.ERROR.RESOURCE_NOT_FOUND);
+      throw new NotFoundError(LESSON_MESSAGES.ERROR.RESOURCE_NOT_FOUND);
     }
 
     return lesson.resources[resourceIndex];

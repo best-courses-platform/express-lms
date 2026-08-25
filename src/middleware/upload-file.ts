@@ -4,7 +4,7 @@ import multerS3 from 'multer-s3';
 import { Request } from 'express';
 import { config, isSelectelConfigured } from '../config';
 import { FILE_STORAGE_MESSAGES } from 'file-storage/file-storage.constants';
-import { AppError } from '../utils/errors';
+import { BadRequestError, InternalError } from '../utils/errors';
 
 interface UploadRequest extends Request {
   params: {
@@ -16,7 +16,7 @@ interface UploadRequest extends Request {
 // Функция для безопасного получения S3 клиента
 const createS3Client = (): S3Client => {
   if (!config.selectel.accessKeyId || !config.selectel.secretAccessKey) {
-    throw new AppError(500, FILE_STORAGE_MESSAGES.ERROR.SELECTEL_CREDENTIALS_MISSING);
+    throw new InternalError(FILE_STORAGE_MESSAGES.ERROR.SELECTEL_CREDENTIALS_MISSING);
   }
 
   return new S3Client({
@@ -47,11 +47,11 @@ const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
         cb(null, true);
       } else {
         const error = isSmallFile
-          ? new AppError(400, FILE_STORAGE_MESSAGES.ERROR.INVALID_FILE_TYPE_SMALL, {
+          ? new BadRequestError(FILE_STORAGE_MESSAGES.ERROR.INVALID_FILE_TYPE_SMALL, {
               mimetype: file.mimetype,
               allowedTypes: FILE_STORAGE_MESSAGES.MIME_TYPES.SMALL,
             })
-          : new AppError(400, FILE_STORAGE_MESSAGES.ERROR.INVALID_FILE_TYPE_LARGE, {
+          : new BadRequestError(FILE_STORAGE_MESSAGES.ERROR.INVALID_FILE_TYPE_LARGE, {
               mimetype: file.mimetype,
               allowedTypes: FILE_STORAGE_MESSAGES.MIME_TYPES.LARGE,
             });
@@ -83,7 +83,7 @@ const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
           const lessonId = req.params.lessonId;
 
           if (!lessonId) {
-            return cb(new AppError(400, FILE_STORAGE_MESSAGES.ERROR.LESSON_ID_REQUIRED));
+            return cb(new BadRequestError(FILE_STORAGE_MESSAGES.ERROR.LESSON_ID_REQUIRED));
           }
 
           const timestamp = Date.now();
@@ -99,7 +99,7 @@ const createMulterConfig = (isSmallFile: boolean = false): multer.Options => {
       });
     } catch (error) {
       // Если не удалось создать S3 клиент, пробрасываем ошибку дальше
-      throw new AppError(500, FILE_STORAGE_MESSAGES.ERROR.S3_CLIENT_CREATION_FAILED, {
+      throw new InternalError(FILE_STORAGE_MESSAGES.ERROR.S3_CLIENT_CREATION_FAILED, {
         originalError: error instanceof Error ? error.message : 'Unknown error',
       });
     }
@@ -128,7 +128,7 @@ export const uploadImage = multer({
     if (isValidType) {
       cb(null, true);
     } else {
-      cb(new AppError(400, FILE_STORAGE_MESSAGES.ERROR.INVALID_FILE_TYPE_IMAGE, { mimetype: file.mimetype }));
+      cb(new BadRequestError(FILE_STORAGE_MESSAGES.ERROR.INVALID_FILE_TYPE_IMAGE, { mimetype: file.mimetype }));
     }
   },
   storage: multer.memoryStorage(),

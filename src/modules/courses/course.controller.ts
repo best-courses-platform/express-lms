@@ -1,7 +1,7 @@
 import { RequestHandler } from 'express';
 import { courseService } from './course.service';
 import { fileStorageService } from '../file-storage/file-storage.service';
-import { AppError } from '../../utils/errors';
+import { BadRequestError, ForbiddenError, UnauthorizedError } from '../../utils/errors';
 import { isAuthenticatedRequest, getUserIdFromRequest } from '../../utils/typeGuards';
 import { Types } from 'mongoose';
 import { validate } from '../../middleware/validate';
@@ -21,7 +21,7 @@ import { COURSE_MESSAGES } from './course.constants';
 export const createCourse: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     const userId = getUserIdFromRequest(req);
     const course = await courseService.create(req.body, userId);
@@ -64,7 +64,7 @@ export const getCoursesByAuthor: RequestHandler = async (req, res, next) => {
 export const getMyCourses: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     const userId = getUserIdFromRequest(req);
     const courses = await courseService.getMyCourses(userId, req.user.role);
@@ -77,10 +77,10 @@ export const getMyCourses: RequestHandler = async (req, res, next) => {
 export const uploadCoursePreviewImage: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     if (!req.file) {
-      throw new AppError(400, COURSE_MESSAGES.ERROR.PREVIEW_IMAGE_NOT_UPLOADED);
+      throw new BadRequestError(COURSE_MESSAGES.ERROR.PREVIEW_IMAGE_NOT_UPLOADED);
     }
 
     const uploaded = await fileStorageService.uploadFile(req.file.buffer, {
@@ -109,7 +109,7 @@ export const getCourse: RequestHandler = async (req, res, next) => {
     const course = await courseService.getById(req.params.id);
 
     if (!courseService.canAccess(course, req.user?._id)) {
-      throw new AppError(403, COURSE_MESSAGES.ERROR.FORBIDDEN);
+      throw new ForbiddenError(COURSE_MESSAGES.ERROR.FORBIDDEN);
     }
 
     res.json(course);
@@ -121,7 +121,7 @@ export const getCourse: RequestHandler = async (req, res, next) => {
 export const updateCourse: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     const userId = getUserIdFromRequest(req);
     const updated = await courseService.update(req.params.id, req.body, userId);
@@ -137,7 +137,7 @@ export const updateCourse: RequestHandler = async (req, res, next) => {
 export const deleteCourse: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     const userId = getUserIdFromRequest(req);
     await courseService.delete(req.params.id, userId);
@@ -150,7 +150,7 @@ export const deleteCourse: RequestHandler = async (req, res, next) => {
 export const addLesson: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     const userId = getUserIdFromRequest(req);
     const updated = await courseService.addLesson(req.params.id, req.params.lessonId, userId);
@@ -166,7 +166,7 @@ export const addLesson: RequestHandler = async (req, res, next) => {
 export const removeLesson: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     const userId = getUserIdFromRequest(req);
     const updated = await courseService.removeLesson(req.params.id, req.params.lessonId, userId);
@@ -182,7 +182,7 @@ export const removeLesson: RequestHandler = async (req, res, next) => {
 export const addUserToAllowed: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     const userId = getUserIdFromRequest(req);
     const updated = await courseService.addUserToAllowed(req.params.id, new Types.ObjectId(req.body.userId), userId);
@@ -198,7 +198,7 @@ export const addUserToAllowed: RequestHandler = async (req, res, next) => {
 export const removeUserFromAllowed: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     const userId = getUserIdFromRequest(req);
     const updated = await courseService.removeUserFromAllowed(
@@ -218,7 +218,7 @@ export const removeUserFromAllowed: RequestHandler = async (req, res, next) => {
 export const addRating: RequestHandler = async (req, res, next) => {
   try {
     if (!isAuthenticatedRequest(req)) {
-      throw new AppError(401, COURSE_MESSAGES.ERROR.UNAUTHORIZED);
+      throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
     }
     const userId = getUserIdFromRequest(req);
     const updated = await courseService.addRating(req.params.id, userId, req.body.value);
