@@ -10,6 +10,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.server.json",
+    "redis:up": "docker compose up -d redis",
+    "predev": "npm run redis:up",
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts,.js",
