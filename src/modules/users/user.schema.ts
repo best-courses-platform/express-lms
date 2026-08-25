@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { USER_MESSAGES } from './user.constants';
+import { objectIdSchema } from '../../shared/validation/object-id.schema';
 
 // Базовые схемы для переиспользования
 const nameSchema = z
@@ -27,7 +28,10 @@ const roleSchema = z.enum(['student', 'author', 'admin']).refine(val => ['studen
 
 const avatarSchema = z.string().url(USER_MESSAGES.VALIDATION.AVATAR_INVALID).optional().nullable();
 
-const idSchema = z.string().min(1, USER_MESSAGES.VALIDATION.USER_ID_REQUIRED);
+// Все три места использования ниже (updateUserSchema, changePasswordSchema, idParamSchema) —
+// path-параметры, участвующие в маршрутизации Express, поэтому валидируются по формату
+// ObjectId, а не только по непустоте (см. object-id.schema.ts).
+const idSchema = objectIdSchema(USER_MESSAGES.VALIDATION.USER_ID_REQUIRED, USER_MESSAGES.VALIDATION.USER_ID_INVALID);
 
 // Поля без .default() — единственный источник правил валидации, переиспользуется и
 // созданием (через userBaseSchema ниже), и обновлением (userFieldsSchema.partial()
