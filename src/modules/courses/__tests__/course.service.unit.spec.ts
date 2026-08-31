@@ -29,6 +29,7 @@ jest.mock('../course.repository', () => ({
     addUserToAllowed: jest.fn(),
     removeUserFromAllowed: jest.fn(),
     addRating: jest.fn(),
+    getRatingsByCourse: jest.fn(),
   },
 }));
 jest.mock('lessons/lesson.service', () => ({
@@ -54,7 +55,8 @@ function createMockCourse(overrides: Partial<Course> = {}): Course {
     tags: [],
     difficulty: 'beginner',
     lessons: [],
-    ratings: [],
+    ratingSum: 0,
+    ratingCount: 0,
     averageRating: 0,
     isPublished: false,
     allowedUsers: [],
@@ -315,6 +317,36 @@ describe('CourseService', () => {
           course._id.toString(),
           expect.objectContaining({ userId, value: 4 })
         );
+      });
+    });
+  });
+
+  describe('getRatings', () => {
+    describe('Когда курс не найден', () => {
+      it('должен выбросить 404, не обращаясь за списком оценок', async () => {
+        // Given
+        mockCourseRepository.findById.mockResolvedValue(null);
+
+        // When & Then
+        await expect(courseService.getRatings('507f1f77bcf86cd799439011')).rejects.toMatchObject({ status: 404 });
+        expect(mockCourseRepository.getRatingsByCourse).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Когда курс найден', () => {
+      it('должен вернуть оценки из отдельной коллекции (getRatingsByCourse), не course.ratings', async () => {
+        // Given
+        const course = createMockCourse();
+        const ratings = [{ courseId: course._id, userId: new Types.ObjectId(), value: 5, createdAt: new Date() }];
+        mockCourseRepository.findById.mockResolvedValue(course);
+        mockCourseRepository.getRatingsByCourse.mockResolvedValue(ratings);
+
+        // When
+        const result = await courseService.getRatings(course._id.toString());
+
+        // Then
+        expect(mockCourseRepository.getRatingsByCourse).toHaveBeenCalledWith(course._id.toString());
+        expect(result).toBe(ratings);
       });
     });
   });

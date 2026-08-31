@@ -195,7 +195,7 @@ class CourseService {
     if (!course) {
       throw new NotFoundError(COURSE_MESSAGES.ERROR.NOT_FOUND);
     }
-    return course.ratings;
+    return courseRepository.getRatingsByCourse(courseId);
   }
 }
 

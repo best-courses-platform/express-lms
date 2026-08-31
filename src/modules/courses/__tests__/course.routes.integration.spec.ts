@@ -296,12 +296,33 @@ describe('Course routes (integration)', () => {
         const secondResponse = await raterAgent.post(`/api/courses/${course._id}/ratings`).send({ value: 5 });
 
         expect(secondResponse.status).toBe(200);
-        expect(secondResponse.body.course.ratings).toHaveLength(1);
-        expect(secondResponse.body.course.ratings[0].value).toBe(5);
+        // ratings больше не embedded-поле на курсе (см. rating.model.ts — отдельная
+        // коллекция) — единственный источник правды для повторной оценки того же
+        // пользователя теперь GET /:id/ratings ниже, а не course.ratings в ответе.
         expect(secondResponse.body.course.averageRating).toBe(5);
 
         const ratingsResponse = await request(app).get(`/api/courses/${course._id}/ratings`);
         expect(ratingsResponse.body).toHaveLength(1);
+        expect(ratingsResponse.body[0].value).toBe(5);
+      });
+    });
+
+    describe('Когда два разных пользователя оценивают курс', () => {
+      it('averageRating должен быть средним обеих оценок', async () => {
+        const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
+        const course = await createCourseViaApi(authorAgent, { isPublished: true });
+
+        const { agent: firstRater } = await loginAgent(app, { role: 'student' });
+        const { agent: secondRater } = await loginAgent(app, { role: 'student' });
+
+        await firstRater.post(`/api/courses/${course._id}/ratings`).send({ value: 2 });
+        const response = await secondRater.post(`/api/courses/${course._id}/ratings`).send({ value: 4 });
+
+        expect(response.status).toBe(200);
+        expect(response.body.course.averageRating).toBe(3);
+
+        const ratingsResponse = await request(app).get(`/api/courses/${course._id}/ratings`);
+        expect(ratingsResponse.body).toHaveLength(2);
       });
     });
   });
