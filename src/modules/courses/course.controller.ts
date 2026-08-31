@@ -16,6 +16,7 @@ import {
   addUserToAllowedSchema,
   removeUserFromAllowedSchema,
   addRatingSchema,
+  searchCourseSchema,
 } from './course.schema';
 import { COURSE_MESSAGES } from './course.constants';
 
@@ -74,6 +75,11 @@ export const uploadCoursePreviewImage: RequestHandler = async (req, res) => {
 
 export const getCoursesByDifficulty: RequestHandler = async (req, res) => {
   const courses = await courseService.getCoursesByDifficulty(req.params.level);
+  res.json(courses);
+};
+
+export const searchCourses: RequestHandler = async (req, res) => {
+  const courses = await courseService.search(req.query.q as string);
   res.json(courses);
 };
 
@@ -186,6 +192,7 @@ export const CourseController = {
   getMyCourses: asyncHandler(getMyCourses),
   uploadCoursePreviewImage: asyncHandler(uploadCoursePreviewImage),
   getCoursesByDifficulty: [validate(difficultyParamSchema), asyncHandler(getCoursesByDifficulty)],
+  searchCourses: [validate(searchCourseSchema), asyncHandler(searchCourses)],
   getCourse: [validate(idParamSchema), asyncHandler(getCourse)],
   updateCourse: [validate(updateCourseSchema), asyncHandler(updateCourse)],
   deleteCourse: [validate(idParamSchema), asyncHandler(deleteCourse)],

@@ -9,6 +9,7 @@ import {
   idParamSchema,
   lessonManagementSchema,
   removeUserFromAllowedSchema,
+  searchCourseSchema,
   updateCourseSchema,
 } from '../modules/courses/course.schema';
 
@@ -42,7 +43,7 @@ const courseResponseSchema = registry.register(
     tags: z.array(z.string()),
     difficulty: z.enum(['beginner', 'intermediate', 'advanced']),
     lessons: z.array(objectId()).optional(),
-    ratings: z.array(ratingSchema),
+    lessonsCount: z.number(),
     averageRating: z.number().optional(),
     isPublished: z.boolean(),
     allowedUsers: z.array(objectId()),
@@ -52,7 +53,10 @@ const courseResponseSchema = registry.register(
 );
 
 function courseMessageResponse(description: string) {
-  return { description, content: { 'application/json': { schema: z.object({ message: z.string(), course: courseResponseSchema }) } } };
+  return {
+    description,
+    content: { 'application/json': { schema: z.object({ message: z.string(), course: courseResponseSchema }) } },
+  };
 }
 
 registry.registerPath({
@@ -60,7 +64,9 @@ registry.registerPath({
   path: '/api/courses',
   tags: [TAG],
   summary: 'Список всех курсов (без фильтра по публикации)',
-  responses: { 200: { description: 'Массив курсов', content: { 'application/json': { schema: z.array(courseResponseSchema) } } } },
+  responses: {
+    200: { description: 'Массив курсов', content: { 'application/json': { schema: z.array(courseResponseSchema) } } },
+  },
 });
 
 registry.registerPath({
@@ -68,7 +74,12 @@ registry.registerPath({
   path: '/api/courses/published',
   tags: [TAG],
   summary: 'Публичный каталог — только опубликованные курсы',
-  responses: { 200: { description: 'Массив опубликованных курсов', content: { 'application/json': { schema: z.array(courseResponseSchema) } } } },
+  responses: {
+    200: {
+      description: 'Массив опубликованных курсов',
+      content: { 'application/json': { schema: z.array(courseResponseSchema) } },
+    },
+  },
 });
 
 registry.registerPath({
@@ -77,7 +88,12 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Курсы конкретного автора',
   request: { params: authorParamSchema.shape.params },
-  responses: { 200: { description: 'Массив курсов автора', content: { 'application/json': { schema: z.array(courseResponseSchema) } } } },
+  responses: {
+    200: {
+      description: 'Массив курсов автора',
+      content: { 'application/json': { schema: z.array(courseResponseSchema) } },
+    },
+  },
 });
 
 registry.registerPath({
@@ -86,7 +102,28 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Курсы по уровню сложности',
   request: { params: difficultyParamSchema.shape.params },
-  responses: { 200: { description: 'Массив курсов заданной сложности', content: { 'application/json': { schema: z.array(courseResponseSchema) } } } },
+  responses: {
+    200: {
+      description: 'Массив курсов заданной сложности',
+      content: { 'application/json': { schema: z.array(courseResponseSchema) } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/courses/search',
+  tags: [TAG],
+  summary: 'Полнотекстовый поиск по опубликованным курсам (title/description)',
+  description: 'Нативный $text-поиск MongoDB, отсортирован по релевантности (textScore).',
+  request: { query: searchCourseSchema.shape.query },
+  responses: {
+    200: {
+      description: 'Массив курсов, отсортированный по релевантности',
+      content: { 'application/json': { schema: z.array(courseResponseSchema) } },
+    },
+    400: errorResponse('Поисковый запрос не передан'),
+  },
 });
 
 registry.registerPath({
@@ -106,7 +143,8 @@ registry.registerPath({
   path: '/api/courses/{id}',
   tags: [TAG],
   summary: 'Курс по id',
-  description: 'Непубликованный курс виден только автору/allowedUsers (canAccess) — авторизация опциональна, но учитывается, если токен передан.',
+  description:
+    'Непубликованный курс виден только автору/allowedUsers (canAccess) — авторизация опциональна, но учитывается, если токен передан.',
   security: [...authSecurity, {}],
   request: { params: idParamSchema.shape.params },
   responses: {
@@ -121,11 +159,19 @@ registry.registerPath({
   path: '/api/courses/preview-image',
   tags: [TAG],
   summary: 'Загрузка обложки курса (до создания самого курса)',
-  description: 'Возвращает публичный URL — его нужно передать как previewImage при POST /api/courses. Требует роль author/admin.',
+  description:
+    'Возвращает публичный URL — его нужно передать как previewImage при POST /api/courses. Требует роль author/admin.',
   security: authSecurity,
-  request: { body: { content: { 'multipart/form-data': { schema: z.object({ file: z.string().openapi({ format: 'binary' }) }) } } } },
+  request: {
+    body: {
+      content: { 'multipart/form-data': { schema: z.object({ file: z.string().openapi({ format: 'binary' }) }) } },
+    },
+  },
   responses: {
-    200: { description: 'Файл загружен', content: { 'application/json': { schema: z.object({ message: z.string(), url: z.string().url() }) } } },
+    200: {
+      description: 'Файл загружен',
+      content: { 'application/json': { schema: z.object({ message: z.string(), url: z.string().url() }) } },
+    },
     400: errorResponse('Файл не передан'),
     401: errorResponse('Не авторизован'),
     403: errorResponse('Требуется роль author/admin'),
@@ -137,7 +183,8 @@ registry.registerPath({
   path: '/api/courses',
   tags: [TAG],
   summary: 'Создание курса',
-  description: 'author в теле игнорируется — сервер всегда берёт его из токена (защита от mass assignment, см. Рефакторинг проблем/1). Требует роль author/admin.',
+  description:
+    'author в теле игнорируется — сервер всегда берёт его из токена (защита от mass assignment, см. Рефакторинг проблем/1). Требует роль author/admin.',
   security: authSecurity,
   request: { body: jsonBody(createCourseSchema.shape.body) },
   responses: {
@@ -154,7 +201,8 @@ registry.registerPath({
   path: '/api/courses/{id}',
   tags: [TAG],
   summary: 'Обновление курса',
-  description: 'Только автор курса. Присылать нужно только реально изменяемые поля — остальные останутся как есть (Zod-схема построена без .default(), см. Рефакторинг проблем/15).',
+  description:
+    'Только автор курса. Присылать нужно только реально изменяемые поля — остальные останутся как есть (Zod-схема построена без .default(), см. Рефакторинг проблем/15).',
   security: authSecurity,
   request: { params: updateCourseSchema.shape.params, body: jsonBody(updateCourseSchema.shape.body) },
   responses: {
@@ -203,7 +251,8 @@ registry.registerPath({
   path: '/api/courses/{id}/lessons/{lessonId}',
   tags: [TAG],
   summary: 'Отвязать урок от курса (сам документ урока не удаляется)',
-  description: 'Только отвязывает — документ урока остаётся в коллекции lessons, файлы в S3 не трогаются. Для полного удаления — DELETE /api/lessons/{id}.',
+  description:
+    'Только отвязывает — документ урока остаётся в коллекции lessons, файлы в S3 не трогаются. Для полного удаления — DELETE /api/lessons/{id}.',
   security: authSecurity,
   request: { params: lessonManagementSchema.shape.params },
   responses: {

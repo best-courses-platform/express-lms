@@ -17,6 +17,7 @@ export const COURSE_MESSAGES = {
     RATING_REQUIRED: 'Рейтинг обязателен',
     RATING_MIN: 'Рейтинг должен быть не менее 1',
     RATING_MAX: 'Рейтинг должен быть не более 5',
+    SEARCH_QUERY_REQUIRED: 'Поисковый запрос обязателен',
   },
   ERROR: {
     ...COMMON_MESSAGES.ERROR,

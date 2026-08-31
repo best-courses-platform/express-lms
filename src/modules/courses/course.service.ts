@@ -72,6 +72,13 @@ class CourseService {
     return courseRepository.findByDifficulty(difficulty);
   }
 
+  async search(query: string): Promise<Course[]> {
+    if (!query.trim()) {
+      throw new BadRequestError(COURSE_MESSAGES.VALIDATION.SEARCH_QUERY_REQUIRED);
+    }
+    return courseRepository.search(query);
+  }
+
   async getById(id: string): Promise<Course> {
     const course = await courseRepository.findById(id);
     if (!course) {

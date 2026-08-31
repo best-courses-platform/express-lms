@@ -58,6 +58,17 @@ class CourseRepository {
       .exec();
   }
 
+  // $text — нативный полнотекстовый поиск MongoDB поверх индекса title/description
+  // (course.model.ts), а не постраничная выборка всех курсов с фильтрацией по подстроке
+  // в Node. Ограничен опубликованными курсами — это поиск по публичному каталогу,
+  // не админский инструмент. $meta: 'textScore' — релевантность считает сам движок БД.
+  async search(query: string): Promise<Course[]> {
+    return await CourseModel.find({ $text: { $search: query }, isPublished: true }, { score: { $meta: 'textScore' } })
+      .populate('author', 'name email avatar')
+      .sort({ score: { $meta: 'textScore' } })
+      .exec();
+  }
+
   async update(id: string, patch: UpdateCourse): Promise<Course> {
     if (!Types.ObjectId.isValid(id)) {
       throw new Error('Invalid course ID');

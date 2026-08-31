@@ -21,6 +21,7 @@ jest.mock('../course.repository', () => ({
     findByAuthor: jest.fn(),
     findByAllowedUser: jest.fn(),
     findByDifficulty: jest.fn(),
+    search: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -348,6 +349,31 @@ describe('CourseService', () => {
         // Then
         expect(mockCourseRepository.getRatingsByCourse).toHaveBeenCalledWith(course._id.toString());
         expect(result).toBe(ratings);
+      });
+    });
+  });
+
+  describe('search', () => {
+    describe('Когда запрос пустой или состоит из пробелов', () => {
+      it('должен выбросить 400, не обращаясь к репозиторию', async () => {
+        // When & Then
+        await expect(courseService.search('   ')).rejects.toMatchObject({ status: 400 });
+        expect(mockCourseRepository.search).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Когда запрос непустой', () => {
+      it('должен делегировать поиск courseRepository.search', async () => {
+        // Given
+        const courses = [createMockCourse({ title: 'Node.js основы' })];
+        mockCourseRepository.search.mockResolvedValue(courses);
+
+        // When
+        const result = await courseService.search('Node.js');
+
+        // Then
+        expect(mockCourseRepository.search).toHaveBeenCalledWith('Node.js');
+        expect(result).toBe(courses);
       });
     });
   });

@@ -327,6 +327,37 @@ describe('Course routes (integration)', () => {
     });
   });
 
+  describe('GET /api/courses/search', () => {
+    describe('Когда query-параметр q не передан', () => {
+      it('должен вернуть 400', async () => {
+        const response = await request(app).get('/api/courses/search');
+        expect(response.status).toBe(400);
+      });
+    });
+
+    describe('Когда есть опубликованный курс с совпадением в title', () => {
+      it('должен найти его через $text и не найти неопубликованный курс с тем же словом', async () => {
+        const { agent } = await loginAgent(app, { role: 'author' });
+        const uniqueWord = `Quantumcraft${Date.now()}`;
+        const published = await createCourseViaApi(agent, {
+          title: `${uniqueWord} для начинающих`,
+          isPublished: true,
+        });
+        await createCourseViaApi(agent, {
+          title: `${uniqueWord} для продвинутых`,
+          isPublished: false,
+        });
+
+        const response = await request(app).get('/api/courses/search').query({ q: uniqueWord });
+
+        expect(response.status).toBe(200);
+        const foundIds = (response.body as Array<{ _id: string }>).map(c => c._id);
+        expect(foundIds).toContain(published._id);
+        expect(foundIds).toHaveLength(1);
+      });
+    });
+  });
+
   describe('GET /api/courses/author/:authorId', () => {
     it('должен вернуть курсы конкретного автора, не курсы других авторов', async () => {
       const { agent: authorAgent, email } = await loginAgent(app, { role: 'author' });

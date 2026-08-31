@@ -89,6 +89,10 @@ const courseSchema = new Schema<Course>(
 );
 
 // Индексы для оптимизации запросов
+// title/description — используется courseRepository.search() через $text (найден раньше
+// объявленным, но неиспользуемым — платили за поддержку индекса на каждую запись без
+// единой пользы; см. Obsidian: "Обход ORM на горячих путях"). Нативный полнотекстовый
+// поиск MongoDB — эта задача не требует Elasticsearch на масштабе "сотни курсов".
 courseSchema.index({ title: 'text', description: 'text' });
 courseSchema.index({ author: 1 });
 courseSchema.index({ difficulty: 1 });
