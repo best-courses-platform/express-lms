@@ -101,23 +101,6 @@ export function isUserDocumentStrict(obj: unknown): obj is UserDocument {
   );
 }
 
-// Безопасное преобразование в User
-export function toSafeUser(obj: unknown): User {
-  if (!isPlainUser(obj)) {
-    throw new Error('Invalid user object');
-  }
-  return obj;
-}
-
-export function isUserWithPassword(obj: unknown): obj is User & { password: string } {
-  if (!isPlainUser(obj)) {
-    return false;
-  }
-
-  const candidate = obj as { password?: unknown };
-  return typeof candidate.password === 'string';
-}
-
 export function isObjectId(id: unknown): id is Types.ObjectId {
   return id instanceof Types.ObjectId;
 }

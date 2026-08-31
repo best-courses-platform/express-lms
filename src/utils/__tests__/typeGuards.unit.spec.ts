@@ -6,8 +6,6 @@ import {
   hasComparePassword,
   isPlainUser,
   isUserDocumentStrict,
-  toSafeUser,
-  isUserWithPassword,
   isObjectId,
   isValidObjectIdString,
   toObjectIdString,
@@ -27,8 +25,10 @@ import {
 // Удалены как мёртвый код (не тесты, а сам код): isUserDocument (не-Strict версия — нигде
 // не вызывалась, дублировала isUserDocumentStrict), hasObjectId/hasEmail/hasPassword (только
 // isUserDocument их использовал), isObjectIdArray/toObjectIdStringArray (ни разу не
-// импортировались за пределами этого файла). Дописывать тесты ради процента coverage на
-// код, который никто не вызывает, — противоположность цели тестов.
+// импортировались за пределами этого файла), toSafeUser/isUserWithPassword (использовались
+// только в authService.authenticate(), который теперь берёт user.toJSON() — тот же метод
+// схемы, что и res.json(user), — вместо ручной toObject()+деструктуризации). Дописывать тесты
+// ради процента coverage на код, который никто не вызывает, — противоположность цели тестов.
 
 function createMongooseLikeDocument(overrides: Record<string, unknown> = {}) {
   return {
@@ -176,9 +176,7 @@ describe('isUserDocumentStrict', () => {
 
   describe('Когда объект — Mongoose-документ с comparePassword, но без обязательных полей User', () => {
     it('должен вернуть false', () => {
-      expect(
-        isUserDocumentStrict(createMongooseLikeDocument({ comparePassword: async () => true }))
-      ).toBe(false);
+      expect(isUserDocumentStrict(createMongooseLikeDocument({ comparePassword: async () => true }))).toBe(false);
     });
   });
 
@@ -189,41 +187,6 @@ describe('isUserDocumentStrict', () => {
           createMongooseLikeDocument({ ...createValidUserFields(), comparePassword: async () => true })
         )
       ).toBe(true);
-    });
-  });
-});
-
-describe('toSafeUser', () => {
-  describe('Когда объект не проходит isPlainUser', () => {
-    it('должен выбросить ошибку', () => {
-      expect(() => toSafeUser({})).toThrow('Invalid user object');
-    });
-  });
-
-  describe('Когда объект валиден', () => {
-    it('должен вернуть его как есть', () => {
-      const user = createValidUserFields();
-      expect(toSafeUser(user)).toBe(user);
-    });
-  });
-});
-
-describe('isUserWithPassword', () => {
-  describe('Когда объект не проходит isPlainUser', () => {
-    it('должен вернуть false', () => {
-      expect(isUserWithPassword({})).toBe(false);
-    });
-  });
-
-  describe('Когда объект валиден, но без password', () => {
-    it('должен вернуть false', () => {
-      expect(isUserWithPassword(createValidUserFields())).toBe(false);
-    });
-  });
-
-  describe('Когда объект валиден и password — строка', () => {
-    it('должен вернуть true', () => {
-      expect(isUserWithPassword({ ...createValidUserFields(), password: 'hashed' })).toBe(true);
     });
   });
 });

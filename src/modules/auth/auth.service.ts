@@ -10,7 +10,7 @@ import {
   UnauthorizedError,
 } from '../../utils/errors';
 import { AUTH_MESSAGES } from './auth.constants';
-import { isPlainUser, isUserDocumentStrict, isUserWithPassword, toSafeUser } from '../../utils/typeGuards';
+import { isPlainUser, isUserDocumentStrict } from '../../utils/typeGuards';
 import { userRepository } from 'users/user.repository';
 import { emailService } from 'email/email.service';
 import { enqueuePasswordResetEmail, enqueueVerificationEmail } from 'email/email.queue';
@@ -55,12 +55,15 @@ export class AuthService {
       throw new BadRequestError(AUTH_MESSAGES.ERROR.VERIFICATION_TOKEN_EXPIRED);
     }
 
-    // Подтверждаем email (user уже UserDocument — findByEmailVerificationToken так типизирован)
-    user.isEmailVerified = true;
-    user.emailVerificationToken = null;
-    user.emailVerificationExpires = null;
-
-    return await user.save();
+    // Подтверждаем email через репозиторий, а не user.save() — сервис не должен сам
+    // управлять жизненным циклом Document, это дело репозитория (см. Obsidian: DAO/Repository).
+    // updateWithSensitiveFields, а не update() — обычный update() вырезает из ответа
+    // emailVerificationToken/passwordResetToken через .select(), а он ещё нужен здесь и ниже.
+    return await userRepository.updateWithSensitiveFields(user._id.toString(), {
+      isEmailVerified: true,
+      emailVerificationToken: null,
+      emailVerificationExpires: null,
+    });
   }
 
   async resendVerificationEmail(email: string): Promise<void> {
@@ -72,15 +75,19 @@ export class AuthService {
       return;
     }
 
-    // Генерируем новый токен
-    user.emailVerificationToken = crypto.randomBytes(32).toString('hex');
-    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    // Токен считаем локально, не читаем обратно из репозитория — так его тип string
+    // известен сразу, без null-проверок после update().
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    await user.save();
+    await userRepository.updateWithSensitiveFields(user._id.toString(), {
+      emailVerificationToken,
+      emailVerificationExpires,
+    });
 
     // Кладём в очередь, не ждём SMTP синхронно
     if (emailService.isConfigured()) {
-      await enqueueVerificationEmail(user.email, user.emailVerificationToken, user.name);
+      await enqueueVerificationEmail(user.email, emailVerificationToken, user.name);
     }
   }
 
@@ -92,15 +99,17 @@ export class AuthService {
       return;
     }
 
-    // Генерируем токен для сброса пароля
-    user.passwordResetToken = crypto.randomBytes(32).toString('hex');
-    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
+    const passwordResetToken = crypto.randomBytes(32).toString('hex');
+    const passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
 
-    await user.save();
+    await userRepository.updateWithSensitiveFields(user._id.toString(), {
+      passwordResetToken,
+      passwordResetExpires,
+    });
 
     // Кладём в очередь, не ждём SMTP синхронно
     if (emailService.isConfigured()) {
-      await enqueuePasswordResetEmail(user.email, user.passwordResetToken, user.name);
+      await enqueuePasswordResetEmail(user.email, passwordResetToken, user.name);
     }
   }
 
@@ -116,7 +125,10 @@ export class AuthService {
       throw new BadRequestError(AUTH_MESSAGES.ERROR.RESET_TOKEN_EXPIRED);
     }
 
-    // Обновляем пароль
+    // Осознанно НЕ через userRepository.update*() — хеширование пароля происходит
+    // в userSchema.pre('save', ...) (user.model.ts), а не при findByIdAndUpdate,
+    // который используют методы репозитория. Замена на update() тут молча уронит
+    // пароль в БД открытым текстом. save() здесь — единственный корректный вариант.
     user.password = newPassword;
     user.passwordResetToken = null;
     user.passwordResetExpires = null;
@@ -141,14 +153,11 @@ export class AuthService {
       throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
-    const userPlainObject = user.toObject<User & { password: string }>();
-
-    if (!isUserWithPassword(userPlainObject)) {
-      throw new InternalError(AUTH_MESSAGES.ERROR.AUTH_FAILED);
-    }
-
-    const { password: _, ...userWithoutPassword } = userPlainObject;
-    return toSafeUser(userWithoutPassword);
+    // toJSON() — тот же метод схемы (user.model.ts), что срабатывает при res.json(user):
+    // вырезает password, emailVerificationToken/Expires, passwordResetToken/Expires разом.
+    // Раньше здесь был ручной toObject() + деструктуризация password — токены
+    // верификации/сброса при этом не вырезались и утекали бы в ответ login().
+    return user.toJSON() as User;
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
@@ -167,6 +176,8 @@ export class AuthService {
       throw new BadRequestError(AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
     }
 
+    // save(), не userRepository.update() — та же причина, что в resetPassword() выше:
+    // хеширование пароля живёт в pre('save'), findByIdAndUpdate его не вызывает.
     user.password = newPassword;
     await user.save();
   }
