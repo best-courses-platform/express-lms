@@ -24,9 +24,15 @@ const mockConfig = {
 
 const mockSendMail = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockCreateTransport = jest.fn().mockReturnValue({ sendMail: mockSendMail });
+// По умолчанию null — как ведёт себя getTestMessageUrl() для любого не-Ethereal транспорта
+// (реальный SMTP в проде). Отдельный тест ниже переопределяет на непустую ссылку.
+const mockGetTestMessageUrl = jest.fn().mockReturnValue(null);
 
 jest.mock('../../../config', () => ({ config: mockConfig }));
-jest.mock('nodemailer', () => ({ createTransport: (...args: unknown[]) => mockCreateTransport(...args) }));
+jest.mock('nodemailer', () => ({
+  createTransport: (...args: unknown[]) => mockCreateTransport(...args),
+  getTestMessageUrl: (...args: unknown[]) => mockGetTestMessageUrl(...args),
+}));
 
 const { EmailService } = require('../email.service') as { EmailService: typeof EmailServiceClass };
 
@@ -44,6 +50,7 @@ describe('EmailService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSendMail.mockResolvedValue(undefined);
+    mockGetTestMessageUrl.mockReturnValue(null);
   });
 
   describe('isConfigured', () => {
@@ -125,6 +132,30 @@ describe('EmailService', () => {
         await expect(
           service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hi</p>' })
         ).rejects.toMatchObject({ status: 500 });
+      });
+
+      it('должен вывести Ethereal preview-ссылку в лог, когда getTestMessageUrl вернул её', async () => {
+        const service = createConfiguredService();
+        const sendMailResult = { messageId: 'test-id' };
+        mockSendMail.mockResolvedValue(sendMailResult);
+        mockGetTestMessageUrl.mockReturnValue('https://ethereal.email/message/abc123');
+        const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hi</p>' });
+
+        expect(mockGetTestMessageUrl).toHaveBeenCalledWith(sendMailResult);
+        expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('https://ethereal.email/message/abc123'));
+        consoleLogSpy.mockRestore();
+      });
+
+      it('не должен ничего логировать, когда getTestMessageUrl вернул null (реальный SMTP-транспорт)', async () => {
+        const service = createConfiguredService();
+        const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hi</p>' });
+
+        expect(consoleLogSpy).not.toHaveBeenCalled();
+        consoleLogSpy.mockRestore();
       });
     });
 

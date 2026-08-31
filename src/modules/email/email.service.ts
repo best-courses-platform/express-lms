@@ -32,13 +32,21 @@ export class EmailService {
     }
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from: `"${config.email.from.split('@')[0]}" <${config.email.from}>`,
         to: options.to,
         subject: options.subject,
         html: options.html,
         text: options.text || options.html.replace(/<[^>]*>/g, ''),
       });
+
+      // Ethereal (см. Obsidian: dev email-провайдер) не доставляет письма реально — их
+      // единственный способ увидеть содержимое. getTestMessageUrl() возвращает null для
+      // любого другого транспорта (реальный SMTP), так что в проде это просто no-op.
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      if (previewUrl) {
+        console.log(`📧 Ethereal preview: ${previewUrl}`);
+      }
     } catch (error) {
       console.error('Email sending error:', error);
       throw new InternalError(EMAIL_MESSAGES.ERROR.SEND_FAILED, error);
