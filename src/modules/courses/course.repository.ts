@@ -9,11 +9,14 @@ class CourseRepository {
     return await course.save();
   }
 
+  // Списочные методы ниже намеренно НЕ populate('lessons', ...) — раньше тянули title/duration
+  // каждого урока каждого курса на каждый запрос каталога, хотя карточке курса в списке нужно
+  // только количество (lessonsCount — обычное поле, без join). Полный список уроков —
+  // только там, где он реально нужен и запрашивается по одному курсу: findById().
+  // См. Obsidian: "Обход ORM на горячих путях" — денормализация counter-полем вместо
+  // join'а на каждое чтение списка.
   async findAll(): Promise<Course[]> {
-    return await CourseModel.find()
-      .populate('author', 'name email avatar')
-      .populate('lessons', 'title duration')
-      .exec();
+    return await CourseModel.find().populate('author', 'name email avatar').exec();
   }
 
   async findById(id: string): Promise<Course | null> {
@@ -34,30 +37,23 @@ class CourseRepository {
     if (!Types.ObjectId.isValid(authorId)) {
       return [];
     }
-    return await CourseModel.find({ author: authorId }).populate('lessons', 'title duration').exec();
+    return await CourseModel.find({ author: authorId }).populate('author', 'name email avatar').exec();
   }
 
   async findByAllowedUser(userId: string): Promise<Course[]> {
     if (!Types.ObjectId.isValid(userId)) {
       return [];
     }
-    return await CourseModel.find({ allowedUsers: userId })
-      .populate('author', 'name email avatar')
-      .populate('lessons', 'title duration')
-      .exec();
+    return await CourseModel.find({ allowedUsers: userId }).populate('author', 'name email avatar').exec();
   }
 
   async findByDifficulty(difficulty: string): Promise<Course[]> {
-    return await CourseModel.find({ difficulty })
-      .populate('author', 'name email avatar')
-      .populate('lessons', 'title duration')
-      .exec();
+    return await CourseModel.find({ difficulty }).populate('author', 'name email avatar').exec();
   }
 
   async findPublished(): Promise<Course[]> {
     return await CourseModel.find({ isPublished: true })
       .populate('author', 'name email avatar')
-      .populate('lessons', 'title duration')
       .sort({ createdAt: -1 })
       .exec();
   }
@@ -69,7 +65,6 @@ class CourseRepository {
 
     const updatedCourse = await CourseModel.findByIdAndUpdate(id, { ...patch }, { new: true, runValidators: true })
       .populate('author', 'name email avatar')
-      .populate('lessons', 'title duration')
       .exec();
 
     if (!updatedCourse) {
@@ -93,13 +88,14 @@ class CourseRepository {
       throw new Error('Invalid course ID');
     }
 
+    // $inc в той же атомарной операции, что и $push — lessonsCount не может разойтись
+    // с реальной длиной lessons[] (не отдельный round-trip, не пересчёт в Node).
     const updatedCourse = await CourseModel.findByIdAndUpdate(
       courseId,
-      { $push: { lessons: lessonId } },
+      { $push: { lessons: lessonId }, $inc: { lessonsCount: 1 } },
       { new: true, runValidators: true }
     )
       .populate('author', 'name email avatar')
-      .populate('lessons', 'title duration')
       .exec();
 
     if (!updatedCourse) {
@@ -116,11 +112,10 @@ class CourseRepository {
 
     const updatedCourse = await CourseModel.findByIdAndUpdate(
       courseId,
-      { $pull: { lessons: lessonId } },
+      { $pull: { lessons: lessonId }, $inc: { lessonsCount: -1 } },
       { new: true, runValidators: true }
     )
       .populate('author', 'name email avatar')
-      .populate('lessons', 'title duration')
       .exec();
 
     if (!updatedCourse) {
@@ -142,7 +137,6 @@ class CourseRepository {
     )
       .populate('author', 'name email avatar')
       .populate('allowedUsers', 'name email')
-      .populate('lessons', 'title duration')
       .exec();
 
     if (!updatedCourse) {
@@ -164,7 +158,6 @@ class CourseRepository {
     )
       .populate('author', 'name email avatar')
       .populate('allowedUsers', 'name email')
-      .populate('lessons', 'title duration')
       .exec();
 
     if (!updatedCourse) {
@@ -249,7 +242,6 @@ class CourseRepository {
           { new: true, session }
         )
           .populate({ path: 'author', select: 'name email avatar', options: { session } })
-          .populate('lessons', 'title duration')
           .exec();
 
         if (!updatedCourse) {

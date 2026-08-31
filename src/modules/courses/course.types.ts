@@ -22,9 +22,10 @@ export type Course = {
   tags: string[];
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   lessons?: Types.ObjectId[]; // массив уроков курса
-  // ratingSum/ratingCount — поддерживаются атомарным pipeline-update в course.repository.ts
-  // (addRating), а не пересчётом в Node — O(1) на запись независимо от того, сколько
-  // всего оценок накопилось у курса.
+  // Счётчики, поддерживаемые атомарными $inc/pipeline-update в course.repository.ts
+  // (addLesson/removeLesson/addRating), а не пересчётом в Node — O(1) на запись
+  // независимо от того, сколько всего уроков/оценок накопилось у курса.
+  lessonsCount: number;
   ratingSum: number;
   ratingCount: number;
   averageRating?: number;
@@ -36,7 +37,15 @@ export type Course = {
 
 export type NewCourse = Omit<
   Course,
-  '_id' | 'createdAt' | 'updatedAt' | 'averageRating' | 'lessons' | 'ratingSum' | 'ratingCount' | 'allowedUsers'
+  | '_id'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'averageRating'
+  | 'lessons'
+  | 'lessonsCount'
+  | 'ratingSum'
+  | 'ratingCount'
+  | 'allowedUsers'
 >;
 
 export type UpdateCourse = Partial<
@@ -47,6 +56,7 @@ export type UpdateCourse = Partial<
     | 'updatedAt'
     | 'averageRating'
     | 'lessons'
+    | 'lessonsCount'
     | 'ratingSum'
     | 'ratingCount'
     | 'allowedUsers'

@@ -55,6 +55,7 @@ function createMockCourse(overrides: Partial<Course> = {}): Course {
     tags: [],
     difficulty: 'beginner',
     lessons: [],
+    lessonsCount: 0,
     ratingSum: 0,
     ratingCount: 0,
     averageRating: 0,

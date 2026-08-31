@@ -45,6 +45,13 @@ const courseSchema = new Schema<Course>(
         default: [],
       },
     ],
+    // Поддерживается атомарным $inc в courseRepository.addLesson/removeLesson — не
+    // count() по populate() при каждом чтении списка курсов (см. Obsidian: highload).
+    lessonsCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     // ratingSum/ratingCount — поддерживаются pipeline-update в courseRepository.addRating
     // (rating.model.ts — источник истины по отдельным оценкам). averageRating — их
     // производная, тоже пересчитывается там же одной атомарной операцией, а не в Node.
