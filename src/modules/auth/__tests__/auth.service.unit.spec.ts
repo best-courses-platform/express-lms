@@ -60,6 +60,16 @@ const mockUserService = userService as jest.Mocked<typeof userService>;
 const mockUserRepository = userRepository as jest.Mocked<typeof userRepository>;
 const mockEmailService = emailService as jest.Mocked<typeof emailService>;
 
+// patch.emailVerificationToken/passwordResetToken в вызовах updateWithSensitiveFields
+// типизированы как string | null | undefined (Partial<User>), хотя authService реально
+// кладёт туда crypto.randomBytes(...).toString('hex') — всегда строку. `as string` тут
+// соврал бы TypeScript'у, если бы когда-нибудь сюда действительно прилетело null/undefined —
+// вместо этого настоящая runtime-проверка (Jest её видит и провалит тест, если это не так)
+// плюс TS-narrowing через `asserts` для использования значения ниже без приведения типов.
+function assertIsString(value: unknown): asserts value is string {
+  expect(typeof value).toBe('string');
+}
+
 // Настоящий Mongoose-документ (через UserModel), не сохранённый в БД — comparePassword,
 // toObject(), isNew/$isNew/_doc и т.п. работают взаправду (это ровно то, от чего зависят
 // строгие type guards в auth.service.ts — isUserDocumentStrict/hasComparePassword), не
@@ -376,6 +386,7 @@ describe('AuthService', () => {
         // Then
         const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
         expect(id).toBe(user._id.toString());
+        assertIsString(patch.emailVerificationToken);
         expect(patch.emailVerificationToken).not.toBe('old-token');
         expect(patch.emailVerificationExpires).toBeInstanceOf(Date);
         expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
@@ -463,7 +474,7 @@ describe('AuthService', () => {
         // Then
         const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
         expect(id).toBe(user._id.toString());
-        expect(patch.passwordResetToken).toEqual(expect.any(String));
+        assertIsString(patch.passwordResetToken);
         expect(patch.passwordResetExpires).toBeInstanceOf(Date);
         expect(mockEmailService.sendPasswordResetEmail).toHaveBeenCalledWith(
           'test@example.com',
