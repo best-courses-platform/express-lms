@@ -30,6 +30,7 @@ jest.mock('users/user.repository', () => ({
     findByIdWithPassword: jest.fn(),
     findByEmailVerificationToken: jest.fn(),
     findByPasswordResetToken: jest.fn(),
+    updateWithSensitiveFields: jest.fn(),
   },
 }));
 jest.mock('email/email.service', () => ({
@@ -302,20 +303,31 @@ describe('AuthService', () => {
     });
 
     describe('Когда токен валиден и не просрочен', () => {
-      it('должен подтвердить email и очистить токен', async () => {
+      it('должен подтвердить email и очистить токен через userRepository.updateWithSensitiveFields', async () => {
         // Given
         const user = await createUserDocument({
           isEmailVerified: false,
           emailVerificationToken: 'valid-token',
           emailVerificationExpires: new Date(Date.now() + 60_000),
         });
-        jest.spyOn(user, 'save').mockResolvedValue(user);
         mockUserRepository.findByEmailVerificationToken.mockResolvedValue(user);
+        const updatedUser = await createUserDocument({
+          _id: user._id,
+          isEmailVerified: true,
+          emailVerificationToken: null,
+          emailVerificationExpires: null,
+        });
+        mockUserRepository.updateWithSensitiveFields.mockResolvedValue(updatedUser);
 
         // When
         const result = await authService.verifyEmail('valid-token');
 
         // Then
+        expect(mockUserRepository.updateWithSensitiveFields).toHaveBeenCalledWith(user._id.toString(), {
+          isEmailVerified: true,
+          emailVerificationToken: null,
+          emailVerificationExpires: null,
+        });
         expect(result.isEmailVerified).toBe(true);
         expect(result.emailVerificationToken).toBeNull();
       });
@@ -351,21 +363,24 @@ describe('AuthService', () => {
     });
 
     describe('Когда пользователь существует и email не подтверждён', () => {
-      it('должен сгенерировать новый токен и отправить письмо', async () => {
+      it('должен сгенерировать новый токен через userRepository.updateWithSensitiveFields и отправить письмо', async () => {
         // Given
         const user = await createUserDocument({ isEmailVerified: false, emailVerificationToken: 'old-token' });
-        jest.spyOn(user, 'save').mockResolvedValue(user);
         mockUserRepository.findByEmail.mockResolvedValue(user);
+        mockUserRepository.updateWithSensitiveFields.mockResolvedValue(user);
         mockEmailService.isConfigured.mockReturnValue(true);
 
         // When
         await authService.resendVerificationEmail('test@example.com');
 
         // Then
-        expect(user.emailVerificationToken).not.toBe('old-token');
+        const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
+        expect(id).toBe(user._id.toString());
+        expect(patch.emailVerificationToken).not.toBe('old-token');
+        expect(patch.emailVerificationExpires).toBeInstanceOf(Date);
         expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
           'test@example.com',
-          user.emailVerificationToken as string,
+          patch.emailVerificationToken,
           'Test User'
         );
       });
@@ -435,22 +450,24 @@ describe('AuthService', () => {
     });
 
     describe('Когда пользователь существует', () => {
-      it('должен сгенерировать токен сброса, сохранить документ и отправить письмо', async () => {
+      it('должен сгенерировать токен сброса через userRepository.updateWithSensitiveFields и отправить письмо', async () => {
         // Given
         const user = await createUserDocument();
-        jest.spyOn(user, 'save').mockResolvedValue(user);
         mockUserRepository.findByEmail.mockResolvedValue(user);
+        mockUserRepository.updateWithSensitiveFields.mockResolvedValue(user);
         mockEmailService.isConfigured.mockReturnValue(true);
 
         // When
         await authService.requestPasswordReset('test@example.com');
 
         // Then
-        expect(user.passwordResetToken).toEqual(expect.any(String));
-        expect(user.passwordResetExpires).toBeInstanceOf(Date);
+        const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
+        expect(id).toBe(user._id.toString());
+        expect(patch.passwordResetToken).toEqual(expect.any(String));
+        expect(patch.passwordResetExpires).toBeInstanceOf(Date);
         expect(mockEmailService.sendPasswordResetEmail).toHaveBeenCalledWith(
           'test@example.com',
-          user.passwordResetToken as string,
+          patch.passwordResetToken,
           'Test User'
         );
       });
