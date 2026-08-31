@@ -296,12 +296,64 @@ describe('Course routes (integration)', () => {
         const secondResponse = await raterAgent.post(`/api/courses/${course._id}/ratings`).send({ value: 5 });
 
         expect(secondResponse.status).toBe(200);
-        expect(secondResponse.body.course.ratings).toHaveLength(1);
-        expect(secondResponse.body.course.ratings[0].value).toBe(5);
+        // ratings больше не embedded-поле на курсе (см. rating.model.ts — отдельная
+        // коллекция) — единственный источник правды для повторной оценки того же
+        // пользователя теперь GET /:id/ratings ниже, а не course.ratings в ответе.
         expect(secondResponse.body.course.averageRating).toBe(5);
 
         const ratingsResponse = await request(app).get(`/api/courses/${course._id}/ratings`);
         expect(ratingsResponse.body).toHaveLength(1);
+        expect(ratingsResponse.body[0].value).toBe(5);
+      });
+    });
+
+    describe('Когда два разных пользователя оценивают курс', () => {
+      it('averageRating должен быть средним обеих оценок', async () => {
+        const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
+        const course = await createCourseViaApi(authorAgent, { isPublished: true });
+
+        const { agent: firstRater } = await loginAgent(app, { role: 'student' });
+        const { agent: secondRater } = await loginAgent(app, { role: 'student' });
+
+        await firstRater.post(`/api/courses/${course._id}/ratings`).send({ value: 2 });
+        const response = await secondRater.post(`/api/courses/${course._id}/ratings`).send({ value: 4 });
+
+        expect(response.status).toBe(200);
+        expect(response.body.course.averageRating).toBe(3);
+
+        const ratingsResponse = await request(app).get(`/api/courses/${course._id}/ratings`);
+        expect(ratingsResponse.body).toHaveLength(2);
+      });
+    });
+  });
+
+  describe('GET /api/courses/search', () => {
+    describe('Когда query-параметр q не передан', () => {
+      it('должен вернуть 400', async () => {
+        const response = await request(app).get('/api/courses/search');
+        expect(response.status).toBe(400);
+      });
+    });
+
+    describe('Когда есть опубликованный курс с совпадением в title', () => {
+      it('должен найти его через $text и не найти неопубликованный курс с тем же словом', async () => {
+        const { agent } = await loginAgent(app, { role: 'author' });
+        const uniqueWord = `Quantumcraft${Date.now()}`;
+        const published = await createCourseViaApi(agent, {
+          title: `${uniqueWord} для начинающих`,
+          isPublished: true,
+        });
+        await createCourseViaApi(agent, {
+          title: `${uniqueWord} для продвинутых`,
+          isPublished: false,
+        });
+
+        const response = await request(app).get('/api/courses/search').query({ q: uniqueWord });
+
+        expect(response.status).toBe(200);
+        const foundIds = (response.body as Array<{ _id: string }>).map(c => c._id);
+        expect(foundIds).toContain(published._id);
+        expect(foundIds).toHaveLength(1);
       });
     });
   });

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import './setupTestEnv';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 
 // Отдельный от Jest бутстрап реального Express-процесса для Playwright E2E (lms-web) —
@@ -18,7 +18,11 @@ import mongoose from 'mongoose';
 const MONGO_URI_FILE = path.join(__dirname, '.e2e-mongo-uri');
 
 async function main(): Promise<void> {
-  const mongod = await MongoMemoryServer.create({ instance: { dbName: 'best-courses-ever-e2e' } });
+  // MongoMemoryReplSet, не MongoMemoryServer — та же причина, что в test/globalSetup.ts:
+  // courseRepository.addRating() использует session.withTransaction(), которая требует
+  // replica set (даже одноузловой) — на standalone упала бы с ошибкой в первом же
+  // Playwright-сценарии, ставящем оценку курсу.
+  const mongod = await MongoMemoryReplSet.create({ replSet: { dbName: 'best-courses-ever-e2e' } });
   process.env.MONGO_URI = mongod.getUri();
 
   // Playwright-хелперы (lms-web/e2e/helpers.ts) читают этот файл, чтобы подключиться к той

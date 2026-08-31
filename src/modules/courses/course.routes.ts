@@ -10,6 +10,9 @@ const r = Router();
 // непубликованный курс виден только автору/allowedUsers (см. CourseController.getCourse)
 r.get('/', CourseController.listCourse);
 r.get('/published', CourseController.getPublishedCourses);
+// /search — статический путь, обязан идти раньше /:id, иначе Express матчит "search"
+// как значение :id (см. Obsidian: порядок роутов Express).
+r.get('/search', ...CourseController.searchCourses);
 r.get('/author/:authorId', ...CourseController.getCoursesByAuthor);
 r.get('/difficulty/:level', ...CourseController.getCoursesByDifficulty);
 r.get('/mine', jwtAuth, requireVerifiedEmail, CourseController.getMyCourses);

@@ -1,23 +1,5 @@
 import { model, Schema } from 'mongoose';
-import { Course, Rating } from './course.types';
-
-const ratingSchema = new Schema({
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-  },
-  value: {
-    type: Number,
-    required: true,
-    min: 1,
-    max: 5,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+import { Course } from './course.types';
 
 const courseSchema = new Schema<Course>(
   {
@@ -63,9 +45,25 @@ const courseSchema = new Schema<Course>(
         default: [],
       },
     ],
-    ratings: {
-      type: [ratingSchema],
-      default: [],
+    // Поддерживается атомарным $inc в courseRepository.addLesson/removeLesson — не
+    // count() по populate() при каждом чтении списка курсов (см. Obsidian: highload).
+    lessonsCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // ratingSum/ratingCount — поддерживаются pipeline-update в courseRepository.addRating
+    // (rating.model.ts — источник истины по отдельным оценкам). averageRating — их
+    // производная, тоже пересчитывается там же одной атомарной операцией, а не в Node.
+    ratingSum: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    ratingCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     averageRating: {
       type: Number,
@@ -91,37 +89,15 @@ const courseSchema = new Schema<Course>(
 );
 
 // Индексы для оптимизации запросов
+// title/description — используется courseRepository.search() через $text (найден раньше
+// объявленным, но неиспользуемым — платили за поддержку индекса на каждую запись без
+// единой пользы; см. Obsidian: "Обход ORM на горячих путях"). Нативный полнотекстовый
+// поиск MongoDB — эта задача не требует Elasticsearch на масштабе "сотни курсов".
 courseSchema.index({ title: 'text', description: 'text' });
 courseSchema.index({ author: 1 });
 courseSchema.index({ difficulty: 1 });
 courseSchema.index({ isPublished: 1 });
 courseSchema.index({ averageRating: -1 });
 courseSchema.index({ createdAt: -1 });
-
-// Пересчёт averageRating при изменении рейтингов. Экспортирован: пригождается и здесь
-// (pre('save') хук — реально срабатывает только при создании курса, ratings тогда пуст),
-// и в course.repository.ts (addRating всегда идёт через findByIdAndUpdate/$push, а не
-// document.save() — pre('save') на такие запросы Mongoose не вызывает вообще).
-export const calculateAverageRating = (ratings: Rating[]): number => {
-  if (ratings.length === 0) {
-    return 0;
-  }
-
-  const total = ratings.reduce((sum, rating) => sum + rating.value, 0);
-  return Math.round((total / ratings.length) * 10) / 10;
-};
-
-// Middleware для пересчета averageRating при изменении рейтингов
-courseSchema.pre('save', function (next) {
-  const shouldRecalculate = this.isModified('ratings');
-
-  if (!shouldRecalculate) {
-    return next();
-  }
-
-  this.averageRating = calculateAverageRating(this.ratings);
-
-  next();
-});
 
 export const CourseModel = model<Course>('Course', courseSchema);

@@ -6,10 +6,22 @@ import { objectIdSchema } from '../../shared/validation/object-id.schema';
 // в object-id.schema.ts). Именно path-параметры участвуют в маршрутизации Express, поэтому
 // только они здесь ужесточены; поля тела запроса (например, userId в addUserToAllowedSchema)
 // маршрутизацию не затрагивают и остаются на прежней z.string().min(1, ...) проверке.
-const courseIdParam = objectIdSchema(COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED, COURSE_MESSAGES.VALIDATION.COURSE_ID_INVALID);
-const authorIdParam = objectIdSchema(COURSE_MESSAGES.VALIDATION.AUTHOR_REQUIRED, COURSE_MESSAGES.VALIDATION.AUTHOR_INVALID);
-const lessonIdParam = objectIdSchema(COURSE_MESSAGES.VALIDATION.LESSON_ID_REQUIRED, COURSE_MESSAGES.VALIDATION.LESSON_ID_INVALID);
-const userIdParam = objectIdSchema(COURSE_MESSAGES.VALIDATION.USER_ID_REQUIRED, COURSE_MESSAGES.VALIDATION.USER_ID_INVALID);
+const courseIdParam = objectIdSchema(
+  COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED,
+  COURSE_MESSAGES.VALIDATION.COURSE_ID_INVALID
+);
+const authorIdParam = objectIdSchema(
+  COURSE_MESSAGES.VALIDATION.AUTHOR_REQUIRED,
+  COURSE_MESSAGES.VALIDATION.AUTHOR_INVALID
+);
+const lessonIdParam = objectIdSchema(
+  COURSE_MESSAGES.VALIDATION.LESSON_ID_REQUIRED,
+  COURSE_MESSAGES.VALIDATION.LESSON_ID_INVALID
+);
+const userIdParam = objectIdSchema(
+  COURSE_MESSAGES.VALIDATION.USER_ID_REQUIRED,
+  COURSE_MESSAGES.VALIDATION.USER_ID_INVALID
+);
 
 // Поля без .default() — единственный источник правил валидации, переиспользуется и
 // созданием (через courseBaseSchema ниже), и обновлением (courseFieldsSchema.partial()
@@ -119,6 +131,13 @@ export const removeUserFromAllowedSchema = z.object({
   }),
 });
 
+// Поиск по каталогу — $text search поверх нативного text-индекса Mongo, см. course.repository.ts
+export const searchCourseSchema = z.object({
+  query: z.object({
+    q: z.string().min(1, COURSE_MESSAGES.VALIDATION.SEARCH_QUERY_REQUIRED),
+  }),
+});
+
 // Рейтинги
 export const addRatingSchema = z.object({
   params: z.object({
@@ -134,6 +153,7 @@ export type CreateCourseInput = z.infer<typeof createCourseSchema>['body'];
 export type UpdateCourseInput = z.infer<typeof updateCourseSchema>['body'];
 export type AddUserToAllowedInput = z.infer<typeof addUserToAllowedSchema>['body'];
 export type AddRatingInput = z.infer<typeof addRatingSchema>['body'];
+export type SearchCourseInput = z.infer<typeof searchCourseSchema>['query'];
 export type IdParamInput = z.infer<typeof idParamSchema>['params'];
 export type AuthorParamInput = z.infer<typeof authorParamSchema>['params'];
 export type DifficultyParamInput = z.infer<typeof difficultyParamSchema>['params'];
