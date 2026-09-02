@@ -4,7 +4,13 @@ import bcrypt from 'bcryptjs';
 // event loop именно этого потока, не основного. Каждая функция экспортирована отдельно
 // и выбирается вызывающей стороной через `pool.run(task, { name })`.
 
-export async function hashPassword({ password, saltRounds }: { password: string; saltRounds: number }): Promise<string> {
+export async function hashPassword({
+  password,
+  saltRounds,
+}: {
+  password: string;
+  saltRounds: number;
+}): Promise<string> {
   const salt = await bcrypt.genSalt(saltRounds);
   return bcrypt.hash(password, salt);
 }

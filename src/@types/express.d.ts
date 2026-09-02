@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-import {User as AppUser} from 'users/user.types';
+import { User as AppUser } from 'users/user.types';
 
 declare global {
   namespace Express {

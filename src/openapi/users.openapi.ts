@@ -36,7 +36,10 @@ registry.registerPath({
   security: authSecurity,
   request: { body: jsonBody(createUserSchema.shape.body) },
   responses: {
-    201: { description: 'Пользователь создан', content: { 'application/json': { schema: z.object({ message: z.string(), user: userResponseSchema }) } } },
+    201: {
+      description: 'Пользователь создан',
+      content: { 'application/json': { schema: z.object({ message: z.string(), user: userResponseSchema }) } },
+    },
     400: errorResponse('Ошибка валидации (например, пароли не совпадают)'),
     401: errorResponse('Не авторизован'),
     403: errorResponse(ADMIN_ONLY),
@@ -52,7 +55,10 @@ registry.registerPath({
   description: ADMIN_ONLY,
   security: authSecurity,
   responses: {
-    200: { description: 'Массив пользователей', content: { 'application/json': { schema: z.array(userResponseSchema) } } },
+    200: {
+      description: 'Массив пользователей',
+      content: { 'application/json': { schema: z.array(userResponseSchema) } },
+    },
     401: errorResponse('Не авторизован'),
     403: errorResponse(ADMIN_ONLY),
   },
@@ -86,7 +92,10 @@ registry.registerPath({
   security: authSecurity,
   request: { params: updateUserSchema.shape.params, body: jsonBody(updateUserSchema.shape.body) },
   responses: {
-    200: { description: 'Пользователь обновлён', content: { 'application/json': { schema: z.object({ message: z.string(), user: userResponseSchema }) } } },
+    200: {
+      description: 'Пользователь обновлён',
+      content: { 'application/json': { schema: z.object({ message: z.string(), user: userResponseSchema }) } },
+    },
     400: errorResponse('Ошибка валидации (например, ни одно поле не передано)'),
     401: errorResponse('Не авторизован'),
     403: errorResponse(ADMIN_ONLY),

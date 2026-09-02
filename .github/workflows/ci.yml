@@ -1,0 +1,58 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Новый пуш в тот же PR отменяет ещё бегущий запуск по предыдущему коммиту —
+# не тратим минуты раннера на заведомо устаревший код.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      # test/globalSetup.ts качает бинарь mongod под mongodb-memory-server при первом
+      # запуске (~100МБ) — кешируем между запусками по версии пакета из package-lock.json,
+      # иначе каждый CI-прогон заново тянет его из сети (медленнее и менее надёжно).
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      # Интеграционные тесты сами поднимают эфемерный MongoDB (mongodb-memory-server) и не
+      # трогают Redis (email.queue.ts намеренно не создаёт соединение в NODE_ENV=test, см.
+      # комментарий там) — внешние сервисы раннеру не нужны.
+      - run: npm test
