@@ -1,5 +1,6 @@
 import path from 'path';
 import Piscina from 'piscina';
+import { config } from '../../config';
 
 // В dev/тестах процесс запускается через tsx/@swc-jest, а не `node dist/*.js` — __filename
 // у скомпилированного кода сохраняет .ts. Worker-поток стартует как отдельный процесс без
@@ -26,6 +27,15 @@ const pool = new Piscina({
   // Без этого пул держит потоки живыми бесконечно даже без задач — процесс (и jest после
   // тестов) не завершался бы сам по себе, пришлось бы отдельно звать pool.destroy() везде.
   idleTimeout: 30000,
+  // Явная передача pepper'а через workerData, а не импорт всего config/index.ts ВНУТРИ
+  // password-hasher.worker.ts — воркер выполняется в настоящем worker_threads-потоке со
+  // своим отдельным process.env (Node docs: "env — Default: process.env", копия на момент
+  // создания Worker'а, не живая ссылка на env основного процесса) — если бы воркер сам
+  // импортировал config, он заново гонял бы ПОЛНУЮ Zod-валидацию (JWT/Google/GitHub секреты
+  // и т.д., совершенно не при чём к хешированию пароля) в этом отдельном окружении.
+  // workerData — то, что Piscina/Node передаёт КАЖДОМУ потоку явно и надёжно, в обход
+  // вопроса "какой у него process.env" целиком.
+  workerData: { passwordPepper: config.passwordPepper },
 });
 
 export async function hashPassword(password: string): Promise<string> {

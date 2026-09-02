@@ -13,6 +13,10 @@ process.env.JWT_REFRESH_SECRET = 'test-jwt-refresh-secret';
 process.env.JWT_ACCESS_EXPIRES_IN = '8h';
 process.env.JWT_REFRESH_EXPIRES_IN = '30d';
 
+// min(32) в configSchema (см. src/config/schema.ts) — просто длинная фиктивная строка,
+// как и остальные секреты на этой странице.
+process.env.PASSWORD_PEPPER = 'test-password-pepper-not-a-real-secret-32plus';
+
 process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
 process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
 process.env.GITHUB_CLIENT_ID = 'test-github-client-id';

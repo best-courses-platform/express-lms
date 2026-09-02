@@ -15,6 +15,12 @@ export const configSchema = z
     jwtAccessExpiresIn: z.string().default('8h'),
     jwtRefreshExpiresIn: z.string().default('30d'),
 
+    // Pepper для паролей (см. password-hasher.worker.ts) — секрет, который НЕ хранится в БД
+    // рядом с хешем (в отличие от соли), поэтому утечка одной только коллекции users не даёт
+    // достаточно данных для офлайн-брутфорса. min(32) — тот же порядок величины, что и у
+    // JWT-секретов в .env (обычно 64-символьный hex, то есть 32 байта энтропии).
+    passwordPepper: z.string().min(32, CONFIG_MESSAGES.ERROR.PASSWORD_PEPPER_REQUIRED),
+
     // Google OAuth
     googleClientId: z.string().min(1, CONFIG_MESSAGES.ERROR.GOOGLE_CLIENT_ID_REQUIRED),
     googleClientSecret: z.string().min(1, CONFIG_MESSAGES.ERROR.GOOGLE_CLIENT_SECRET_REQUIRED),
