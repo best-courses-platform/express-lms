@@ -17,6 +17,7 @@ export const CONFIG_MESSAGES = {
     GOOGLE_CLIENT_SECRET_REQUIRED: 'GOOGLE_CLIENT_SECRET обязателен',
     GITHUB_CLIENT_ID_REQUIRED: 'GITHUB_CLIENT_ID обязателен',
     GITHUB_CLIENT_SECRET_REQUIRED: 'GITHUB_CLIENT_SECRET обязателен',
+    PASSWORD_PEPPER_REQUIRED: 'PASSWORD_PEPPER обязателен и должен быть не короче 32 символов',
   },
   INFO: {
     STARTING_DEV: 'Запуск разработки',

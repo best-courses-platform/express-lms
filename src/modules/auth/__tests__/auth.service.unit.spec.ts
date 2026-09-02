@@ -1,7 +1,7 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import bcrypt from 'bcryptjs';
 import { Types } from 'mongoose';
 import { UserModel } from 'users/user.model';
+import { hashPassword } from 'users/password-hasher';
 import { AppError } from '../../../utils/errors';
 import type { authService as AuthServiceInstance } from '../auth.service';
 import type { userService as UserServiceInstance } from 'users/user.service';
@@ -40,6 +40,13 @@ jest.mock('email/email.service', () => ({
     sendPasswordResetEmail: jest.fn(),
   },
 }));
+// Реальная isPasswordBreached бьёт по сети (api.pwnedpasswords.com) — недопустимо в юнит-тесте
+// (медленно, недетерминированно, требует сеть на CI). Мокается отдельно от остальных сетевых
+// вызовов auth-модуля (jwtService намеренно НЕ мокается, см. комментарий выше) — разница в том,
+// что jwtService чистый и локальный, а isPasswordBreached обращается к стороннему HTTP API.
+jest.mock('../breached-password-checker', () => ({
+  isPasswordBreached: jest.fn(),
+}));
 
 // @swc/jest, в отличие от babel-jest, НЕ хойстит jest.mock() выше import-ов (нет аналога
 // babel-plugin-jest-hoist) — а сами import-ы, по семантике ESM, хойстятся системой модулей
@@ -55,9 +62,13 @@ const { userRepository } = require('users/user.repository') as {
   userRepository: typeof UserRepositoryInstance;
 };
 const { emailService } = require('email/email.service') as { emailService: typeof EmailServiceInstance };
+const { isPasswordBreached } = require('../breached-password-checker') as {
+  isPasswordBreached: (password: string) => Promise<boolean>;
+};
 
 const mockUserService = userService as jest.Mocked<typeof userService>;
 const mockUserRepository = userRepository as jest.Mocked<typeof userRepository>;
+const mockIsPasswordBreached = isPasswordBreached as jest.MockedFunction<typeof isPasswordBreached>;
 const mockEmailService = emailService as jest.Mocked<typeof emailService>;
 
 // patch.emailVerificationToken/passwordResetToken в вызовах updateWithSensitiveFields
@@ -80,9 +91,11 @@ async function createUserDocument(
   overrides: Partial<User> & { plainPassword?: string } = {}
 ): Promise<UserDocument> {
   const { plainPassword = 'password123', ...rest } = overrides;
-  // rounds=4 вместо продовых 12 — единственная причина: скорость юнит-тестов,
-  // на корректность bcrypt.compare не влияет.
-  const hashedPassword = await bcrypt.hash(plainPassword, 4);
+  // Настоящий hashPassword (не голый вызов алгоритма впрямую) — чтобы тест не был завязан
+  // на то, каким конкретно алгоритмом сейчас хешируются пароли (bcrypt/argon2id/другой):
+  // comparePassword() в auth.service.ts должен успешно проверить именно то, что реально
+  // производит прод-код, а не самодельную имитацию его формата.
+  const hashedPassword = await hashPassword(plainPassword);
 
   const user = new UserModel({
     name: 'Test User',
@@ -106,6 +119,12 @@ async function createUserDocument(
 describe('AuthService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Дефолт для всех тестов ниже, не касающихся именно этой проверки — реальный пароль
+    // "password123"/"new-password"/т.п. в тестовых фикстурах не должен считаться утёкшим
+    // (иначе пришлось бы явно настраивать этот мок в каждом тесте register/changePassword/
+    // resetPassword по отдельности). Переопределяется точечно в тестах ниже, где как раз
+    // проверяется PASSWORD_BREACHED-ветка.
+    mockIsPasswordBreached.mockResolvedValue(false);
   });
 
   describe('register', () => {
@@ -178,6 +197,19 @@ describe('AuthService', () => {
         await expect(
           authService.register({ name: 'Dup', email: 'dup@example.com', password: 'password123' })
         ).rejects.toMatchObject({ status: 409 });
+      });
+    });
+
+    describe('Когда пароль встречался в известных утечках (HIBP)', () => {
+      it('должен выбросить 400 и не создавать пользователя вообще', async () => {
+        // Given
+        mockIsPasswordBreached.mockResolvedValue(true);
+
+        // When & Then
+        await expect(
+          authService.register({ name: 'New User', email: 'new@example.com', password: 'password123' })
+        ).rejects.toMatchObject({ status: 400 });
+        expect(mockUserService.create).not.toHaveBeenCalled();
       });
     });
   });
@@ -282,6 +314,22 @@ describe('AuthService', () => {
         // Then
         expect(user.password).toBe('new-password');
         expect(saveSpy).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('Когда текущий пароль верный, но новый пароль встречался в известных утечках (HIBP)', () => {
+      it('должен выбросить 400 и не сохранять документ', async () => {
+        // Given
+        const user = await createUserDocument({ plainPassword: 'old-password' });
+        const saveSpy = jest.spyOn(user, 'save');
+        mockUserRepository.findByIdWithPassword.mockResolvedValue(user);
+        mockIsPasswordBreached.mockResolvedValue(true);
+
+        // When & Then
+        await expect(
+          authService.changePassword(user._id.toString(), 'old-password', 'new-password')
+        ).rejects.toMatchObject({ status: 400 });
+        expect(saveSpy).not.toHaveBeenCalled();
       });
     });
   });
@@ -531,6 +579,26 @@ describe('AuthService', () => {
         expect(user.password).toBe('new-password123');
         expect(user.passwordResetToken).toBeNull();
         expect(user.passwordResetExpires).toBeNull();
+      });
+    });
+
+    describe('Когда токен валиден, но новый пароль встречался в известных утечках (HIBP)', () => {
+      it('должен выбросить 400 и не трогать документ пользователя', async () => {
+        // Given
+        const user = await createUserDocument({
+          passwordResetToken: 'valid-token',
+          passwordResetExpires: new Date(Date.now() + 60_000),
+        });
+        const saveSpy = jest.spyOn(user, 'save');
+        mockUserRepository.findByPasswordResetToken.mockResolvedValue(user);
+        mockIsPasswordBreached.mockResolvedValue(true);
+
+        // When & Then
+        await expect(authService.resetPassword('valid-token', 'new-password123')).rejects.toMatchObject({
+          status: 400,
+        });
+        expect(saveSpy).not.toHaveBeenCalled();
+        expect(user.passwordResetToken).toBe('valid-token');
       });
     });
   });

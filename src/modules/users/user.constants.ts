@@ -14,6 +14,7 @@ export const USER_MESSAGES = {
     USER_DATA_PROCESSING_ERROR: 'Ошибка обработки данных пользователя',
     INVALID_USER_ID: 'Неверный ID пользователя',
     EMAIL_NOT_VERIFIED: 'Email не подтвержден',
+    HASHING_SERVICE_BUSY: 'Сервер перегружен, попробуйте ещё раз через несколько секунд',
   },
   VALIDATION: {
     ...COMMON_MESSAGES.VALIDATION,
