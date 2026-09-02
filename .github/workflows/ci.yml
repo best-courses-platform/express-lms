@@ -25,6 +25,21 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
 
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      # high/critical, не дефолтный low — low/moderate у транзитивных dev-зависимостей
+      # (eslint-тулинг и т.п.) исторически оказывались шумом без реального вектора
+      # эксплуатации в этом приложении, см. риск-триаж в Obsidian (npm audit: 38 → 0).
+      # Блокировать PR на них означало бы гнать --force не глядя ради зелёной галочки.
+      - run: npm audit --audit-level=high
+
   typecheck:
     runs-on: ubuntu-latest
     steps:
