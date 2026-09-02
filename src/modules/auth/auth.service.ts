@@ -10,6 +10,7 @@ import {
   UnauthorizedError,
 } from '../../utils/errors';
 import { AUTH_MESSAGES } from './auth.constants';
+import { isPasswordBreached } from './breached-password-checker';
 import { isPlainUser, isUserDocumentStrict } from '../../utils/typeGuards';
 import { userRepository } from 'users/user.repository';
 import { emailService } from 'email/email.service';
@@ -19,6 +20,12 @@ import crypto from 'crypto'; // Импортируем crypto
 export class AuthService {
   async register(userData: { name: string; email: string; password: string }): Promise<{ user: User }> {
     try {
+      // Проверяем ДО создания пользователя — быстрый отказ без единой записи в БД, если
+      // пароль уже засветился в известных утечках (см. breached-password-checker.ts).
+      if (await isPasswordBreached(userData.password)) {
+        throw new BadRequestError(AUTH_MESSAGES.ERROR.PASSWORD_BREACHED);
+      }
+
       // Роль для публичной саморегистрации всегда 'student' — назначается сервером,
       // а не берётся из тела запроса (иначе анонимный клиент мог бы прислать role: 'admin').
       // userService.create сам решает isEmailVerified/токен (false + токен для локальной регистрации, true для OAuth)
@@ -125,6 +132,10 @@ export class AuthService {
       throw new BadRequestError(AUTH_MESSAGES.ERROR.RESET_TOKEN_EXPIRED);
     }
 
+    if (await isPasswordBreached(newPassword)) {
+      throw new BadRequestError(AUTH_MESSAGES.ERROR.PASSWORD_BREACHED);
+    }
+
     // Осознанно НЕ через userRepository.update*() — хеширование пароля происходит
     // в userSchema.pre('save', ...) (user.model.ts), а не при findByIdAndUpdate,
     // который используют методы репозитория. Замена на update() тут молча уронит
@@ -174,6 +185,12 @@ export class AuthService {
     const isCurrentPasswordValid = await user.comparePassword(currentPassword);
     if (!isCurrentPasswordValid) {
       throw new BadRequestError(AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
+    }
+
+    // Проверяем НОВЫЙ пароль на утечки уже после подтверждения владения текущим —
+    // не даём постороннему без currentPassword ничего узнать через этот побочный канал.
+    if (await isPasswordBreached(newPassword)) {
+      throw new BadRequestError(AUTH_MESSAGES.ERROR.PASSWORD_BREACHED);
     }
 
     // save(), не userRepository.update() — та же причина, что в resetPassword() выше:

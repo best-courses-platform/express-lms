@@ -31,5 +31,6 @@ export const AUTH_MESSAGES = {
     INVALID_RESET_TOKEN: 'Неверный токен сброса пароля',
     RESET_TOKEN_EXPIRED: 'Срок действия токена сброса пароля истек',
     VERIFICATION_REQUIRED: 'Требуется подтверждение email',
+    PASSWORD_BREACHED: 'Этот пароль уже встречался в известных утечках данных — выберите другой',
   },
 } as const;
