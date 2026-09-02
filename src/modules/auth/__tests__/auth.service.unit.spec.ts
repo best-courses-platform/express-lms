@@ -1,7 +1,7 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import bcrypt from 'bcryptjs';
 import { Types } from 'mongoose';
 import { UserModel } from 'users/user.model';
+import { hashPassword } from 'users/password-hasher';
 import { AppError } from '../../../utils/errors';
 import type { authService as AuthServiceInstance } from '../auth.service';
 import type { userService as UserServiceInstance } from 'users/user.service';
@@ -80,9 +80,11 @@ async function createUserDocument(
   overrides: Partial<User> & { plainPassword?: string } = {}
 ): Promise<UserDocument> {
   const { plainPassword = 'password123', ...rest } = overrides;
-  // rounds=4 вместо продовых 12 — единственная причина: скорость юнит-тестов,
-  // на корректность bcrypt.compare не влияет.
-  const hashedPassword = await bcrypt.hash(plainPassword, 4);
+  // Настоящий hashPassword (не голый вызов алгоритма впрямую) — чтобы тест не был завязан
+  // на то, каким конкретно алгоритмом сейчас хешируются пароли (bcrypt/argon2id/другой):
+  // comparePassword() в auth.service.ts должен успешно проверить именно то, что реально
+  // производит прод-код, а не самодельную имитацию его формата.
+  const hashedPassword = await hashPassword(plainPassword);
 
   const user = new UserModel({
     name: 'Test User',

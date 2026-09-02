@@ -1,8 +1,6 @@
 import path from 'path';
 import Piscina from 'piscina';
 
-const DEFAULT_SALT_ROUNDS = 12;
-
 // В dev/тестах процесс запускается через tsx/@swc-jest, а не `node dist/*.js` — __filename
 // у скомпилированного кода сохраняет .ts. Worker-поток стартует как отдельный процесс без
 // автоматической TS-транспиляции, поэтому в этом случае явно грузим ts-исходник воркера и
@@ -30,8 +28,8 @@ const pool = new Piscina({
   idleTimeout: 30000,
 });
 
-export async function hashPassword(password: string, saltRounds: number = DEFAULT_SALT_ROUNDS): Promise<string> {
-  return pool.run({ password, saltRounds }, { name: 'hashPassword' });
+export async function hashPassword(password: string): Promise<string> {
+  return pool.run({ password }, { name: 'hashPassword' });
 }
 
 export async function comparePassword(password: string, hash: string): Promise<boolean> {
