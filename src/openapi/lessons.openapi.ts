@@ -34,7 +34,14 @@ const lessonResponseSchema = registry.register(
 );
 
 function lessonEnvelope(description: string) {
-  return { description, content: { 'application/json': { schema: z.object({ success: z.boolean(), message: z.string(), data: lessonResponseSchema }) } } };
+  return {
+    description,
+    content: {
+      'application/json': {
+        schema: z.object({ success: z.boolean(), message: z.string(), data: lessonResponseSchema }),
+      },
+    },
+  };
 }
 
 registry.registerPath({
@@ -42,7 +49,14 @@ registry.registerPath({
   path: '/api/lessons',
   tags: [TAG],
   summary: 'Список всех уроков (без фильтра по курсу/публикации)',
-  responses: { 200: { description: 'Массив уроков', content: { 'application/json': { schema: z.object({ success: z.boolean(), data: z.array(lessonResponseSchema) }) } } } },
+  responses: {
+    200: {
+      description: 'Массив уроков',
+      content: {
+        'application/json': { schema: z.object({ success: z.boolean(), data: z.array(lessonResponseSchema) }) },
+      },
+    },
+  },
 });
 
 registry.registerPath({
@@ -50,7 +64,8 @@ registry.registerPath({
   path: '/api/lessons/{id}',
   tags: [TAG],
   summary: 'Урок по id',
-  description: 'Доступ проверяется транзитивно через курс, которому принадлежит урок (courseService.canAccess) — авторизация опциональна, но учитывается, если передана.',
+  description:
+    'Доступ проверяется транзитивно через курс, которому принадлежит урок (courseService.canAccess) — авторизация опциональна, но учитывается, если передана.',
   security: [...authSecurity, {}],
   request: { params: idParamSchema.shape.params },
   responses: {
@@ -68,7 +83,12 @@ registry.registerPath({
   security: [...authSecurity, {}],
   request: { params: courseIdParamSchema.shape.params },
   responses: {
-    200: { description: 'Массив уроков курса', content: { 'application/json': { schema: z.object({ success: z.boolean(), data: z.array(lessonResponseSchema) }) } } },
+    200: {
+      description: 'Массив уроков курса',
+      content: {
+        'application/json': { schema: z.object({ success: z.boolean(), data: z.array(lessonResponseSchema) }) },
+      },
+    },
     403: errorResponse('Курс недоступен текущему пользователю'),
     404: errorResponse('Курс не найден'),
   },
@@ -81,7 +101,14 @@ registry.registerPath({
   summary: 'Проверка доступа конкретного пользователя к уроку',
   request: { params: accessCheckSchema.shape.params },
   responses: {
-    200: { description: 'Результат проверки', content: { 'application/json': { schema: z.object({ success: z.boolean(), message: z.string(), data: z.object({ hasAccess: z.boolean() }) }) } } },
+    200: {
+      description: 'Результат проверки',
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.boolean(), message: z.string(), data: z.object({ hasAccess: z.boolean() }) }),
+        },
+      },
+    },
   },
 });
 
@@ -90,7 +117,8 @@ registry.registerPath({
   path: '/api/lessons/course/{courseId}',
   tags: [TAG],
   summary: 'Создание урока в курсе',
-  description: 'Единственный путь создания урока — требует быть автором курса. order генерируется автоматически (следующий по счёту), в теле не передаётся.',
+  description:
+    'Единственный путь создания урока — требует быть автором курса. order генерируется автоматически (следующий по счёту), в теле не передаётся.',
   security: authSecurity,
   request: { params: createLessonForCourseSchema.shape.params, body: jsonBody(createLessonForCourseSchema.shape.body) },
   responses: {
@@ -107,7 +135,8 @@ registry.registerPath({
   path: '/api/lessons/{id}',
   tags: [TAG],
   summary: 'Обновление урока',
-  description: 'Только автор курса, которому принадлежит урок. Присылать нужно только реально изменяемые поля (Zod-схема без .default(), см. Рефакторинг проблем/15).',
+  description:
+    'Только автор курса, которому принадлежит урок. Присылать нужно только реально изменяемые поля (Zod-схема без .default(), см. Рефакторинг проблем/15).',
   security: authSecurity,
   request: { params: updateLessonSchema.shape.params, body: jsonBody(updateLessonSchema.shape.body) },
   responses: {
@@ -124,7 +153,8 @@ registry.registerPath({
   path: '/api/lessons/{id}',
   tags: [TAG],
   summary: 'Полное удаление урока',
-  description: 'Проверяет владение, чистит файлы урока из S3, удаляет документ, убирает ссылку из курса — в отличие от DELETE /api/courses/{id}/lessons/{lessonId}, который только отвязывает.',
+  description:
+    'Проверяет владение, чистит файлы урока из S3, удаляет документ, убирает ссылку из курса — в отличие от DELETE /api/courses/{id}/lessons/{lessonId}, который только отвязывает.',
   security: authSecurity,
   request: { params: idParamSchema.shape.params },
   responses: {
@@ -144,10 +174,28 @@ registry.registerPath({
   security: authSecurity,
   request: {
     params: uploadFileSchema.shape.params,
-    body: { content: { 'multipart/form-data': { schema: z.object({ file: z.string().openapi({ format: 'binary' }), fileType: z.literal('video') }) } } },
+    body: {
+      content: {
+        'multipart/form-data': {
+          schema: z.object({ file: z.string().openapi({ format: 'binary' }), fileType: z.literal('video') }),
+        },
+      },
+    },
   },
   responses: {
-    200: { description: 'Видео загружено', content: { 'application/json': { schema: z.object({ success: z.boolean(), message: z.string(), data: lessonResponseSchema, fileUrl: z.string() }) } } },
+    200: {
+      description: 'Видео загружено',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: lessonResponseSchema,
+            fileUrl: z.string(),
+          }),
+        },
+      },
+    },
     400: errorResponse('Файл не передан или неверный тип'),
     401: errorResponse('Не авторизован'),
     403: errorResponse('Вызывающий не автор курса'),
@@ -160,14 +208,38 @@ registry.registerPath({
   path: '/api/lessons/{lessonId}/files/resource',
   tags: [TAG],
   summary: 'Загрузка материала урока (файл-ресурс)',
-  description: 'Добавляется в список ресурсов, либо заменяет ресурс с тем же title, если он уже есть. Только автор курса.',
+  description:
+    'Добавляется в список ресурсов, либо заменяет ресурс с тем же title, если он уже есть. Только автор курса.',
   security: authSecurity,
   request: {
     params: uploadFileSchema.shape.params,
-    body: { content: { 'multipart/form-data': { schema: z.object({ file: z.string().openapi({ format: 'binary' }), fileType: z.literal('resource'), title: z.string().optional(), description: z.string().optional() }) } } },
+    body: {
+      content: {
+        'multipart/form-data': {
+          schema: z.object({
+            file: z.string().openapi({ format: 'binary' }),
+            fileType: z.literal('resource'),
+            title: z.string().optional(),
+            description: z.string().optional(),
+          }),
+        },
+      },
+    },
   },
   responses: {
-    200: { description: 'Материал загружен', content: { 'application/json': { schema: z.object({ success: z.boolean(), message: z.string(), data: lessonResponseSchema, fileUrl: z.string() }) } } },
+    200: {
+      description: 'Материал загружен',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: lessonResponseSchema,
+            fileUrl: z.string(),
+          }),
+        },
+      },
+    },
     400: errorResponse('Файл не передан или неверный тип'),
     401: errorResponse('Не авторизован'),
     403: errorResponse('Вызывающий не автор курса'),
@@ -180,7 +252,8 @@ registry.registerPath({
   path: '/api/lessons/{lessonId}/files',
   tags: [TAG],
   summary: 'Удаление файла урока (видео или ресурс) по URL',
-  description: 'Для видео — использует $unset, не { videoFile: undefined } (см. Рефакторинг проблем/14, регрессия на молчаливую потерю поля).',
+  description:
+    'Для видео — использует $unset, не { videoFile: undefined } (см. Рефакторинг проблем/14, регрессия на молчаливую потерю поля).',
   security: authSecurity,
   request: { params: deleteFileSchema.shape.params, body: jsonBody(deleteFileSchema.shape.body) },
   responses: {

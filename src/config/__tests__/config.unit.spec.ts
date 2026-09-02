@@ -79,7 +79,10 @@ describe('isSelectelConfigured', () => {
 
   describe('Когда не задан secretAccessKey (остальные три — заданы)', () => {
     it('должен вернуть false', () => {
-      const { isSelectelConfigured } = loadConfigModule({ ...FULL_SELECTEL_ENV, SELECTEL_SECRET_ACCESS_KEY: undefined });
+      const { isSelectelConfigured } = loadConfigModule({
+        ...FULL_SELECTEL_ENV,
+        SELECTEL_SECRET_ACCESS_KEY: undefined,
+      });
       expect(isSelectelConfigured()).toBe(false);
     });
   });

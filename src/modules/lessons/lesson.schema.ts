@@ -5,9 +5,18 @@ import { objectIdSchema } from '../../shared/validation/object-id.schema';
 // Path-параметры — валидируются по формату ObjectId, не только по непустоте (см. объяснение
 // в object-id.schema.ts и course.schema.ts). courseId в body createLessonSchema маршрутизацию
 // не затрагивает, поэтому остаётся на прежней z.string().min(1, ...) проверке.
-const lessonIdParam = objectIdSchema(LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED, LESSON_MESSAGES.VALIDATION.LESSON_ID_INVALID);
-const courseIdParam = objectIdSchema(LESSON_MESSAGES.VALIDATION.COURSE_ID_REQUIRED, LESSON_MESSAGES.VALIDATION.COURSE_ID_INVALID);
-const userIdParam = objectIdSchema(LESSON_MESSAGES.VALIDATION.USER_ID_REQUIRED, LESSON_MESSAGES.VALIDATION.USER_ID_INVALID);
+const lessonIdParam = objectIdSchema(
+  LESSON_MESSAGES.VALIDATION.LESSON_ID_REQUIRED,
+  LESSON_MESSAGES.VALIDATION.LESSON_ID_INVALID
+);
+const courseIdParam = objectIdSchema(
+  LESSON_MESSAGES.VALIDATION.COURSE_ID_REQUIRED,
+  LESSON_MESSAGES.VALIDATION.COURSE_ID_INVALID
+);
+const userIdParam = objectIdSchema(
+  LESSON_MESSAGES.VALIDATION.USER_ID_REQUIRED,
+  LESSON_MESSAGES.VALIDATION.USER_ID_INVALID
+);
 
 // Поля без .default() — единственный источник правил валидации. updateLessonSchema
 // строится из этой схемы напрямую (не из lessonBaseSchema), иначе .partial() не спасает:
@@ -124,11 +133,9 @@ export const deleteResourceSchema = z.object({
 
 // Схемы для ресурсов (внутреннее использование)
 export const lessonResourceSchema = z.object({
-  type: z
-    .enum(['file', 'link', 'video'])
-    .refine(val => ['file', 'link', 'video'].includes(val), {
-      message: 'Тип ресурса должен быть file, link или video',
-    }),
+  type: z.enum(['file', 'link', 'video']).refine(val => ['file', 'link', 'video'].includes(val), {
+    message: 'Тип ресурса должен быть file, link или video',
+  }),
   title: z.string().min(1).max(100),
   url: z.string().url().optional(),
   description: z.string().max(500).optional(),

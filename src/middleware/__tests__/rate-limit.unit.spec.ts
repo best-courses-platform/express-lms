@@ -64,81 +64,65 @@ describe('rate-limit middleware', () => {
   });
 
   describe('Когда NODE_ENV=production (настоящий лимитер)', () => {
-    it(
-      'authRateLimiter() должен пропустить ровно 10 запросов и вернуть 429 на 11-м с понятным сообщением',
-      async () => {
-        // Given
-        const { authRateLimiter } = loadRateLimitModule('production');
-        const app = createApp(authRateLimiter());
+    it('authRateLimiter() должен пропустить ровно 10 запросов и вернуть 429 на 11-м с понятным сообщением', async () => {
+      // Given
+      const { authRateLimiter } = loadRateLimitModule('production');
+      const app = createApp(authRateLimiter());
 
-        // When — 10 запросов укладываются в лимит
-        for (let i = 0; i < 10; i++) {
-          const response = await request(app).get('/x');
-          expect(response.status).toBe(200);
-        }
-
-        // Then — 11-й превышает лимит
-        const blocked = await request(app).get('/x');
-        expect(blocked.status).toBe(429);
-        expect(blocked.body).toEqual({ error: 'Слишком много запросов. Попробуйте позже' });
-      },
-      15_000
-    );
-
-    it(
-      'authRateLimiter() должен отдавать стандартные RateLimit-заголовки (standardHeaders: true)',
-      async () => {
-        const { authRateLimiter } = loadRateLimitModule('production');
-        const app = createApp(authRateLimiter());
-
+      // When — 10 запросов укладываются в лимит
+      for (let i = 0; i < 10; i++) {
         const response = await request(app).get('/x');
+        expect(response.status).toBe(200);
+      }
 
-        expect(response.headers).toHaveProperty('ratelimit-limit');
-        expect(response.headers).toHaveProperty('ratelimit-remaining');
-        expect(response.headers).not.toHaveProperty('x-ratelimit-limit');
-      },
-      15_000
-    );
+      // Then — 11-й превышает лимит
+      const blocked = await request(app).get('/x');
+      expect(blocked.status).toBe(429);
+      expect(blocked.body).toEqual({ error: 'Слишком много запросов. Попробуйте позже' });
+    }, 15_000);
 
-    it(
-      'каждый вызов authRateLimiter() должен создавать независимый счётчик (регрессия — общий store между /login и /register)',
-      async () => {
-        // Given — комментарий в rate-limit.ts прямо утверждает независимость счётчиков между
-        // вызовами фабрики; проверяем это утверждение, а не верим ему на слово.
-        const { authRateLimiter } = loadRateLimitModule('production');
-        const appA = createApp(authRateLimiter());
-        const appB = createApp(authRateLimiter());
+    it('authRateLimiter() должен отдавать стандартные RateLimit-заголовки (standardHeaders: true)', async () => {
+      const { authRateLimiter } = loadRateLimitModule('production');
+      const app = createApp(authRateLimiter());
 
-        // When — исчерпываем лимит на первом инстансе
-        for (let i = 0; i < 10; i++) {
-          await request(appA).get('/x');
-        }
-        const blockedOnA = await request(appA).get('/x');
+      const response = await request(app).get('/x');
 
-        // Then — второй инстанс (другой вызов фабрики) не должен быть затронут
-        const stillOkOnB = await request(appB).get('/x');
-        expect(blockedOnA.status).toBe(429);
-        expect(stillOkOnB.status).toBe(200);
-      },
-      15_000
-    );
+      expect(response.headers).toHaveProperty('ratelimit-limit');
+      expect(response.headers).toHaveProperty('ratelimit-remaining');
+      expect(response.headers).not.toHaveProperty('x-ratelimit-limit');
+    }, 15_000);
 
-    it(
-      'apiRateLimiter должен быть заметно менее строгим, чем authRateLimiter() — пропускает те же 11 запросов без 429',
-      async () => {
-        // Given — общий /api/* лимит (300) специально намного щедрее строгого auth-лимита
-        // (10). Не гоняем полные 300 запросов (медленно и не добавляет уверенности сверх
-        // того, что уже проверяет сам факт большего лимита) — достаточно показать, что
-        // ровно тот объём трафика, который валит authRateLimiter, apiRateLimiter пропускает.
-        const { apiRateLimiter } = loadRateLimitModule('production');
-        const app = createApp(apiRateLimiter);
+    it('каждый вызов authRateLimiter() должен создавать независимый счётчик (регрессия — общий store между /login и /register)', async () => {
+      // Given — комментарий в rate-limit.ts прямо утверждает независимость счётчиков между
+      // вызовами фабрики; проверяем это утверждение, а не верим ему на слово.
+      const { authRateLimiter } = loadRateLimitModule('production');
+      const appA = createApp(authRateLimiter());
+      const appB = createApp(authRateLimiter());
 
-        for (let i = 0; i < 11; i++) {
-          const response = await request(app).get('/x');
-          expect(response.status).toBe(200);
-        }
-      },
-      15_000
-    );
+      // When — исчерпываем лимит на первом инстансе
+      for (let i = 0; i < 10; i++) {
+        await request(appA).get('/x');
+      }
+      const blockedOnA = await request(appA).get('/x');
+
+      // Then — второй инстанс (другой вызов фабрики) не должен быть затронут
+      const stillOkOnB = await request(appB).get('/x');
+      expect(blockedOnA.status).toBe(429);
+      expect(stillOkOnB.status).toBe(200);
+    }, 15_000);
+
+    it('apiRateLimiter должен быть заметно менее строгим, чем authRateLimiter() — пропускает те же 11 запросов без 429', async () => {
+      // Given — общий /api/* лимит (300) специально намного щедрее строгого auth-лимита
+      // (10). Не гоняем полные 300 запросов (медленно и не добавляет уверенности сверх
+      // того, что уже проверяет сам факт большего лимита) — достаточно показать, что
+      // ровно тот объём трафика, который валит authRateLimiter, apiRateLimiter пропускает.
+      const { apiRateLimiter } = loadRateLimitModule('production');
+      const app = createApp(apiRateLimiter);
+
+      for (let i = 0; i < 11; i++) {
+        const response = await request(app).get('/x');
+        expect(response.status).toBe(200);
+      }
+    }, 15_000);
   });
 });
