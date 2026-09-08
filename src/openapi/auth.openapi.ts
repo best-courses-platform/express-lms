@@ -8,6 +8,7 @@ import {
   requestPasswordResetSchema,
   resendVerificationSchema,
   resetPasswordSchema,
+  sessionIdParamSchema,
   updateProfileSchema,
   verifyEmailSchema,
 } from '../modules/auth/auth.schema';
@@ -32,6 +33,21 @@ const userDetailSchema = registry.register(
   userSummarySchema.extend({
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
+  })
+);
+
+// Публичная проекция refresh-сессии (см. refresh-session.types.ts SessionView) — без
+// tokenHash/familyId/replacedBySession, тех клиенту знать незачем.
+const sessionViewSchema = registry.register(
+  'SessionView',
+  z.object({
+    id: z.string().openapi({ example: '507f1f77bcf86cd799439011' }),
+    current: z.boolean().openapi({ description: 'true у сессии, соответствующей refresh_token текущего запроса' }),
+    createdAt: z.coerce.date(),
+    lastUsedAt: z.coerce.date().nullable(),
+    expiresAt: z.coerce.date(),
+    userAgent: z.string().nullable(),
+    ip: z.string().nullable(),
   })
 );
 
@@ -138,7 +154,11 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Обновление пары access/refresh токенов',
   description:
-    'Refresh-токен — из тела запроса ИЛИ из cookie refresh_token (тело в приоритете, если оба присутствуют).',
+    'Refresh-токен — из тела запроса ИЛИ из cookie refresh_token (тело в приоритете, если оба присутствуют). ' +
+    'Refresh — opaque-строка "sessionId.secret" в БД, one-time-use с ротацией: каждый обмен выдаёт новый ' +
+    'refresh и помечает старый использованным (см. Рефакторинг проблем/31). Повторное предъявление уже ' +
+    'провёрнутого токена вне короткого grace-window трактуется как компрометация — гасится вся "семья" ' +
+    'сессии разом, включая только что выданного легитимного потомка.',
   request: { body: jsonBody(refreshTokenSchema.shape.body!.unwrap()) },
   responses: {
     200: {
@@ -147,7 +167,9 @@ registry.registerPath({
         'application/json': { schema: z.object({ message: z.string(), token: z.string(), user: userSummarySchema }) },
       },
     },
-    401: errorResponse('Refresh-токен отсутствует, невалиден или просрочен'),
+    401: errorResponse(
+      'Refresh-токен отсутствует, невалиден, просрочен, либо сессия отозвана (logout/смена пароля/reuse detection)'
+    ),
   },
 });
 
@@ -155,7 +177,11 @@ registry.registerPath({
   method: 'post',
   path: '/api/auth/logout',
   tags: [TAG],
-  summary: 'Выход — очистка cookie токенов',
+  summary: 'Выход — отзыв refresh-сессии на сервере и очистка cookie',
+  description:
+    'Отзывает refresh-сессию, соответствующую cookie refresh_token, на сервере (не только чистит cookie ' +
+    'клиента) — см. Рефакторинг проблем/31. Не завершает уже выпущенный access-токен (он проверяется без ' +
+    'обращения к БД и живёт до истечения своего TTL) — только последующий обмен по этому refresh-токену.',
   security: authSecurity,
   responses: {
     200: {
@@ -163,6 +189,55 @@ registry.registerPath({
       content: { 'application/json': { schema: z.object({ message: z.string() }) } },
     },
     401: errorResponse('Не авторизован'),
+  },
+});
+
+registry.registerPath({
+  method: 'post',
+  path: '/api/auth/logout-all',
+  tags: [TAG],
+  summary: 'Выход со всех устройств — отзыв всех refresh-сессий пользователя',
+  description: 'В отличие от POST /logout, отзывает вообще все активные сессии, включая ту, с которой вызван.',
+  security: authSecurity,
+  responses: {
+    200: {
+      description: 'Все сессии отозваны',
+      content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+    },
+    401: errorResponse('Не авторизован'),
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/auth/sessions',
+  tags: [TAG],
+  summary: 'Список активных refresh-сессий текущего пользователя',
+  description:
+    '"Активные сессии / устройства" — базовый пункт настроек безопасности. current: true у сессии, ' +
+    'соответствующей refresh_token текущего запроса (если cookie не передана — ни одна не помечена текущей).',
+  security: authSecurity,
+  responses: {
+    200: {
+      description: 'Список сессий',
+      content: { 'application/json': { schema: z.object({ sessions: z.array(sessionViewSchema) }) } },
+    },
+    401: errorResponse('Не авторизован'),
+  },
+});
+
+registry.registerPath({
+  method: 'delete',
+  path: '/api/auth/sessions/{id}',
+  tags: [TAG],
+  summary: 'Отозвать конкретную сессию ("выйти с этого устройства")',
+  description: 'Чужая или несуществующая сессия — 404 (не 403), чтобы не подтверждать существование чужого id.',
+  security: authSecurity,
+  request: { params: sessionIdParamSchema.shape.params },
+  responses: {
+    204: { description: 'Сессия отозвана' },
+    401: errorResponse('Не авторизован'),
+    404: errorResponse('Сессия не найдена (либо принадлежит другому пользователю)'),
   },
 });
 
@@ -206,6 +281,9 @@ registry.registerPath({
   path: '/api/auth/change-password',
   tags: [TAG],
   summary: 'Смена пароля текущего пользователя',
+  description:
+    'Отзывает остальные активные refresh-сессии пользователя (кроме той, с которой вызван запрос) — ' +
+    'паттерн GitHub/Google, см. Рефакторинг проблем/31.',
   security: authSecurity,
   request: { body: jsonBody(changePasswordSchema.shape.body) },
   responses: {
@@ -274,6 +352,9 @@ registry.registerPath({
   path: '/api/auth/reset-password',
   tags: [TAG],
   summary: 'Сброс пароля по токену',
+  description:
+    'Отзывает ВСЕ активные refresh-сессии пользователя, без исключения — на момент сброса запрос не ' +
+    'аутентифицирован ни в одной сессии, щадить нечего (в отличие от change-password выше).',
   request: { body: jsonBody(resetPasswordSchema.shape.body) },
   responses: {
     200: {

@@ -35,6 +35,20 @@ async function registerVerifiedUser(overrides: { email?: string; password?: stri
   return { email, password, name };
 }
 
+// Для проверок реального отзыва refresh-сессии на сервере — нужно вручную предъявить
+// СТАРОЕ значение cookie уже ПОСЛЕ того, как agent сам переключился на новое (ротация)
+// или agent вообще перестал слать cookie (logout, clearCookie). supertest.agent хранит
+// только текущее состояние своей cookie jar, старое значение из неё не достать —
+// вытаскиваем прямо из Set-Cookie заголовка того ответа, где оно было выдано.
+function extractCookieValue(response: request.Response, name: string): string {
+  const cookies = response.headers['set-cookie'] as unknown as string[];
+  const cookie = cookies?.find(c => c.startsWith(`${name}=`));
+  if (!cookie) {
+    throw new Error(`test setup: cookie "${name}" not found in response`);
+  }
+  return cookie.split(';')[0].split('=')[1];
+}
+
 describe('Auth routes (integration)', () => {
   describe('POST /api/auth/register', () => {
     describe('Когда данные валидны', () => {
@@ -284,6 +298,34 @@ describe('Auth routes (integration)', () => {
         expect(newLoginResponse.status).toBe(200);
       });
     });
+
+    describe('Когда есть вторая активная сессия на другом устройстве', () => {
+      it('должна пощадить текущую (сменившую пароль) сессию и отозвать другую', async () => {
+        // Given — два разных agent = две разные refresh-сессии одного пользователя,
+        // тот же принцип, что и loginAgent на два устройства в других модулях.
+        const { email, password } = await registerVerifiedUser({ email: 'multi-session-changepw@example.com' });
+        const agentA = request.agent(app);
+        const agentB = request.agent(app);
+        await agentA.post('/api/auth/login').send({ email, password });
+        await agentB.post('/api/auth/login').send({ email, password });
+
+        // When
+        const changeResponse = await agentA.post('/api/auth/change-password').send({
+          currentPassword: password,
+          newPassword: 'new-password456',
+          confirmPassword: 'new-password456',
+        });
+        expect(changeResponse.status).toBe(200);
+
+        // Then — паттерн GitHub/Google: сессия, которая сама сменила пароль, не считается
+        // подозрительной и не отзывается вместе с остальными.
+        const ownRefresh = await agentA.post('/api/auth/refresh');
+        expect(ownRefresh.status).toBe(200);
+
+        const otherRefresh = await agentB.post('/api/auth/refresh');
+        expect(otherRefresh.status).toBe(401);
+      });
+    });
   });
 
   describe('POST /api/auth/refresh', () => {
@@ -320,6 +362,49 @@ describe('Auth routes (integration)', () => {
         // Then
         expect(response.status).toBe(401);
       });
+    });
+
+    describe('Когда refresh-токен уже провёрнут и предъявлен ПОВТОРНО СРАЗУ ЖЕ (гонка, не кража)', () => {
+      it('должен вернуть 401 на старый, но НЕ гасить семью — легитимный потомок остаётся живым', async () => {
+        // Given
+        const { email, password } = await registerVerifiedUser({ email: 'race-refresh@example.com' });
+        const agent = request.agent(app);
+        const loginResponse = await agent.post('/api/auth/login').send({ email, password });
+        const oldRefreshCookie = extractCookieValue(loginResponse, 'refresh_token');
+
+        // When — agent проворачивает токен (это и есть "победитель гонки"), затем СТАРЫЙ
+        // (уже провёрнутый) предъявляется отдельно, в пределах ROTATION_GRACE_MS.
+        await agent.post('/api/auth/refresh');
+        const raceResponse = await request(app)
+          .post('/api/auth/refresh')
+          .set('Cookie', `refresh_token=${oldRefreshCookie}`);
+
+        // Then
+        expect(raceResponse.status).toBe(401);
+        const legitResponse = await agent.post('/api/auth/refresh');
+        expect(legitResponse.status).toBe(200);
+      });
+    });
+  });
+
+  describe('После POST /api/auth/logout', () => {
+    it('старый refresh-токен должен быть недействителен на сервере, не только вычищен из cookie клиента', async () => {
+      // Given — раньше logout ничего не делал на сервере (см. Обзор/25 в портфолио):
+      // тест на "/me после logout — 401" проходил ложно, просто потому что agent сам
+      // прекращал слать уже вычищенную cookie. Здесь сознательно НЕ через agent —
+      // сохранённое значение имитирует клиента, который не выполнил clearCookie у себя
+      // (или скопировал токен раньше) — именно этот случай раньше проходил бы как есть.
+      const { email, password } = await registerVerifiedUser({ email: 'logout-then-refresh@example.com' });
+      const agent = request.agent(app);
+      const loginResponse = await agent.post('/api/auth/login').send({ email, password });
+      const oldRefreshCookie = extractCookieValue(loginResponse, 'refresh_token');
+
+      // When
+      await agent.post('/api/auth/logout');
+      const response = await request(app).post('/api/auth/refresh').set('Cookie', `refresh_token=${oldRefreshCookie}`);
+
+      // Then
+      expect(response.status).toBe(401);
     });
   });
 
@@ -463,6 +548,154 @@ describe('Auth routes (integration)', () => {
         // Then
         expect(response.status).toBe(400);
       });
+    });
+
+    describe('Когда на момент сброса была активная сессия', () => {
+      it('должен отозвать её без исключений — в отличие от change-password, щадить здесь нечего', async () => {
+        // Given — в момент сброса пользователь не аутентифицирован ни в одной сессии
+        // (сброс идёт по email-токену, не по cookie), поэтому, в отличие от
+        // change-password, exceptSessionId здесь в принципе не может появиться.
+        const { email, password } = await registerVerifiedUser({ email: 'session-then-reset@example.com' });
+        const agent = request.agent(app);
+        await agent.post('/api/auth/login').send({ email, password });
+
+        // When
+        await request(app).post('/api/auth/request-password-reset').send({ email });
+        const userWithToken = await UserModel.findOne({ email }).select('+passwordResetToken');
+        const resetToken = userWithToken?.passwordResetToken;
+        if (!resetToken) {
+          throw new Error('test setup: password reset token not found');
+        }
+        await request(app)
+          .post('/api/auth/reset-password')
+          .send({ token: resetToken, newPassword: 'brand-new-password789', confirmPassword: 'brand-new-password789' });
+
+        // Then
+        const refreshResponse = await agent.post('/api/auth/refresh');
+        expect(refreshResponse.status).toBe(401);
+      });
+    });
+  });
+
+  describe('GET /api/auth/sessions', () => {
+    it('должен вернуть только свои активные сессии, с current: true у текущей', async () => {
+      // Given
+      const { email, password } = await registerVerifiedUser({ email: 'list-sessions@example.com' });
+      const agentA = request.agent(app);
+      const agentB = request.agent(app);
+      await agentA.post('/api/auth/login').send({ email, password });
+      await agentB.post('/api/auth/login').send({ email, password });
+
+      // When
+      const response = await agentA.get('/api/auth/sessions');
+
+      // Then
+      expect(response.status).toBe(200);
+      expect(response.body.sessions).toHaveLength(2);
+      const current = response.body.sessions.find((s: { current: boolean }) => s.current);
+      expect(current).toBeDefined();
+      expect(response.body.sessions.filter((s: { current: boolean }) => s.current)).toHaveLength(1);
+    });
+
+    it('не должен отдавать чужие сессии другого пользователя', async () => {
+      // Given
+      const userA = await registerVerifiedUser({ email: 'sessions-owner@example.com' });
+      const userB = await registerVerifiedUser({ email: 'sessions-stranger@example.com' });
+      const agentA = request.agent(app);
+      const agentB = request.agent(app);
+      await agentA.post('/api/auth/login').send({ email: userA.email, password: userA.password });
+      await agentB.post('/api/auth/login').send({ email: userB.email, password: userB.password });
+
+      // When
+      const response = await agentB.get('/api/auth/sessions');
+
+      // Then
+      expect(response.status).toBe(200);
+      expect(response.body.sessions).toHaveLength(1);
+    });
+  });
+
+  describe('DELETE /api/auth/sessions/:id', () => {
+    describe('Когда сессия своя', () => {
+      it('должен отозвать её (204), после чего refresh с ней невозможен', async () => {
+        // Given
+        const { email, password } = await registerVerifiedUser({ email: 'delete-own-session@example.com' });
+        const agentA = request.agent(app);
+        const agentB = request.agent(app);
+        await agentA.post('/api/auth/login').send({ email, password });
+        await agentB.post('/api/auth/login').send({ email, password });
+
+        const sessions = await agentA.get('/api/auth/sessions');
+        const otherSessionId = sessions.body.sessions.find((s: { current: boolean }) => !s.current).id;
+
+        // When — agentA отзывает сессию agentB через свой собственный список (тот же
+        // владелец, чужое устройство — ровно кейс "выйти с другого устройства из UI").
+        const deleteResponse = await agentA.delete(`/api/auth/sessions/${otherSessionId}`);
+
+        // Then
+        expect(deleteResponse.status).toBe(204);
+        const refreshResponse = await agentB.post('/api/auth/refresh');
+        expect(refreshResponse.status).toBe(401);
+      });
+    });
+
+    describe('Когда сессия чужая (принадлежит другому пользователю)', () => {
+      it('должен вернуть 404, не трогая сессию', async () => {
+        // Given
+        const userA = await registerVerifiedUser({ email: 'delete-foreign-a@example.com' });
+        const userB = await registerVerifiedUser({ email: 'delete-foreign-b@example.com' });
+        const agentA = request.agent(app);
+        const agentB = request.agent(app);
+        await agentA.post('/api/auth/login').send({ email: userA.email, password: userA.password });
+        await agentB.post('/api/auth/login').send({ email: userB.email, password: userB.password });
+
+        const sessionsB = await agentB.get('/api/auth/sessions');
+        const targetSessionId = sessionsB.body.sessions[0].id;
+
+        // When — agentA пытается удалить сессию, принадлежащую userB
+        const deleteResponse = await agentA.delete(`/api/auth/sessions/${targetSessionId}`);
+
+        // Then
+        expect(deleteResponse.status).toBe(404);
+        const refreshResponse = await agentB.post('/api/auth/refresh');
+        expect(refreshResponse.status).toBe(200);
+      });
+    });
+
+    describe('Когда id синтаксически не ObjectId', () => {
+      it('должен вернуть 400, не 500', async () => {
+        // Given
+        const { email, password } = await registerVerifiedUser({ email: 'delete-bad-id@example.com' });
+        const agent = request.agent(app);
+        await agent.post('/api/auth/login').send({ email, password });
+
+        // When
+        const response = await agent.delete('/api/auth/sessions/not-an-object-id');
+
+        // Then
+        expect(response.status).toBe(400);
+      });
+    });
+  });
+
+  describe('POST /api/auth/logout-all', () => {
+    it('должен отозвать вообще все сессии пользователя, включая ту, с которой вызван', async () => {
+      // Given
+      const { email, password } = await registerVerifiedUser({ email: 'logout-all@example.com' });
+      const agentA = request.agent(app);
+      const agentB = request.agent(app);
+      await agentA.post('/api/auth/login').send({ email, password });
+      await agentB.post('/api/auth/login').send({ email, password });
+
+      // When
+      const response = await agentA.post('/api/auth/logout-all');
+
+      // Then
+      expect(response.status).toBe(200);
+      const refreshA = await agentA.post('/api/auth/refresh');
+      expect(refreshA.status).toBe(401);
+      const refreshB = await agentB.post('/api/auth/refresh');
+      expect(refreshB.status).toBe(401);
     });
   });
 });

@@ -9,19 +9,16 @@ import type { User } from 'users/user.types';
 // тестируемая часть OAuth-потока без сети. Сама верификация профиля Google/GitHub
 // (googleOAuthStrategy/githubOAuthStrategy) делегирует в userService.findOrCreateFromOAuth,
 // уже покрытый в users/__tests__/user.service.unit.spec.ts — здесь же то, что происходит
-// ПОСЛЕ того, как passport успешно отработал и положил пользователя в req.user: генерация
-// токенов, простановка cookie, редирект на фронтенд (или экран ошибки). Именно эта часть
-// раньше была отмечена как непокрытая ("итог по покрытию auth") — не потому что сложно
-// написать логику, а потому что раньше не было способа сюда добраться без реального
-// сетевого OAuth-хендшейка. Прогон через реальный HTTP-роут (googleAuthCallback middleware)
-// потребовал бы либо реального сетевого вызова к Google, либо мока самой passport-стратегии —
-// это отдельная, более тяжёлая задача; вызов функций-контроллеров напрямую даёт то же
-// покрытие бизнес-логики за куда меньшую цену.
+// ПОСЛЕ того, как passport успешно отработал и положил пользователя в req.user: выпуск
+// пары токенов (issueTokensFor — единая точка для login/login-local/OAuth, см. заметку 31),
+// простановка cookie, редирект на фронтенд (или экран ошибки). Прогон через реальный
+// HTTP-роут (googleAuthCallback middleware) потребовал бы либо реального сетевого вызова
+// к Google, либо мока самой passport-стратегии — вызов функций-контроллеров напрямую даёт
+// то же покрытие бизнес-логики за куда меньшую цену.
 jest.mock('../auth.service', () => ({
   authService: {
     isValidUser: jest.fn(),
-    generateAccessToken: jest.fn(),
-    generateRefreshToken: jest.fn(),
+    issueTokensFor: jest.fn(),
   },
 }));
 jest.mock('jwt/jwt.service', () => ({
@@ -59,6 +56,17 @@ function createMockUser(overrides: Partial<User> = {}): User {
   } as User;
 }
 
+// sessionContext() в auth.controller.ts зовёт req.get('user-agent')/req.ip на любом запросе,
+// включая ветки "req.user отсутствует" ниже — без get() как функции это упало бы с
+// "req.get is not a function" ещё до проверки req.user, независимо от сценария теста.
+function createMockRequest(overrides: Partial<Request> = {}): Request {
+  return {
+    get: jest.fn().mockReturnValue(undefined),
+    ip: '127.0.0.1',
+    ...overrides,
+  } as unknown as Request;
+}
+
 function createMockResponse() {
   const res = {
     status: jest.fn(),
@@ -75,9 +83,9 @@ describe('handleLoginSuccess', () => {
   });
 
   describe('Когда req.user отсутствует', () => {
-    it('должен вернуть 401, не генерируя токены', async () => {
+    it('должен вернуть 401, не выпуская токены', async () => {
       // Given
-      const req = {} as Request;
+      const req = createMockRequest();
       const res = createMockResponse();
 
       // When
@@ -85,7 +93,7 @@ describe('handleLoginSuccess', () => {
 
       // Then
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(mockAuthService.generateAccessToken).not.toHaveBeenCalled();
+      expect(mockAuthService.issueTokensFor).not.toHaveBeenCalled();
       expect(mockJwtService.setTokensCookies).not.toHaveBeenCalled();
     });
   });
@@ -94,7 +102,7 @@ describe('handleLoginSuccess', () => {
     it('должен вернуть 401 (например, passport положил false/некорректный объект)', async () => {
       // Given
       mockAuthService.isValidUser.mockReturnValue(false);
-      const req = { user: {} } as Request;
+      const req = createMockRequest({ user: {} } as Partial<Request>);
       const res = createMockResponse();
 
       // When
@@ -106,19 +114,25 @@ describe('handleLoginSuccess', () => {
   });
 
   describe('Когда req.user валиден', () => {
-    it('должен сгенерировать пару токенов, проставить cookie и вернуть пользователя в ответе', async () => {
+    it('должен выпустить пару токенов через issueTokensFor, проставить cookie и вернуть пользователя в ответе', async () => {
       // Given
       const user = createMockUser();
       mockAuthService.isValidUser.mockReturnValue(true);
-      mockAuthService.generateAccessToken.mockReturnValue('access-token-123');
-      mockAuthService.generateRefreshToken.mockReturnValue('refresh-token-456');
-      const req = { user } as unknown as Request;
+      mockAuthService.issueTokensFor.mockResolvedValue({
+        accessToken: 'access-token-123',
+        refreshToken: 'refresh-token-456',
+      });
+      const req = createMockRequest({ user } as unknown as Partial<Request>);
       const res = createMockResponse();
 
       // When
       await handleLoginSuccess(req, res, jest.fn());
 
       // Then
+      expect(mockAuthService.issueTokensFor).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({ userAgent: null, ip: '127.0.0.1' })
+      );
       expect(mockJwtService.setTokensCookies).toHaveBeenCalledWith(res, 'access-token-123', 'refresh-token-456');
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -129,15 +143,13 @@ describe('handleLoginSuccess', () => {
     });
   });
 
-  describe('Когда генерация токена бросает ошибку', () => {
+  describe('Когда выпуск токенов бросает ошибку', () => {
     it('должен передать её в next(), не отвечать клиенту напрямую', async () => {
       // Given
       const user = createMockUser();
       mockAuthService.isValidUser.mockReturnValue(true);
-      mockAuthService.generateAccessToken.mockImplementation(() => {
-        throw new Error('jwt secret misconfigured');
-      });
-      const req = { user } as unknown as Request;
+      mockAuthService.issueTokensFor.mockRejectedValue(new Error('jwt secret misconfigured'));
+      const req = createMockRequest({ user } as unknown as Partial<Request>);
       const res = createMockResponse();
       const next = jest.fn();
 
@@ -162,7 +174,7 @@ describe('handleOAuthCallback', () => {
       // OAuth-редиректа текущий origin — сам Express, не фронтенд (см. комментарий в
       // middleware/auth.ts про ту же причину для googleAuthCallback).
       mockAuthService.isValidUser.mockReturnValue(false);
-      const req = {} as Request;
+      const req = createMockRequest();
       const res = createMockResponse();
 
       // When
@@ -175,13 +187,15 @@ describe('handleOAuthCallback', () => {
   });
 
   describe('Когда req.user валиден', () => {
-    it('должен сгенерировать токены, проставить cookie и сделать редирект на frontendUrl без query-параметров ошибки', async () => {
+    it('должен выпустить токены через issueTokensFor, проставить cookie и сделать редирект на frontendUrl без query-параметров ошибки', async () => {
       // Given
       const user = createMockUser();
       mockAuthService.isValidUser.mockReturnValue(true);
-      mockAuthService.generateAccessToken.mockReturnValue('access-token-123');
-      mockAuthService.generateRefreshToken.mockReturnValue('refresh-token-456');
-      const req = { user } as unknown as Request;
+      mockAuthService.issueTokensFor.mockResolvedValue({
+        accessToken: 'access-token-123',
+        refreshToken: 'refresh-token-456',
+      });
+      const req = createMockRequest({ user } as unknown as Partial<Request>);
       const res = createMockResponse();
 
       // When
@@ -194,15 +208,13 @@ describe('handleOAuthCallback', () => {
     });
   });
 
-  describe('Когда генерация токена бросает ошибку', () => {
+  describe('Когда выпуск токенов бросает ошибку', () => {
     it('должен передать её в next(), не пытаться редиректить с невалидным состоянием', async () => {
       // Given
       const user = createMockUser();
       mockAuthService.isValidUser.mockReturnValue(true);
-      mockAuthService.generateAccessToken.mockImplementation(() => {
-        throw new Error('jwt secret misconfigured');
-      });
-      const req = { user } as unknown as Request;
+      mockAuthService.issueTokensFor.mockRejectedValue(new Error('jwt secret misconfigured'));
+      const req = createMockRequest({ user } as unknown as Partial<Request>);
       const res = createMockResponse();
       const next = jest.fn();
 

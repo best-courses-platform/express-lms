@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AUTH_MESSAGES } from './auth.constants';
+import { objectIdSchema } from '../../shared/validation/object-id.schema';
 
 // Базовые схемы для переиспользования
 const nameSchema = z
@@ -102,6 +103,12 @@ export const resetPasswordSchema = z.object({
       message: AUTH_MESSAGES.VALIDATION.PASSWORDS_DONT_MATCH,
       path: ['confirmPassword'],
     }),
+});
+
+export const sessionIdParamSchema = z.object({
+  params: z.object({
+    id: objectIdSchema(AUTH_MESSAGES.VALIDATION.SESSION_ID_REQUIRED, AUTH_MESSAGES.VALIDATION.SESSION_ID_INVALID),
+  }),
 });
 
 // Типы для TypeScript

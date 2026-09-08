@@ -1,4 +1,4 @@
-import { RequestHandler } from 'express';
+import { Request, RequestHandler } from 'express';
 import { authService } from './auth.service';
 import { jwtService } from 'jwt/jwt.service';
 import { isAuthenticatedRequest } from '../../utils/typeGuards';
@@ -6,6 +6,7 @@ import { userService } from 'users/user.service';
 import { validate } from '../../middleware/validate';
 import { asyncHandler } from '../../middleware/async-handler';
 import { config } from '../../config';
+import { SessionContext } from './refresh-session.types';
 import {
   changePasswordSchema,
   loginSchema,
@@ -14,10 +15,21 @@ import {
   requestPasswordResetSchema,
   resendVerificationSchema,
   resetPasswordSchema,
+  sessionIdParamSchema,
   updateProfileSchema,
   verifyEmailSchema,
 } from './auth.schema';
 import { AUTH_MESSAGES } from './auth.constants';
+
+// Только для отображения в списке "активные сессии" (GET /sessions) — не для проверок
+// безопасности, UA/IP подделываются (см. refresh-session.types.ts). Один хелпер на все
+// точки выдачи/обмена сессии (login/login-local/OAuth/refresh), чтобы ни одна не забыла его.
+function sessionContext(req: Request): SessionContext {
+  return {
+    userAgent: req.get('user-agent')?.slice(0, 256) ?? null,
+    ip: req.ip ?? null,
+  };
+}
 
 export const register: RequestHandler = async (req, res) => {
   const { user } = await authService.register(req.body);
@@ -38,7 +50,7 @@ export const register: RequestHandler = async (req, res) => {
 
 export const login: RequestHandler = async (req, res) => {
   const { email, password } = req.body;
-  const { user, accessToken, refreshToken } = await authService.login(email, password);
+  const { user, accessToken, refreshToken } = await authService.login(email, password, sessionContext(req));
 
   jwtService.setTokensCookies(res, accessToken, refreshToken);
 
@@ -60,8 +72,7 @@ export const handleLoginSuccess: RequestHandler = async (req, res) => {
     return;
   }
 
-  const accessToken = authService.generateAccessToken(req.user);
-  const refreshToken = authService.generateRefreshToken(req.user);
+  const { accessToken, refreshToken } = await authService.issueTokensFor(req.user, sessionContext(req));
 
   jwtService.setTokensCookies(res, accessToken, refreshToken);
 
@@ -87,17 +98,54 @@ export const handleOAuthCallback: RequestHandler = async (req, res) => {
     return;
   }
 
-  const accessToken = authService.generateAccessToken(req.user);
-  const refreshToken = authService.generateRefreshToken(req.user);
+  const { accessToken, refreshToken } = await authService.issueTokensFor(req.user, sessionContext(req));
 
   jwtService.setTokensCookies(res, accessToken, refreshToken);
 
   res.redirect(config.frontendUrl);
 };
 
-export const logout: RequestHandler = async (_req, res) => {
+export const logout: RequestHandler = async (req, res) => {
+  // isAuthenticatedRequest не проверяем строго — logout должен отработать даже с уже
+  // протухшим/отсутствующим access-токеном (jwtAuth на роуте это в норме отсечёт раньше,
+  // но best-effort revokeByToken внутри authService.logout и так не бросает исключений).
+  if (isAuthenticatedRequest(req)) {
+    await authService.logout(req.user._id.toString(), req.cookies?.refresh_token);
+  }
+
   jwtService.clearTokensCookies(res);
   res.json({ message: AUTH_MESSAGES.SUCCESS.LOGGED_OUT });
+};
+
+export const logoutAll: RequestHandler = async (req, res) => {
+  if (!isAuthenticatedRequest(req)) {
+    res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
+    return;
+  }
+
+  await authService.logoutAll(req.user._id.toString());
+  jwtService.clearTokensCookies(res);
+  res.json({ message: AUTH_MESSAGES.SUCCESS.LOGGED_OUT });
+};
+
+export const getSessions: RequestHandler = async (req, res) => {
+  if (!isAuthenticatedRequest(req)) {
+    res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
+    return;
+  }
+
+  const sessions = await authService.listSessions(req.user._id.toString(), req.cookies?.refresh_token);
+  res.json({ sessions });
+};
+
+export const deleteSession: RequestHandler = async (req, res) => {
+  if (!isAuthenticatedRequest(req)) {
+    res.status(401).json({ error: AUTH_MESSAGES.ERROR.UNAUTHORIZED });
+    return;
+  }
+
+  await authService.revokeSession(req.user._id.toString(), req.params.id);
+  res.status(204).send();
 };
 
 export const refreshToken: RequestHandler = async (req, res) => {
@@ -110,7 +158,11 @@ export const refreshToken: RequestHandler = async (req, res) => {
     return;
   }
 
-  const { user, accessToken, refreshToken: newRefreshToken } = await authService.refreshTokens(refreshToken);
+  const {
+    user,
+    accessToken,
+    refreshToken: newRefreshToken,
+  } = await authService.refreshTokens(refreshToken, sessionContext(req));
 
   jwtService.setTokensCookies(res, accessToken, newRefreshToken);
 
@@ -174,7 +226,7 @@ export const changePassword: RequestHandler = async (req, res) => {
 
   const { currentPassword, newPassword } = req.body;
 
-  await authService.changePassword(req.user._id.toString(), currentPassword, newPassword);
+  await authService.changePassword(req.user._id.toString(), currentPassword, newPassword, req.cookies?.refresh_token);
 
   res.json({ message: AUTH_MESSAGES.SUCCESS.PASSWORD_CHANGED });
 };
@@ -233,6 +285,9 @@ export const AuthController = {
   handleLoginSuccess: asyncHandler(handleLoginSuccess),
   handleOAuthCallback: asyncHandler(handleOAuthCallback),
   logout: asyncHandler(logout),
+  logoutAll: asyncHandler(logoutAll),
+  getSessions: asyncHandler(getSessions),
+  deleteSession: [validate(sessionIdParamSchema), asyncHandler(deleteSession)],
   refreshToken: [validate(refreshTokenSchema), asyncHandler(refreshToken)],
   getCurrentUser: asyncHandler(getCurrentUser),
   updateProfile: [validate(updateProfileSchema), asyncHandler(updateProfile)],

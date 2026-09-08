@@ -40,6 +40,12 @@ r.post('/refresh', authRateLimiter(), ...AuthController.refreshToken);
 
 // защищённые зоны
 r.post('/logout', jwtAuth, requireVerifiedEmail, AuthController.logout);
+// logout-all/sessions — то же самое действие по духу, что logout (перебором тут ничего не
+// подобрать, jwtAuth уже требует валидный access-токен), но тот же общий лимитер не помешает —
+// единообразие со всеми остальными auth-роутами важнее теоретической экономии одного бюджета.
+r.post('/logout-all', jwtAuth, requireVerifiedEmail, authRateLimiter(), AuthController.logoutAll);
+r.get('/sessions', jwtAuth, requireVerifiedEmail, authRateLimiter(), AuthController.getSessions);
+r.delete('/sessions/:id', jwtAuth, requireVerifiedEmail, authRateLimiter(), ...AuthController.deleteSession);
 r.get('/me', jwtAuth, requireVerifiedEmail, AuthController.getCurrentUser);
 r.patch('/profile', jwtAuth, requireVerifiedEmail, ...AuthController.updateProfile);
 r.post('/change-password', jwtAuth, requireVerifiedEmail, ...AuthController.changePassword);

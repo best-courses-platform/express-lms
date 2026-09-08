@@ -16,6 +16,8 @@ import { userRepository } from 'users/user.repository';
 import { emailService } from 'email/email.service';
 import { enqueuePasswordResetEmail, enqueueVerificationEmail } from 'email/email.queue';
 import crypto from 'crypto'; // Импортируем crypto
+import { refreshSessionService } from './refresh-session.service';
+import { SessionContext, SessionView } from './refresh-session.types';
 
 export class AuthService {
   async register(userData: { name: string; email: string; password: string }): Promise<{ user: User }> {
@@ -145,6 +147,11 @@ export class AuthService {
     user.passwordResetExpires = null;
 
     await user.save();
+
+    // Без исключений (в отличие от changePassword ниже) — пользователь восстанавливал
+    // пароль как забывший его, не был аутентифицирован ни в одной сессии в этот момент,
+    // значит "текущей" сессии, которую стоило бы пощадить, здесь не существует.
+    await refreshSessionService.revokeAllForUser(user._id.toString(), 'password-change');
   }
 
   async authenticate(email: string, password: string): Promise<User> {
@@ -171,7 +178,12 @@ export class AuthService {
     return user.toJSON() as User;
   }
 
-  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    currentRawRefreshToken?: string
+  ): Promise<void> {
     const user = await userRepository.findByIdWithPassword(userId);
 
     if (!user) {
@@ -197,10 +209,35 @@ export class AuthService {
     // хеширование пароля живёт в pre('save'), findByIdAndUpdate его не вызывает.
     user.password = newPassword;
     await user.save();
+
+    // В отличие от resetPassword — пользователь аутентифицирован прямо сейчас, текущую
+    // сессию (если пришла refresh-cookie) щадим, паттерн GitHub/Google. Bearer-клиент без
+    // cookie — currentRawRefreshToken отсутствует, exceptSessionId не выставится, погасит все.
+    const exceptSessionId = currentRawRefreshToken
+      ? (refreshSessionService.getSessionIdFromToken(currentRawRefreshToken) ?? undefined)
+      : undefined;
+    await refreshSessionService.revokeAllForUser(userId, 'password-change', { exceptSessionId });
+  }
+
+  // Общий выпуск пары токенов — используется и login() ниже, и контроллером напрямую для
+  // login-local/OAuth-колбэков (handleLoginSuccess/handleOAuthCallback), которые раньше
+  // звали generateAccessToken/generateRefreshToken прямо на authService, в обход этого
+  // метода — тот самый "третий путь выдачи сессии", на который уже наступали (см. Obsidian,
+  // портфолио/10). Один метод на все точки входа — забыть здесь про refresh-сессию
+  // физически негде.
+  async issueTokensFor(user: User, ctx: SessionContext): Promise<{ accessToken: string; refreshToken: string }> {
+    const accessToken = this.generateAccessToken(user);
+    const refreshToken = await refreshSessionService.issue(user._id.toString(), ctx);
+
+    return { accessToken, refreshToken };
   }
 
   // Оставляем один метод login с проверкой подтверждения email
-  async login(email: string, password: string): Promise<{ user: User; accessToken: string; refreshToken: string }> {
+  async login(
+    email: string,
+    password: string,
+    ctx: SessionContext
+  ): Promise<{ user: User; accessToken: string; refreshToken: string }> {
     try {
       const user = await this.authenticate(email, password);
 
@@ -209,8 +246,7 @@ export class AuthService {
         throw new ForbiddenError(AUTH_MESSAGES.ERROR.EMAIL_NOT_VERIFIED);
       }
 
-      const accessToken = this.generateAccessToken(user);
-      const refreshToken = this.generateRefreshToken(user);
+      const { accessToken, refreshToken } = await this.issueTokensFor(user, ctx);
 
       return { user, accessToken, refreshToken };
     } catch (error) {
@@ -221,19 +257,27 @@ export class AuthService {
     }
   }
 
-  async refreshTokens(refreshToken: string): Promise<{ user: User; accessToken: string; refreshToken: string }> {
+  async refreshTokens(
+    rawRefreshToken: string,
+    ctx: SessionContext
+  ): Promise<{ user: User; accessToken: string; refreshToken: string }> {
     try {
-      const payload = jwtService.verifyRefreshToken(refreshToken);
-      const user = await userService.getById(payload.sub);
+      const { userId, familyId, refreshToken } = await refreshSessionService.rotate(rawRefreshToken, ctx);
+      // userRepository.findById, не userService.getById — тот бросает NotFoundError(404)
+      // вместо null, и проверка ниже была бы недостижимым кодом (исключение улетело бы
+      // раньше, минуя revokeFamily). Здесь нужен именно null-исход, не готовая 404-ошибка.
+      const user = await userRepository.findById(userId);
 
       if (!user) {
+        // Токен ротировался успешно, но пользователя за ним больше нет (удалён между
+        // выдачей и обменом) — гасим всю семью, не только что созданного потомка.
+        await refreshSessionService.revokeFamily(familyId, 'user-deleted');
         throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
       }
 
-      const newAccessToken = this.generateAccessToken(user);
-      const newRefreshToken = this.generateRefreshToken(user);
+      const accessToken = this.generateAccessToken(user);
 
-      return { user, accessToken: newAccessToken, refreshToken: newRefreshToken };
+      return { user, accessToken, refreshToken };
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
@@ -242,12 +286,34 @@ export class AuthService {
     }
   }
 
-  generateAccessToken(user: User): string {
-    return jwtService.generateAccessToken(user);
+  // --- logout / logout-all / список сессий ---
+
+  async logout(userId: string, rawRefreshToken?: string): Promise<void> {
+    if (rawRefreshToken) {
+      await refreshSessionService.revokeByToken(rawRefreshToken, 'logout', userId);
+    }
   }
 
-  generateRefreshToken(user: User): string {
-    return jwtService.generateRefreshToken(user);
+  async logoutAll(userId: string): Promise<void> {
+    await refreshSessionService.revokeAllForUser(userId, 'logout-all');
+  }
+
+  async listSessions(userId: string, currentRawToken?: string): Promise<SessionView[]> {
+    return await refreshSessionService.list(userId, currentRawToken);
+  }
+
+  async revokeSession(userId: string, sessionId: string): Promise<void> {
+    const revoked = await refreshSessionService.revokeOwned(userId, sessionId);
+
+    if (!revoked) {
+      // Не различаем "сессии нет" и "сессия чужая" — иначе перебором id можно было бы
+      // отличить существующие чужие сессии от несуществующих.
+      throw new NotFoundError(AUTH_MESSAGES.ERROR.SESSION_NOT_FOUND);
+    }
+  }
+
+  generateAccessToken(user: User): string {
+    return jwtService.generateAccessToken(user);
   }
 
   isValidUser(user: unknown): user is User {
