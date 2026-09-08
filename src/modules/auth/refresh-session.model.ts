@@ -13,7 +13,11 @@ const refreshSessionSchema = new Schema<RefreshSession>(
     revokedAt: { type: Date, default: null },
     revokedReason: {
       type: String,
-      enum: ['rotated', 'logout', 'logout-all', 'password-change', 'reuse-detected', 'user-deleted', 'admin'],
+      // null явно в списке enum — иначе Mongoose валидирует enum и для null-значения тоже
+      // (default: null задаёт начальное значение, но не освобождает его от последующей
+      // валидации при save()); без этого КАЖДЫЙ save() свежесозданной, ещё не отозванной
+      // сессии падал с "RefreshSession validation failed: revokedReason: ... value: null".
+      enum: ['rotated', 'logout', 'logout-all', 'password-change', 'reuse-detected', 'user-deleted', 'admin', null],
       default: null,
     },
     replacedBySession: { type: Schema.Types.ObjectId, ref: 'RefreshSession', default: null },

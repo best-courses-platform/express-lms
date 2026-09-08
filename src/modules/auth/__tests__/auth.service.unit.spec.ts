@@ -25,6 +25,7 @@ jest.mock('users/user.service', () => ({
 }));
 jest.mock('users/user.repository', () => ({
   userRepository: {
+    findById: jest.fn(),
     findByEmail: jest.fn(),
     findByEmailWithPassword: jest.fn(),
     findByIdWithPassword: jest.fn(),
@@ -47,6 +48,23 @@ jest.mock('email/email.service', () => ({
 jest.mock('../breached-password-checker', () => ({
   isPasswordBreached: jest.fn(),
 }));
+// refreshSessionService реально бьёт в Mongo (create/findById/транзакция ротации) —
+// в unit-слое замокан целиком, как и userRepository/userService выше. Реальная механика
+// (парсинг "id.secret", reuse detection, grace-window) уже покрыта отдельно в
+// refresh-session.service.unit.spec.ts — здесь важно только то, что authService правильно
+// дёргает эти методы и правильно реагирует на их результат/ошибку.
+jest.mock('../refresh-session.service', () => ({
+  refreshSessionService: {
+    issue: jest.fn(),
+    rotate: jest.fn(),
+    revokeByToken: jest.fn(),
+    revokeAllForUser: jest.fn(),
+    revokeFamily: jest.fn(),
+    revokeOwned: jest.fn(),
+    getSessionIdFromToken: jest.fn(),
+    list: jest.fn(),
+  },
+}));
 
 // @swc/jest, в отличие от babel-jest, НЕ хойстит jest.mock() выше import-ов (нет аналога
 // babel-plugin-jest-hoist) — а сами import-ы, по семантике ESM, хойстятся системой модулей
@@ -65,11 +83,17 @@ const { emailService } = require('email/email.service') as { emailService: typeo
 const { isPasswordBreached } = require('../breached-password-checker') as {
   isPasswordBreached: (password: string) => Promise<boolean>;
 };
+const { refreshSessionService } = require('../refresh-session.service') as {
+  refreshSessionService: typeof import('../refresh-session.service').refreshSessionService;
+};
 
 const mockUserService = userService as jest.Mocked<typeof userService>;
 const mockUserRepository = userRepository as jest.Mocked<typeof userRepository>;
 const mockIsPasswordBreached = isPasswordBreached as jest.MockedFunction<typeof isPasswordBreached>;
 const mockEmailService = emailService as jest.Mocked<typeof emailService>;
+const mockRefreshSessionService = refreshSessionService as jest.Mocked<typeof refreshSessionService>;
+
+const CTX = { userAgent: 'jest', ip: '127.0.0.1' };
 
 // patch.emailVerificationToken/passwordResetToken в вызовах updateWithSensitiveFields
 // типизированы как string | null | undefined (Partial<User>), хотя authService реально
@@ -125,6 +149,9 @@ describe('AuthService', () => {
     // resetPassword по отдельности). Переопределяется точечно в тестах ниже, где как раз
     // проверяется PASSWORD_BREACHED-ветка.
     mockIsPasswordBreached.mockResolvedValue(false);
+    // Дефолт для login()/issueTokensFor() — тестам, которым важен только факт "выдало
+    // какую-то строку", не нужно настраивать это в каждом отдельном тесте.
+    mockRefreshSessionService.issue.mockResolvedValue('mock-refresh-token-abc');
   });
 
   describe('register', () => {
@@ -262,25 +289,26 @@ describe('AuthService', () => {
         mockUserRepository.findByEmailWithPassword.mockResolvedValue(user);
 
         // When & Then
-        await expect(authService.login('test@example.com', 'correct-password')).rejects.toMatchObject({
+        await expect(authService.login('test@example.com', 'correct-password', CTX)).rejects.toMatchObject({
           status: 403,
         });
+        expect(mockRefreshSessionService.issue).not.toHaveBeenCalled();
       });
     });
 
     describe('Когда учётные данные верны и email подтверждён', () => {
-      it('должен вернуть пару access/refresh токенов', async () => {
+      it('должен вернуть пару access/refresh токенов, выпустив refresh-сессию с переданным контекстом', async () => {
         // Given
         const user = await createUserDocument({ plainPassword: 'correct-password', isEmailVerified: true });
         mockUserRepository.findByEmailWithPassword.mockResolvedValue(user);
 
         // When
-        const result = await authService.login('test@example.com', 'correct-password');
+        const result = await authService.login('test@example.com', 'correct-password', CTX);
 
         // Then
         expect(typeof result.accessToken).toBe('string');
-        expect(typeof result.refreshToken).toBe('string');
-        expect(result.accessToken).not.toBe(result.refreshToken);
+        expect(result.refreshToken).toBe('mock-refresh-token-abc');
+        expect(mockRefreshSessionService.issue).toHaveBeenCalledWith(user._id.toString(), CTX);
       });
     });
   });
@@ -302,18 +330,47 @@ describe('AuthService', () => {
     });
 
     describe('Когда текущий пароль верный', () => {
-      it('должен установить новый пароль и сохранить документ', async () => {
+      it('должен установить новый пароль, сохранить документ и отозвать остальные сессии, пощадив текущую', async () => {
         // Given
         const user = await createUserDocument({ plainPassword: 'old-password' });
         const saveSpy = jest.spyOn(user, 'save').mockResolvedValue(user);
+        mockUserRepository.findByIdWithPassword.mockResolvedValue(user);
+        mockRefreshSessionService.getSessionIdFromToken.mockReturnValue('current-session-id');
+
+        // When
+        await authService.changePassword(
+          user._id.toString(),
+          'old-password',
+          'new-password',
+          'current-session-id.secret'
+        );
+
+        // Then
+        expect(user.password).toBe('new-password');
+        expect(saveSpy).toHaveBeenCalledTimes(1);
+        expect(mockRefreshSessionService.revokeAllForUser).toHaveBeenCalledWith(
+          user._id.toString(),
+          'password-change',
+          { exceptSessionId: 'current-session-id' }
+        );
+      });
+
+      it('без refresh-cookie (Bearer-клиент) — гасит все сессии, без исключения', async () => {
+        // Given
+        const user = await createUserDocument({ plainPassword: 'old-password' });
+        jest.spyOn(user, 'save').mockResolvedValue(user);
         mockUserRepository.findByIdWithPassword.mockResolvedValue(user);
 
         // When
         await authService.changePassword(user._id.toString(), 'old-password', 'new-password');
 
         // Then
-        expect(user.password).toBe('new-password');
-        expect(saveSpy).toHaveBeenCalledTimes(1);
+        expect(mockRefreshSessionService.getSessionIdFromToken).not.toHaveBeenCalled();
+        expect(mockRefreshSessionService.revokeAllForUser).toHaveBeenCalledWith(
+          user._id.toString(),
+          'password-change',
+          { exceptSessionId: undefined }
+        );
       });
     });
 
@@ -447,49 +504,57 @@ describe('AuthService', () => {
   });
 
   describe('refreshTokens', () => {
-    describe('Когда refresh-токен синтаксически невалиден', () => {
-      it('должен выбросить 401 INVALID_REFRESH_TOKEN', async () => {
+    // Реальный парсинг "id.secret", reuse detection и grace-window живут внутри
+    // refreshSessionService (замокан здесь целиком) и уже покрыты отдельно в
+    // refresh-session.service.unit.spec.ts. Здесь проверяется только то, что authService
+    // правильно реагирует на её результат/ошибку — не дублирует её внутреннюю логику.
+    describe('Когда refreshSessionService.rotate() отклонил токен', () => {
+      it('должен пробросить её ошибку как есть (401), не подменять на 500', async () => {
+        // Given
+        mockRefreshSessionService.rotate.mockRejectedValue(new AppError(401, 'Невалидный refresh-токен'));
+
         // When & Then
-        await expect(authService.refreshTokens('garbage-not-a-jwt')).rejects.toMatchObject({ status: 401 });
+        await expect(authService.refreshTokens('garbage', CTX)).rejects.toMatchObject({ status: 401 });
       });
     });
 
-    describe('Когда refresh-токен валиден, но пользователь уже удалён', () => {
-      it('должен пробросить исходную ошибку userService.getById (404), а не подменять на 401', async () => {
-        // Given — реальный jwtService, не мок: подписываем валидный refresh-токен несуществующему id
-        const ghostUser = await createUserDocument({ _id: new Types.ObjectId() });
-        const refreshToken = authService.generateRefreshToken(ghostUser);
-        mockUserService.getById.mockRejectedValue(new AppError(404, 'Пользователь не найден'));
+    describe('Когда токен ротировался, но пользователь уже удалён', () => {
+      it('должен выбросить 401 (не 404) и погасить всю семью как "user-deleted"', async () => {
+        // Given
+        mockRefreshSessionService.rotate.mockResolvedValue({
+          userId: new Types.ObjectId().toString(),
+          familyId: 'family-of-deleted-user',
+          refreshToken: 'newid.newsecret',
+        });
+        mockUserRepository.findById.mockResolvedValue(null);
 
         // When & Then
-        await expect(authService.refreshTokens(refreshToken)).rejects.toMatchObject({ status: 404 });
+        await expect(authService.refreshTokens('oldid.oldsecret', CTX)).rejects.toMatchObject({ status: 401 });
+        expect(mockRefreshSessionService.revokeFamily).toHaveBeenCalledWith(
+          'family-of-deleted-user',
+          'user-deleted'
+        );
       });
     });
 
-    describe('Когда refresh-токен валиден и пользователь существует', () => {
-      it('должен вернуть новую пару токенов', async () => {
+    describe('Когда токен успешно ротировался и пользователь существует', () => {
+      it('должен вернуть новую пару токенов, не трогая семью', async () => {
         // Given
         const user = await createUserDocument();
-        const refreshToken = authService.generateRefreshToken(user);
-        mockUserService.getById.mockResolvedValue(user);
+        mockRefreshSessionService.rotate.mockResolvedValue({
+          userId: user._id.toString(),
+          familyId: 'some-family-id',
+          refreshToken: 'newid.newsecret',
+        });
+        mockUserRepository.findById.mockResolvedValue(user);
 
         // When
-        const result = await authService.refreshTokens(refreshToken);
+        const result = await authService.refreshTokens('oldid.oldsecret', CTX);
 
         // Then
         expect(typeof result.accessToken).toBe('string');
-        expect(typeof result.refreshToken).toBe('string');
-      });
-    });
-
-    describe('Когда в /refresh подсовывают access-токен вместо refresh', () => {
-      it('должен отклонить его как невалидный (claim type не совпадает)', async () => {
-        // Given
-        const user = await createUserDocument();
-        const accessToken = authService.generateAccessToken(user);
-
-        // When & Then
-        await expect(authService.refreshTokens(accessToken)).rejects.toMatchObject({ status: 401 });
+        expect(result.refreshToken).toBe('newid.newsecret');
+        expect(mockRefreshSessionService.revokeFamily).not.toHaveBeenCalled();
       });
     });
   });
@@ -563,7 +628,7 @@ describe('AuthService', () => {
     });
 
     describe('Когда токен валиден и не просрочен', () => {
-      it('должен установить новый пароль и очистить токен сброса', async () => {
+      it('должен установить новый пароль, очистить токен сброса и отозвать ВСЕ сессии без исключения', async () => {
         // Given
         const user = await createUserDocument({
           passwordResetToken: 'valid-token',
@@ -579,6 +644,12 @@ describe('AuthService', () => {
         expect(user.password).toBe('new-password123');
         expect(user.passwordResetToken).toBeNull();
         expect(user.passwordResetExpires).toBeNull();
+        // Без exceptSessionId — в отличие от changePassword, пользователь не был
+        // аутентифицирован ни в одной сессии в момент сброса, щадить нечего.
+        expect(mockRefreshSessionService.revokeAllForUser).toHaveBeenCalledWith(
+          user._id.toString(),
+          'password-change'
+        );
       });
     });
 

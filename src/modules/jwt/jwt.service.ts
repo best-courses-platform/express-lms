@@ -3,7 +3,6 @@ import { Response } from 'express';
 import { config } from '../../config';
 import { User } from 'users/user.types';
 import { JWTPayload, validateJWTPayload } from './jwt.schema';
-import { AUTH_MESSAGES } from 'auth/auth.constants';
 import { parseDurationMs } from '../../utils/duration';
 
 export class JWTService {
@@ -24,40 +23,9 @@ export class JWTService {
     } as jwt.SignOptions);
   }
 
-  generateRefreshToken(user: User): string {
-    const payload: JWTPayload = {
-      sub: user._id.toString(),
-      email: user.email,
-      role: user.role,
-      name: user.name,
-      type: 'refresh',
-    };
-
-    const validatedPayload = validateJWTPayload(payload);
-
-    return jwt.sign(validatedPayload, config.jwtRefreshSecret, {
-      expiresIn: config.jwtRefreshExpiresIn,
-      algorithm: 'HS256',
-    } as jwt.SignOptions);
-  }
-
-  verifyRefreshToken(token: string): JWTPayload {
-    try {
-      const payload = jwt.verify(token, config.jwtRefreshSecret);
-      const validatedPayload = validateJWTPayload(payload);
-
-      // Без этой проверки access-токен (подписанный тем же алгоритмом) мог бы быть
-      // подсунут в /api/auth/refresh как будто это refresh-токен — claim type это исключает
-      // как второй, независимый от секрета барьер.
-      if (validatedPayload.type !== 'refresh') {
-        throw new Error(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
-      }
-
-      return validatedPayload;
-    } catch {
-      throw new Error(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
-    }
-  }
+  // generateRefreshToken/verifyRefreshToken удалены (заметка 31, раздел 4.2/5.5) — refresh
+  // больше не JWT, а opaque-строка "<sessionId>.<secret>" из refresh-session.service.ts;
+  // подписывать/проверять его как JWT незачем, всё равно на каждый обмен идёт поход в БД.
 
   setTokensCookies(res: Response, accessToken: string, refreshToken: string): void {
     const cookieOptions = {

@@ -9,7 +9,6 @@ export const config: Config = configSchema.parse({
   mongoUri: process.env.MONGO_URI,
   // JWT
   jwtSecret: process.env.JWT_SECRET,
-  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN,
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN,
   passwordPepper: process.env.PASSWORD_PEPPER,

@@ -64,7 +64,10 @@ class RefreshSessionService {
   }
 
   // --- POST /api/auth/refresh ---
-  async rotate(rawToken: string, ctx: SessionContext): Promise<{ userId: string; refreshToken: string }> {
+  async rotate(
+    rawToken: string,
+    ctx: SessionContext
+  ): Promise<{ userId: string; familyId: string; refreshToken: string }> {
     const { id, secret } = parseRefreshToken(rawToken);
     const session = await refreshSessionRepository.findById(id);
 
@@ -97,7 +100,7 @@ class RefreshSessionService {
       throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
     }
 
-    return { userId: session.user.toString(), refreshToken: `${child.id}.${newSecret}` };
+    return { userId: session.user.toString(), familyId: session.familyId, refreshToken: `${child.id}.${newSecret}` };
   }
 
   // Вынесено отдельным методом — три разных исхода в одном if разрослись бы в
@@ -149,6 +152,37 @@ class RefreshSessionService {
   // --- смена/сброс пароля, logout-all ---
   async revokeAllForUser(userId: string, reason: RevokeReason, opts: { exceptSessionId?: string } = {}): Promise<void> {
     await refreshSessionRepository.revokeAllForUser(userId, reason, opts.exceptSessionId);
+  }
+
+  // --- refreshTokens() в auth.service.ts: ротация успела произойти, но userService.getById
+  // не нашёл пользователя (удалён между выдачей токена и его использованием) — гасим всю
+  // семью, а не только что созданного потомка, раз владелец токена более не существует.
+  async revokeFamily(familyId: string, reason: RevokeReason): Promise<void> {
+    await refreshSessionRepository.revokeFamily(familyId, reason);
+  }
+
+  // --- changePassword(): нужен id ТЕКУЩЕЙ сессии из refresh-cookie запроса, чтобы не
+  // отзывать её вместе с остальными (см. auth.service.ts). Просто разбор строки, без
+  // обращения к БД — сессия для этого id может быть уже неактивной, вызывающая сторона
+  // это не проверяет, exceptSessionId в revokeAllForUser такой id просто не найдёт.
+  getSessionIdFromToken(rawToken: string): string | null {
+    return tryParseRefreshToken(rawToken)?.id ?? null;
+  }
+
+  // --- DELETE /api/auth/sessions/:id --- возвращает false, если сессии нет, она чужая или
+  // уже неактивна — контроллер превращает это в 404, не палит существование чужой сессии.
+  async revokeOwned(userId: string, sessionId: string): Promise<boolean> {
+    const session = await refreshSessionRepository.findById(sessionId);
+
+    if (!session || session.revokedAt || session.user.toString() !== userId) {
+      return false;
+    }
+
+    // 'logout' — по смыслу то же самое действие (осознанное завершение одной сессии
+    // владельцем), просто удалённо, не с самого устройства этой сессии; отдельного
+    // значения enum'а под "выйти с конкретного другого устройства" не заводили.
+    await refreshSessionRepository.revokeById(session.id, 'logout');
+    return true;
   }
 
   // --- GET /api/auth/sessions ---

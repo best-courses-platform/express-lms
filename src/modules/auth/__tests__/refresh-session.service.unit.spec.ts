@@ -224,6 +224,66 @@ describe('RefreshSessionService', () => {
     });
   });
 
+  describe('getSessionIdFromToken', () => {
+    it('возвращает id из валидной строки токена', () => {
+      expect(refreshSessionService.getSessionIdFromToken('507f1f77bcf86cd799439011.somesecret')).toBe(
+        '507f1f77bcf86cd799439011'
+      );
+    });
+
+    it('возвращает null для битой строки', () => {
+      expect(refreshSessionService.getSessionIdFromToken('garbage')).toBeNull();
+    });
+  });
+
+  describe('revokeOwned', () => {
+    it('своя активная сессия → revokeById вызван, возвращает true', async () => {
+      const session = makeSession();
+      mockRepo.findById.mockResolvedValue(session);
+
+      const result = await refreshSessionService.revokeOwned(session.user.toString(), session.id);
+
+      expect(result).toBe(true);
+      expect(mockRepo.revokeById).toHaveBeenCalledWith(session.id, 'logout');
+    });
+
+    it('чужая сессия → false, revokeById не вызван', async () => {
+      const session = makeSession();
+      mockRepo.findById.mockResolvedValue(session);
+
+      const result = await refreshSessionService.revokeOwned('someone-else-id', session.id);
+
+      expect(result).toBe(false);
+      expect(mockRepo.revokeById).not.toHaveBeenCalled();
+    });
+
+    it('уже отозванная сессия → false', async () => {
+      const session = makeSession({ revokedAt: new Date() });
+      mockRepo.findById.mockResolvedValue(session);
+
+      const result = await refreshSessionService.revokeOwned(session.user.toString(), session.id);
+
+      expect(result).toBe(false);
+      expect(mockRepo.revokeById).not.toHaveBeenCalled();
+    });
+
+    it('несуществующая сессия → false', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+
+      const result = await refreshSessionService.revokeOwned(USER_ID, '507f1f77bcf86cd799439011');
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('revokeFamily', () => {
+    it('делегирует в репозиторий с той же причиной', async () => {
+      await refreshSessionService.revokeFamily('some-family-id', 'user-deleted');
+
+      expect(mockRepo.revokeFamily).toHaveBeenCalledWith('some-family-id', 'user-deleted');
+    });
+  });
+
   describe('list', () => {
     it('помечает текущую сессию по id из переданного raw-токена', async () => {
       const current = makeSession();

@@ -16,6 +16,7 @@ export const AUTH_MESSAGES = {
     INVALID_REFRESH_TOKEN: 'Невалидный или просроченный refresh token',
     REFRESH_TOKEN_REQUIRED: 'Refresh token отсутствует',
     SESSION_REVOKED: 'Сессия отозвана — войдите заново',
+    SESSION_NOT_FOUND: 'Сессия не найдена',
     AUTH_FAILED: 'Ошибка аутентификации',
     AUTHENTICATION_ERROR: 'Ошибка аутентификации',
     OAUTH_EMAIL_NOT_PROVIDED: 'Email не предоставлен провайдером',
