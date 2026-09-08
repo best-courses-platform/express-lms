@@ -4,6 +4,7 @@ import { config } from '../../config';
 import { User } from 'users/user.types';
 import { JWTPayload, validateJWTPayload } from './jwt.schema';
 import { AUTH_MESSAGES } from 'auth/auth.constants';
+import { parseDurationMs } from '../../utils/duration';
 
 export class JWTService {
   generateAccessToken(user: User): string {
@@ -65,14 +66,18 @@ export class JWTService {
       sameSite: 'lax' as const,
     };
 
+    // maxAge берётся из тех же config.jwtAccessExpiresIn/jwtRefreshExpiresIn, которыми
+    // подписан сам токен — раньше здесь было отдельное захардкоженное число (8 часов),
+    // синхронизировать которое с config.jwtAccessExpiresIn при изменении TTL нужно было
+    // вручную, и ничто (ни typecheck, ни тесты) не поймало бы расхождение.
     res.cookie('access_token', accessToken, {
       ...cookieOptions,
-      maxAge: 8 * 60 * 60 * 1000, // 8 часов
+      maxAge: parseDurationMs(config.jwtAccessExpiresIn),
     });
 
     res.cookie('refresh_token', refreshToken, {
       ...cookieOptions,
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 дней
+      maxAge: parseDurationMs(config.jwtRefreshExpiresIn),
     });
   }
 
