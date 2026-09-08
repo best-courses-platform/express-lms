@@ -9,7 +9,7 @@
 process.env.NODE_ENV = 'test';
 
 process.env.JWT_SECRET = 'test-jwt-secret';
-process.env.JWT_ACCESS_EXPIRES_IN = '8h';
+process.env.JWT_ACCESS_EXPIRES_IN = '15m';
 process.env.JWT_REFRESH_EXPIRES_IN = '30d';
 
 // min(32) в configSchema (см. src/config/schema.ts) — просто длинная фиктивная строка,
