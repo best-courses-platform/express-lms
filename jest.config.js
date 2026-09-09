@@ -1,7 +1,7 @@
 // Отражает tsconfig.json baseUrl+paths ("auth/x" -> "src/modules/auth/x") — без этого
 // jest не резолвит ни один bare-алиасный импорт, все тестовые сьюты падают на require().
 const moduleNameMapper = {
-    '^(auth|courses|email|file-storage|jwt|lessons|users)/(.*)$': '<rootDir>/src/modules/$1/$2',
+    '^(auth|courses|email|file-storage|jwt|lessons|sessions|users)/(.*)$': '<rootDir>/src/modules/$1/$2',
 };
 
 const transform = {

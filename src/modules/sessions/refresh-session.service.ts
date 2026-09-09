@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { config } from '../../config';
 import { parseDurationMs } from '../../utils/duration';
 import { UnauthorizedError } from '../../utils/errors';
-import { AUTH_MESSAGES } from './auth.constants';
+import { SESSION_MESSAGES } from './refresh-session.constants';
 import { refreshSessionRepository } from './refresh-session.repository';
 import { RefreshSessionDocument, RevokeReason, SessionContext, SessionView } from './refresh-session.types';
 
@@ -32,7 +32,7 @@ function parseRefreshToken(raw: string): { id: string; secret: string } {
   const dotIndex = raw.indexOf('.');
 
   if (dotIndex <= 0 || dotIndex === raw.length - 1) {
-    throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
+    throw new UnauthorizedError(SESSION_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
   }
 
   return { id: raw.slice(0, dotIndex), secret: raw.slice(dotIndex + 1) };
@@ -72,7 +72,7 @@ class RefreshSessionService {
     const session = await refreshSessionRepository.findById(id);
 
     if (!session || !timingSafeEqualHex(sha256Hex(secret), session.tokenHash)) {
-      throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
+      throw new UnauthorizedError(SESSION_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
     }
 
     if (session.revokedAt) {
@@ -80,7 +80,7 @@ class RefreshSessionService {
     }
 
     if (session.expiresAt.getTime() <= Date.now()) {
-      throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
+      throw new UnauthorizedError(SESSION_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
     }
 
     const newSecret = crypto.randomBytes(SECRET_BYTES).toString('base64url');
@@ -97,7 +97,7 @@ class RefreshSessionService {
     if (!child) {
       // Между findById выше и атомарным claim'ом кто-то другой (параллельный /refresh,
       // либо logout) успел раньше нас — не reuse, просто проигранная гонка на этом же шаге.
-      throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
+      throw new UnauthorizedError(SESSION_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
     }
 
     return { userId: session.user.toString(), familyId: session.familyId, refreshToken: `${child.id}.${newSecret}` };
@@ -115,7 +115,7 @@ class RefreshSessionService {
       // Гонка: клиент (или сеть с ретраем) послал два refresh почти одновременно. Один
       // выиграл и уже поставил новую cookie. Этот — просто отклоняем, семью НЕ гасим.
       // Иначе любой дабл-клик/retry разлогинивал бы живого пользователя.
-      throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
+      throw new UnauthorizedError(SESSION_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
     }
 
     if (session.revokedReason === 'rotated') {
@@ -125,7 +125,7 @@ class RefreshSessionService {
       await refreshSessionRepository.revokeFamily(session.familyId, 'reuse-detected');
     }
 
-    throw new UnauthorizedError(AUTH_MESSAGES.ERROR.SESSION_REVOKED);
+    throw new UnauthorizedError(SESSION_MESSAGES.ERROR.SESSION_REVOKED);
   }
 
   // --- logout ---

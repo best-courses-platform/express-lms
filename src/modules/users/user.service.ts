@@ -3,11 +3,11 @@ import { userRepository } from './user.repository';
 import { AppError, BadRequestError, ConflictError, InternalError, NotFoundError } from '../../utils/errors';
 import { USER_MESSAGES } from './user.constants';
 import { OAuthProfile } from 'auth/auth.types';
-// Единственный runtime-импорт users -> auth в проекте (раньше был только тип OAuthProfile) —
-// refreshSessionService ничего не тянет обратно из users (проверено), цикла нет. Прямой
-// импорт, а не событийная шина — тот же стиль, что и у auth.service.ts, который точно так же
-// напрямую дёргает userRepository/userService в обратную сторону.
-import { refreshSessionService } from 'auth/refresh-session.service';
+// Единственный runtime-импорт users -> sessions в проекте — refreshSessionService ничего
+// не тянет обратно из users (проверено), цикла нет. Прямой импорт, а не событийная шина —
+// тот же стиль, что и у auth.service.ts, который точно так же напрямую дёргает
+// userRepository/userService в обратную сторону.
+import { refreshSessionService } from 'sessions/refresh-session.service';
 import crypto from 'crypto';
 
 class UserService {

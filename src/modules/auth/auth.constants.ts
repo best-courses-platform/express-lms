@@ -13,10 +13,9 @@ export const AUTH_MESSAGES = {
   ERROR: {
     ...COMMON_MESSAGES.ERROR,
     INVALID_CREDENTIALS: 'Неверный email или пароль',
-    INVALID_REFRESH_TOKEN: 'Невалидный или просроченный refresh token',
-    REFRESH_TOKEN_REQUIRED: 'Refresh token отсутствует',
-    SESSION_REVOKED: 'Сессия отозвана — войдите заново',
-    SESSION_NOT_FOUND: 'Сессия не найдена',
+    // INVALID_REFRESH_TOKEN/REFRESH_TOKEN_REQUIRED/SESSION_REVOKED/SESSION_NOT_FOUND —
+    // переехали в sessions/refresh-session.constants.ts (SESSION_MESSAGES) при выносе
+    // refresh-сессий в отдельный модуль, см. Obsidian: Рефакторинг проблем/31, раздел 9.7.
     AUTH_FAILED: 'Ошибка аутентификации',
     AUTHENTICATION_ERROR: 'Ошибка аутентификации',
     OAUTH_EMAIL_NOT_PROVIDED: 'Email не предоставлен провайдером',
