@@ -8,7 +8,9 @@ export const configSchema = z.object({
   // JWT — только access, теперь единственный JWT в системе (заметка 31: refresh стал
   // opaque-строкой в БД, не JWT — jwtRefreshSecret ему больше не нужен, см. jwt.service.ts).
   jwtSecret: z.string().min(1, CONFIG_MESSAGES.ERROR.JWT_SECRET_REQUIRED),
-  jwtAccessExpiresIn: z.string().default('8h'),
+  // 15m — индустриальная норма для access-токена при работающей ротации refresh-сессий
+  // (заметка 31): раньше было 8h как временная мера, пока на lms-web не было silent-refresh.
+  jwtAccessExpiresIn: z.string().default('15m'),
   // TTL не самого JWT, а refresh-СЕССИИ в БД (RefreshSession.expiresAt) и refresh-cookie —
   // используется refresh-session.service.ts, не jwt.sign().
   jwtRefreshExpiresIn: z.string().default('30d'),
