@@ -27,8 +27,17 @@ jest.mock('../user.repository', () => ({
   },
 }));
 
+jest.mock('auth/refresh-session.service', () => ({
+  refreshSessionService: {
+    revokeAllForUser: jest.fn(),
+  },
+}));
+
 const { userRepository } = require('../user.repository') as { userRepository: typeof UserRepositoryInstance };
 const { userService } = require('../user.service') as { userService: typeof UserServiceInstance };
+const { refreshSessionService } = require('auth/refresh-session.service') as {
+  refreshSessionService: { revokeAllForUser: jest.Mock };
+};
 
 const mockUserRepository = userRepository as jest.Mocked<typeof userRepository>;
 
@@ -258,6 +267,14 @@ describe('UserService', () => {
 
         await expect(userService.delete('507f1f77bcf86cd799439011')).rejects.toMatchObject({ status: 404 });
       });
+
+      it('не должен гасить сессии — пользователя и так не существовало, нечего гасить', async () => {
+        mockUserRepository.delete.mockResolvedValue(false);
+
+        await userService.delete('507f1f77bcf86cd799439011').catch(() => {});
+
+        expect(refreshSessionService.revokeAllForUser).not.toHaveBeenCalled();
+      });
     });
 
     describe('Когда пользователь удалён успешно', () => {
@@ -265,6 +282,14 @@ describe('UserService', () => {
         mockUserRepository.delete.mockResolvedValue(true);
 
         await expect(userService.delete('507f1f77bcf86cd799439011')).resolves.toBeUndefined();
+      });
+
+      it('должен отозвать все refresh-сессии удалённого пользователя с причиной user-deleted', async () => {
+        mockUserRepository.delete.mockResolvedValue(true);
+
+        await userService.delete('507f1f77bcf86cd799439011');
+
+        expect(refreshSessionService.revokeAllForUser).toHaveBeenCalledWith('507f1f77bcf86cd799439011', 'user-deleted');
       });
     });
   });

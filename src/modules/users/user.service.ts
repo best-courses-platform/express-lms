@@ -3,6 +3,11 @@ import { userRepository } from './user.repository';
 import { AppError, BadRequestError, ConflictError, InternalError, NotFoundError } from '../../utils/errors';
 import { USER_MESSAGES } from './user.constants';
 import { OAuthProfile } from 'auth/auth.types';
+// Единственный runtime-импорт users -> auth в проекте (раньше был только тип OAuthProfile) —
+// refreshSessionService ничего не тянет обратно из users (проверено), цикла нет. Прямой
+// импорт, а не событийная шина — тот же стиль, что и у auth.service.ts, который точно так же
+// напрямую дёргает userRepository/userService в обратную сторону.
+import { refreshSessionService } from 'auth/refresh-session.service';
 import crypto from 'crypto';
 
 class UserService {
@@ -69,6 +74,12 @@ class UserService {
     if (!ok) {
       throw new NotFoundError(USER_MESSAGES.ERROR.NOT_FOUND);
     }
+
+    // Тот же принцип, что у changePassword/resetPassword/logout-all (заметка 31) — событие
+    // жизненного цикла аккаунта обязано гасить сессии сразу, а не полагаться на то, что
+    // следующий /refresh наткнётся на несуществующего юзера и погасит только свою семью.
+    // После user (самое радикальное событие) — это было последним пробелом в списке.
+    await refreshSessionService.revokeAllForUser(id, 'user-deleted');
   }
 
   async findOrCreateFromOAuth(profile: OAuthProfile): Promise<User> {

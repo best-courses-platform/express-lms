@@ -1,6 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import request from 'supertest';
 import { UserModel } from '../user.model';
+import { RefreshSessionModel } from '../../auth/refresh-session.model';
 import app from '../../../app';
 import { loginAgent, mustFindUserByEmail } from '../../../../test/helpers';
 
@@ -349,6 +350,29 @@ describe('User routes (integration)', () => {
         expect(response.status).toBe(204);
         const stored = await UserModel.findById(target._id);
         expect(stored).toBeNull();
+      });
+
+      it('должен сразу отозвать ВСЕ активные refresh-сессии удалённого пользователя — не только ту, с которой попробуют /refresh', async () => {
+        // Заметка 31, раздел 9.6: до фикса удаление гасило сессии только лениво, по одной,
+        // при первой же попытке /refresh с конкретного устройства — вторая "семья" (второй
+        // логин с того же аккаунта) так и оставалась бы активной в БД до истечения TTL.
+        const { agent } = await loginAgent(app, { role: 'admin' });
+        const { email: targetEmail, password: targetPassword } = await loginAgent(app, { role: 'student' });
+        // Второй логин тем же юзером — "второе устройство", вторая независимая familyId.
+        await request(app).post('/api/auth/login').send({ email: targetEmail, password: targetPassword });
+        const target = await mustFindUserByEmail(targetEmail);
+
+        const activeBefore = await RefreshSessionModel.countDocuments({ user: target._id, revokedAt: null });
+        expect(activeBefore).toBe(2);
+
+        const response = await agent.delete(`/api/users/${target._id.toString()}`);
+        expect(response.status).toBe(204);
+
+        const activeAfter = await RefreshSessionModel.countDocuments({ user: target._id, revokedAt: null });
+        expect(activeAfter).toBe(0);
+        const revoked = await RefreshSessionModel.find({ user: target._id });
+        expect(revoked).toHaveLength(2);
+        expect(revoked.every(session => session.revokedReason === 'user-deleted')).toBe(true);
       });
     });
   });
