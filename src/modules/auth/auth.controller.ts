@@ -6,7 +6,10 @@ import { userService } from 'users/user.service';
 import { validate } from '../../middleware/validate';
 import { asyncHandler } from '../../middleware/async-handler';
 import { config } from '../../config';
-import { SessionContext } from './refresh-session.types';
+import { NotFoundError } from '../../utils/errors';
+import { refreshSessionService } from 'sessions/refresh-session.service';
+import { SessionContext } from 'sessions/refresh-session.types';
+import { SESSION_MESSAGES } from 'sessions/refresh-session.constants';
 import {
   changePasswordSchema,
   loginSchema,
@@ -123,7 +126,10 @@ export const logoutAll: RequestHandler = async (req, res) => {
     return;
   }
 
-  await authService.logoutAll(req.user._id.toString());
+  // Прямой вызов refreshSessionService — authService.logoutAll был чистым pass-through
+  // без единой строки логики, убран при выносе сессий в отдельный модуль (см. Obsidian:
+  // Рефакторинг проблем/31, раздел 9.7).
+  await refreshSessionService.revokeAllForUser(req.user._id.toString(), 'logout-all');
   jwtService.clearTokensCookies(res);
   res.json({ message: AUTH_MESSAGES.SUCCESS.LOGGED_OUT });
 };
@@ -134,7 +140,7 @@ export const getSessions: RequestHandler = async (req, res) => {
     return;
   }
 
-  const sessions = await authService.listSessions(req.user._id.toString(), req.cookies?.refresh_token);
+  const sessions = await refreshSessionService.list(req.user._id.toString(), req.cookies?.refresh_token);
   res.json({ sessions });
 };
 
@@ -144,7 +150,13 @@ export const deleteSession: RequestHandler = async (req, res) => {
     return;
   }
 
-  await authService.revokeSession(req.user._id.toString(), req.params.id);
+  const revoked = await refreshSessionService.revokeOwned(req.user._id.toString(), req.params.id);
+  if (!revoked) {
+    // Не различаем "сессии нет" и "сессия чужая" — иначе перебором id можно было бы
+    // отличить существующие чужие сессии от несуществующих.
+    throw new NotFoundError(SESSION_MESSAGES.ERROR.SESSION_NOT_FOUND);
+  }
+
   res.status(204).send();
 };
 
@@ -154,7 +166,7 @@ export const refreshToken: RequestHandler = async (req, res) => {
   const refreshToken = bodyRefreshToken || cookieRefreshToken;
 
   if (!refreshToken) {
-    res.status(401).json({ error: AUTH_MESSAGES.ERROR.REFRESH_TOKEN_REQUIRED });
+    res.status(401).json({ error: SESSION_MESSAGES.ERROR.REFRESH_TOKEN_REQUIRED });
     return;
   }
 

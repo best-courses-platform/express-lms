@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import request from 'supertest';
 import { UserModel } from '../user.model';
-import { RefreshSessionModel } from '../../auth/refresh-session.model';
+import { RefreshSessionModel } from '../../sessions/refresh-session.model';
 import app from '../../../app';
 import { loginAgent, mustFindUserByEmail } from '../../../../test/helpers';
 

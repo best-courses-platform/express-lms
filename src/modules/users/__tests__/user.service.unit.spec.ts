@@ -27,7 +27,7 @@ jest.mock('../user.repository', () => ({
   },
 }));
 
-jest.mock('auth/refresh-session.service', () => ({
+jest.mock('sessions/refresh-session.service', () => ({
   refreshSessionService: {
     revokeAllForUser: jest.fn(),
   },
@@ -35,7 +35,7 @@ jest.mock('auth/refresh-session.service', () => ({
 
 const { userRepository } = require('../user.repository') as { userRepository: typeof UserRepositoryInstance };
 const { userService } = require('../user.service') as { userService: typeof UserServiceInstance };
-const { refreshSessionService } = require('auth/refresh-session.service') as {
+const { refreshSessionService } = require('sessions/refresh-session.service') as {
   refreshSessionService: { revokeAllForUser: jest.Mock };
 };
 

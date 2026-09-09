@@ -16,8 +16,9 @@ import { userRepository } from 'users/user.repository';
 import { emailService } from 'email/email.service';
 import { enqueuePasswordResetEmail, enqueueVerificationEmail } from 'email/email.queue';
 import crypto from 'crypto'; // Импортируем crypto
-import { refreshSessionService } from './refresh-session.service';
-import { SessionContext, SessionView } from './refresh-session.types';
+import { refreshSessionService } from 'sessions/refresh-session.service';
+import { SessionContext } from 'sessions/refresh-session.types';
+import { SESSION_MESSAGES } from 'sessions/refresh-session.constants';
 
 export class AuthService {
   async register(userData: { name: string; email: string; password: string }): Promise<{ user: User }> {
@@ -272,7 +273,7 @@ export class AuthService {
         // Токен ротировался успешно, но пользователя за ним больше нет (удалён между
         // выдачей и обменом) — гасим всю семью, не только что созданного потомка.
         await refreshSessionService.revokeFamily(familyId, 'user-deleted');
-        throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
+        throw new UnauthorizedError(SESSION_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
       }
 
       const accessToken = this.generateAccessToken(user);
@@ -282,33 +283,18 @@ export class AuthService {
       if (error instanceof AppError) {
         throw error;
       }
-      throw new UnauthorizedError(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN, error);
+      throw new UnauthorizedError(SESSION_MESSAGES.ERROR.INVALID_REFRESH_TOKEN, error);
     }
   }
 
-  // --- logout / logout-all / список сессий ---
-
+  // --- logout ---
+  // logoutAll/listSessions/revokeSession убраны отсюда при выносе сессий в отдельный модуль
+  // (см. Obsidian: Рефакторинг проблем/31, раздел 9.7) — были чистыми pass-through без
+  // единой строки логики, контроллер теперь зовёт refreshSessionService напрямую. logout()
+  // остаётся здесь — у него есть реальное ветвление (best-effort, только если токен пришёл).
   async logout(userId: string, rawRefreshToken?: string): Promise<void> {
     if (rawRefreshToken) {
       await refreshSessionService.revokeByToken(rawRefreshToken, 'logout', userId);
-    }
-  }
-
-  async logoutAll(userId: string): Promise<void> {
-    await refreshSessionService.revokeAllForUser(userId, 'logout-all');
-  }
-
-  async listSessions(userId: string, currentRawToken?: string): Promise<SessionView[]> {
-    return await refreshSessionService.list(userId, currentRawToken);
-  }
-
-  async revokeSession(userId: string, sessionId: string): Promise<void> {
-    const revoked = await refreshSessionService.revokeOwned(userId, sessionId);
-
-    if (!revoked) {
-      // Не различаем "сессии нет" и "сессия чужая" — иначе перебором id можно было бы
-      // отличить существующие чужие сессии от несуществующих.
-      throw new NotFoundError(AUTH_MESSAGES.ERROR.SESSION_NOT_FOUND);
     }
   }
 

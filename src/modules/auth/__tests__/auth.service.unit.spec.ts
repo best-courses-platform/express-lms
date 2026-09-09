@@ -51,18 +51,18 @@ jest.mock('../breached-password-checker', () => ({
 // refreshSessionService реально бьёт в Mongo (create/findById/транзакция ротации) —
 // в unit-слое замокан целиком, как и userRepository/userService выше. Реальная механика
 // (парсинг "id.secret", reuse detection, grace-window) уже покрыта отдельно в
-// refresh-session.service.unit.spec.ts — здесь важно только то, что authService правильно
-// дёргает эти методы и правильно реагирует на их результат/ошибку.
-jest.mock('../refresh-session.service', () => ({
+// sessions/__tests__/refresh-session.service.unit.spec.ts — здесь важно только то, что
+// authService правильно дёргает эти методы и правильно реагирует на их результат/ошибку.
+// revokeOwned/list сюда не входят — их теперь дёргает auth.controller.ts напрямую, не
+// authService (см. Obsidian: Рефакторинг проблем/31, раздел 9.7).
+jest.mock('sessions/refresh-session.service', () => ({
   refreshSessionService: {
     issue: jest.fn(),
     rotate: jest.fn(),
     revokeByToken: jest.fn(),
     revokeAllForUser: jest.fn(),
     revokeFamily: jest.fn(),
-    revokeOwned: jest.fn(),
     getSessionIdFromToken: jest.fn(),
-    list: jest.fn(),
   },
 }));
 
@@ -83,8 +83,8 @@ const { emailService } = require('email/email.service') as { emailService: typeo
 const { isPasswordBreached } = require('../breached-password-checker') as {
   isPasswordBreached: (password: string) => Promise<boolean>;
 };
-const { refreshSessionService } = require('../refresh-session.service') as {
-  refreshSessionService: typeof import('../refresh-session.service').refreshSessionService;
+const { refreshSessionService } = require('sessions/refresh-session.service') as {
+  refreshSessionService: typeof import('sessions/refresh-session.service').refreshSessionService;
 };
 
 const mockUserService = userService as jest.Mocked<typeof userService>;
