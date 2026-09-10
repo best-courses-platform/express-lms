@@ -121,10 +121,14 @@ class CourseService {
       throw new ForbiddenError(COURSE_MESSAGES.ERROR.NOT_AUTHOR);
     }
 
-    // Уроки курса и их файлы в S3 иначе остаются висеть навсегда — ничего, кроме этого
-    // вызова, их не подчищает (см. Obsidian: та же проблема "сирот", что и при прямом
-    // удалении курса через mongosh, только теперь она была и в штатном API-пути).
+    // Уроки курса и их файлы в S3, записи на курс (Enrollment) и оценки (Rating) иначе
+    // остаются висеть навсегда — ничего, кроме этих трёх вызовов, их не подчищает (см.
+    // Obsidian: та же проблема "сирот", что и при прямом удалении курса через mongosh,
+    // только теперь она была и в штатном API-пути — Enrollment/Rating пропустили при
+    // самом их введении, не заметили сразу по той же причине, что и уроки в своё время).
     await lessonService.deleteAllForCourse(id);
+    await enrollmentService.deleteAllForCourse(id);
+    await courseRepository.deleteAllRatingsForCourse(id);
 
     const ok = await courseRepository.delete(id);
     if (!ok) {

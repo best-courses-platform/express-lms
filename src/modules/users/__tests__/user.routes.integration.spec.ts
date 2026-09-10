@@ -2,6 +2,9 @@ import { describe, it, expect } from '@jest/globals';
 import request from 'supertest';
 import { UserModel } from '../user.model';
 import { RefreshSessionModel } from '../../sessions/refresh-session.model';
+import { CourseModel } from 'courses/course.model';
+import { RatingModel } from 'courses/rating.model';
+import { EnrollmentModel } from 'enrollments/enrollment.model';
 import app from '../../../app';
 import { loginAgent, mustFindUserByEmail } from '../../../../test/helpers';
 
@@ -373,6 +376,41 @@ describe('User routes (integration)', () => {
         const revoked = await RefreshSessionModel.find({ user: target._id });
         expect(revoked).toHaveLength(2);
         expect(revoked.every(session => session.revokedReason === 'user-deleted')).toBe(true);
+      });
+
+      it('должен удалить Enrollment/Rating удалённого студента и пересчитать studentsCount/averageRating затронутого курса — регрессия на "сирот"', async () => {
+        const { agent: adminAgent } = await loginAgent(app, { role: 'admin' });
+        const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
+
+        const courseResponse = await authorAgent.post('/api/courses').send({
+          title: `Course for cascade test ${Date.now()}`,
+          description: 'A sufficiently long description for validation purposes.',
+          previewImage: 'https://example.com/preview.png',
+          tags: [],
+          difficulty: 'beginner',
+          isPublished: true,
+        });
+        const courseId = courseResponse.body.course._id;
+
+        const { agent: studentAgent, email: studentEmail } = await loginAgent(app, { role: 'student' });
+        await authorAgent.post(`/api/courses/${courseId}/enrollments`).send({ email: studentEmail });
+        await studentAgent.post(`/api/courses/${courseId}/ratings`).send({ value: 4 });
+        const student = await mustFindUserByEmail(studentEmail);
+
+        expect(await EnrollmentModel.countDocuments({ userId: student._id })).toBe(1);
+        expect(await RatingModel.countDocuments({ userId: student._id })).toBe(1);
+        expect((await CourseModel.findById(courseId))?.studentsCount).toBe(1);
+        expect((await CourseModel.findById(courseId))?.averageRating).toBe(4);
+
+        const response = await adminAgent.delete(`/api/users/${student._id.toString()}`);
+        expect(response.status).toBe(204);
+
+        expect(await EnrollmentModel.countDocuments({ userId: student._id })).toBe(0);
+        expect(await RatingModel.countDocuments({ userId: student._id })).toBe(0);
+        const courseAfter = await CourseModel.findById(courseId);
+        expect(courseAfter?.studentsCount).toBe(0);
+        expect(courseAfter?.averageRating).toBe(0);
+        expect(courseAfter?.ratingCount).toBe(0);
       });
     });
   });

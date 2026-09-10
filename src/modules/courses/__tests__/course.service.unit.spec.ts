@@ -30,6 +30,7 @@ jest.mock('../course.repository', () => ({
     removeLesson: jest.fn(),
     addRating: jest.fn(),
     getRatingsByCourse: jest.fn(),
+    deleteAllRatingsForCourse: jest.fn(),
   },
 }));
 jest.mock('lessons/lesson.service', () => ({
@@ -41,6 +42,7 @@ jest.mock('enrollments/enrollment.service', () => ({
   enrollmentService: {
     isEnrolled: jest.fn(),
     getEnrolledCourseIds: jest.fn(),
+    deleteAllForCourse: jest.fn(),
   },
 }));
 
@@ -250,7 +252,7 @@ describe('CourseService', () => {
     });
 
     describe('Когда вызывающий не автор курса', () => {
-      it('должен выбросить 403, не удаляя ни курс, ни уроки', async () => {
+      it('должен выбросить 403, не удаляя ни курс, ни уроки, ни Enrollment/Rating', async () => {
         // Given
         const course = createMockCourse({ author: new Types.ObjectId() });
         mockCourseRepository.findById.mockResolvedValue(course);
@@ -260,14 +262,18 @@ describe('CourseService', () => {
           status: 403,
         });
         expect(mockLessonService.deleteAllForCourse).not.toHaveBeenCalled();
+        expect(mockEnrollmentService.deleteAllForCourse).not.toHaveBeenCalled();
+        expect(mockCourseRepository.deleteAllRatingsForCourse).not.toHaveBeenCalled();
         expect(mockCourseRepository.delete).not.toHaveBeenCalled();
       });
     });
 
     describe('Когда вызывающий — автор курса', () => {
-      it('должен сначала удалить уроки курса, потом сам курс — именно в этом порядке', async () => {
+      it('должен сначала удалить уроки/Enrollment/Rating курса, потом сам курс — именно в этом порядке', async () => {
         // Given — регрессионный тест на баг №16 (Рефакторинг проблем): courseService.delete()
         // раньше не чистил уроки курса вообще, оставляя "сирот" в БД и файлы в S3 навсегда.
+        // Enrollment/Rating пропустили при их собственном введении тем же самым способом —
+        // это регрессия и на них тоже, не только на уроки.
         const authorId = new Types.ObjectId();
         const course = createMockCourse({ author: authorId });
         mockCourseRepository.findById.mockResolvedValue(course);
@@ -275,7 +281,13 @@ describe('CourseService', () => {
 
         const callOrder: string[] = [];
         mockLessonService.deleteAllForCourse.mockImplementation(async () => {
-          callOrder.push('deleteAllForCourse');
+          callOrder.push('lessonService.deleteAllForCourse');
+        });
+        mockEnrollmentService.deleteAllForCourse.mockImplementation(async () => {
+          callOrder.push('enrollmentService.deleteAllForCourse');
+        });
+        mockCourseRepository.deleteAllRatingsForCourse.mockImplementation(async () => {
+          callOrder.push('courseRepository.deleteAllRatingsForCourse');
         });
         mockCourseRepository.delete.mockImplementation(async () => {
           callOrder.push('courseRepository.delete');
@@ -287,8 +299,15 @@ describe('CourseService', () => {
 
         // Then
         expect(mockLessonService.deleteAllForCourse).toHaveBeenCalledWith(course._id.toString());
+        expect(mockEnrollmentService.deleteAllForCourse).toHaveBeenCalledWith(course._id.toString());
+        expect(mockCourseRepository.deleteAllRatingsForCourse).toHaveBeenCalledWith(course._id.toString());
         expect(mockCourseRepository.delete).toHaveBeenCalledWith(course._id.toString());
-        expect(callOrder).toEqual(['deleteAllForCourse', 'courseRepository.delete']);
+        expect(callOrder).toEqual([
+          'lessonService.deleteAllForCourse',
+          'enrollmentService.deleteAllForCourse',
+          'courseRepository.deleteAllRatingsForCourse',
+          'courseRepository.delete',
+        ]);
       });
     });
   });
