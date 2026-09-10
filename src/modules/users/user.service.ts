@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 import { NewUser, UpdateUser, User } from './user.types';
 import { userRepository } from './user.repository';
 import { AppError, BadRequestError, ConflictError, InternalError, NotFoundError } from '../../utils/errors';
@@ -8,6 +9,10 @@ import { OAuthProfile } from 'auth/auth.types';
 // тот же стиль, что и у auth.service.ts, который точно так же напрямую дёргает
 // userRepository/userService в обратную сторону.
 import { refreshSessionService } from 'sessions/refresh-session.service';
+// Аналогично — enrollmentService зовёт только userRepository (не userService), courseRepository
+// вообще ничего не знает про users. Цикла нет ни в одну, ни в другую сторону.
+import { enrollmentService } from 'enrollments/enrollment.service';
+import { courseRepository } from 'courses/course.repository';
 import crypto from 'crypto';
 
 class UserService {
@@ -78,8 +83,13 @@ class UserService {
     // Тот же принцип, что у changePassword/resetPassword/logout-all (заметка 31) — событие
     // жизненного цикла аккаунта обязано гасить сессии сразу, а не полагаться на то, что
     // следующий /refresh наткнётся на несуществующего юзера и погасит только свою семью.
-    // После user (самое радикальное событие) — это было последним пробелом в списке.
     await refreshSessionService.revokeAllForUser(id, 'user-deleted');
+
+    // Записи на курсы (Enrollment) и оценки (Rating) удалённого пользователя иначе остаются
+    // сиротами на чужих, продолжающих существовать курсах — studentsCount/averageRating
+    // тех курсов при этом честно пересчитываются, а не просто теряют ссылку молча.
+    await enrollmentService.deleteAllForUser(id);
+    await courseRepository.deleteAllRatingsForUser(new Types.ObjectId(id));
   }
 
   async findOrCreateFromOAuth(profile: OAuthProfile): Promise<User> {

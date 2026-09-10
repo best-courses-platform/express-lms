@@ -2,8 +2,10 @@ import { describe, it, expect } from '@jest/globals';
 import request from 'supertest';
 import { Types } from 'mongoose';
 import { CourseModel } from '../course.model';
+import { RatingModel } from '../rating.model';
 import { LessonModel } from 'lessons/lesson.model';
 import { UserModel } from 'users/user.model';
+import { EnrollmentModel } from 'enrollments/enrollment.model';
 import app from '../../../app';
 import { loginAgent, mustFindUserByEmail } from '../../../../test/helpers';
 
@@ -251,6 +253,24 @@ describe('Course routes (integration)', () => {
         expect(response.status).toBe(200);
         expect(await CourseModel.findById(course._id)).toBeNull();
         expect(await LessonModel.findById(lessonId)).toBeNull();
+      });
+
+      it('должен удалить записи на курс (Enrollment) и оценки (Rating) — регрессия на "сирот", пропущенных при введении обеих коллекций', async () => {
+        const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
+        const course = await createCourseViaApi(authorAgent, { isPublished: true });
+
+        const { agent: studentAgent, email: studentEmail } = await loginAgent(app, { role: 'student' });
+        await authorAgent.post(`/api/courses/${course._id}/enrollments`).send({ email: studentEmail });
+        await studentAgent.post(`/api/courses/${course._id}/ratings`).send({ value: 5 });
+
+        expect(await EnrollmentModel.countDocuments({ courseId: course._id })).toBe(1);
+        expect(await RatingModel.countDocuments({ courseId: course._id })).toBe(1);
+
+        const response = await authorAgent.delete(`/api/courses/${course._id}`);
+
+        expect(response.status).toBe(200);
+        expect(await EnrollmentModel.countDocuments({ courseId: course._id })).toBe(0);
+        expect(await RatingModel.countDocuments({ courseId: course._id })).toBe(0);
       });
     });
   });

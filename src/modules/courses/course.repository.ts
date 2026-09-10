@@ -242,6 +242,72 @@ class CourseRepository {
       .sort({ createdAt: -1 })
       .exec();
   }
+
+  /**
+   * Удаление курса — вызывается ДО CourseModel.findByIdAndDelete в courseService.delete().
+   * Сам курс (со своими ratingSum/ratingCount) через мгновение исчезнет целиком — просто
+   * deleteMany, без пересчёта агрегатов документа, который вот-вот удалят. Без этого вызова
+   * оценки на удалённый курс остаются сиротами — тот же класс проблемы, что уже решался для
+   * уроков (Рефакторинг проблем/16), не был устранён для Rating при его введении.
+   */
+  async deleteAllRatingsForCourse(courseId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(courseId)) {
+      return;
+    }
+    await RatingModel.deleteMany({ courseId: new Types.ObjectId(courseId) }).exec();
+  }
+
+  /**
+   * Удаление пользователя — в отличие от deleteAllRatingsForCourse выше, соседние курсы
+   * остаются существовать, поэтому их ratingSum/ratingCount/averageRating нужно честно
+   * пересчитать, а не просто снести оценки молча (агрегат иначе тихо разойдётся с
+   * реальностью — тот же denormalized-counter риск, что и у studentsCount, см. Obsidian:
+   * "Денормализованные счётчики и soft-delete через status"). Один курс — своя транзакция:
+   * пользователь редко оценивает больше нескольких курсов, накладные расходы незаметны,
+   * а атомарность (удалить оценку + пересчитать агрегат) внутри одного курса обязательна.
+   */
+  async deleteAllRatingsForUser(userId: Types.ObjectId): Promise<void> {
+    const ratings = await RatingModel.find({ userId }).exec();
+
+    for (const rating of ratings) {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          await RatingModel.deleteOne({ _id: rating._id }, { session });
+
+          await CourseModel.findByIdAndUpdate(
+            rating.courseId,
+            [
+              {
+                // $ifNull — тот же guard от курсов, созданных до появления ratingSum/
+                // ratingCount в схеме, что и в addRating выше.
+                $set: {
+                  ratingSum: { $subtract: [{ $ifNull: ['$ratingSum', 0] }, rating.value] },
+                  ratingCount: { $subtract: [{ $ifNull: ['$ratingCount', 0] }, 1] },
+                },
+              },
+              {
+                $set: {
+                  averageRating: {
+                    // $lte, не $eq — защита от отрицательного счётчика при любом уже
+                    // накопленном рассогласовании, не только от ровно нулевого случая.
+                    $cond: [
+                      { $lte: ['$ratingCount', 0] },
+                      0,
+                      { $round: [{ $divide: ['$ratingSum', '$ratingCount'] }, 1] },
+                    ],
+                  },
+                },
+              },
+            ],
+            { session }
+          ).exec();
+        });
+      } finally {
+        await session.endSession();
+      }
+    }
+  }
 }
 
 export const courseRepository = new CourseRepository();

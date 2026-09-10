@@ -97,6 +97,45 @@ class EnrollmentRepository {
     const enrollments = await EnrollmentModel.find({ userId, status: 'active' }, { courseId: 1 }).exec();
     return enrollments.map(e => e.courseId);
   }
+
+  /**
+   * Удаление курса — вызывается ДО courseRepository.delete(id). Сам курс (со своим
+   * studentsCount) через мгновение исчезнет целиком, поэтому просто deleteMany без
+   * дельты счётчика: пересчитывать поле документа, который вот-вот удалят, бессмысленно.
+   * Без этого вызова записи на курс становятся сиротами — тот же класс проблемы, что
+   * решался для уроков в courseService.delete() (см. Рефакторинг проблем/16), только
+   * не был устранён для Enrollment при его введении.
+   */
+  async deleteAllForCourse(courseId: Types.ObjectId): Promise<void> {
+    await EnrollmentModel.deleteMany({ courseId }).exec();
+  }
+
+  /**
+   * Удаление пользователя — в отличие от deleteAllForCourse выше, соседние курсы
+   * остаются существовать, поэтому их studentsCount нужно честно уменьшить, а не
+   * просто снести записи молча (иначе агрегат тихо разойдётся с реальностью — тот же
+   * риск, что denormalized-counter паттерн специально предотвращает при обычной работе
+   * enroll/unenroll, см. Obsidian: "Денормализованные счётчики и soft-delete через status").
+   * Удаляются ВСЕ записи (активные и отозванные) — истории после удаления пользователя
+   * хранить не для кого, оставлять ссылку на несуществующий userId — не "мягкое" решение,
+   * а просто новый, другой вид сироты.
+   */
+  async deleteAllForUser(userId: Types.ObjectId): Promise<void> {
+    const activeEnrollments = await EnrollmentModel.find({ userId, status: 'active' }, { courseId: 1 }).exec();
+
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await EnrollmentModel.deleteMany({ userId }, { session });
+
+        for (const enrollment of activeEnrollments) {
+          await CourseModel.findByIdAndUpdate(enrollment.courseId, { $inc: { studentsCount: -1 } }, { session }).exec();
+        }
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
 }
 
 export const enrollmentRepository = new EnrollmentRepository();

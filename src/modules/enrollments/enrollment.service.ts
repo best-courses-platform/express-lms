@@ -70,6 +70,16 @@ class EnrollmentService {
   async getEnrolledCourseIds(userId: Types.ObjectId): Promise<Types.ObjectId[]> {
     return enrollmentRepository.findActiveCourseIdsForUser(userId);
   }
+
+  /** Вызывается из courseService.delete() — см. enrollmentRepository.deleteAllForCourse. */
+  async deleteAllForCourse(courseId: string): Promise<void> {
+    await enrollmentRepository.deleteAllForCourse(new Types.ObjectId(courseId));
+  }
+
+  /** Вызывается из userService.delete() — см. enrollmentRepository.deleteAllForUser. */
+  async deleteAllForUser(userId: string): Promise<void> {
+    await enrollmentRepository.deleteAllForUser(new Types.ObjectId(userId));
+  }
 }
 
 export const enrollmentService = new EnrollmentService();
