@@ -279,39 +279,39 @@ describe('UserService', () => {
   });
 
   describe('delete', () => {
-    describe('Когда пользователь не найден (repository.delete вернул false)', () => {
-      it('должен выбросить 404', async () => {
+    describe('Когда пользователь не найден (findById вернул null)', () => {
+      it('должен выбросить 404, не трогая каскад и не вызывая userRepository.delete', async () => {
+        mockUserRepository.findById.mockResolvedValue(null);
+
+        await expect(userService.delete('507f1f77bcf86cd799439011')).rejects.toMatchObject({ status: 404 });
+        expect(refreshSessionService.revokeAllForUser).not.toHaveBeenCalled();
+        expect(enrollmentService.deleteAllForUser).not.toHaveBeenCalled();
+        expect(courseRepository.deleteAllRatingsForUser).not.toHaveBeenCalled();
+        expect(mockUserRepository.delete).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Когда пользователь найден, но userRepository.delete на финальном шаге вернул false', () => {
+      // Регрессия на реальную гонку: findById прошёл, но документ успели удалить между
+      // проверкой и финальным delete() — маловероятно, но не должно тихо проглатываться.
+      it('должен выбросить 404, хотя каскад уже успел отработать', async () => {
+        mockUserRepository.findById.mockResolvedValue(createMockUser());
         mockUserRepository.delete.mockResolvedValue(false);
 
         await expect(userService.delete('507f1f77bcf86cd799439011')).rejects.toMatchObject({ status: 404 });
-      });
-
-      it('не должен гасить сессии — пользователя и так не существовало, нечего гасить', async () => {
-        mockUserRepository.delete.mockResolvedValue(false);
-
-        await userService.delete('507f1f77bcf86cd799439011').catch(() => {});
-
-        expect(refreshSessionService.revokeAllForUser).not.toHaveBeenCalled();
-      });
-
-      it('не должен чистить Enrollment/Rating — пользователя и так не существовало', async () => {
-        mockUserRepository.delete.mockResolvedValue(false);
-
-        await userService.delete('507f1f77bcf86cd799439011').catch(() => {});
-
-        expect(enrollmentService.deleteAllForUser).not.toHaveBeenCalled();
-        expect(courseRepository.deleteAllRatingsForUser).not.toHaveBeenCalled();
       });
     });
 
     describe('Когда пользователь удалён успешно', () => {
       it('не должен выбрасывать ошибку', async () => {
+        mockUserRepository.findById.mockResolvedValue(createMockUser());
         mockUserRepository.delete.mockResolvedValue(true);
 
         await expect(userService.delete('507f1f77bcf86cd799439011')).resolves.toBeUndefined();
       });
 
       it('должен отозвать все refresh-сессии удалённого пользователя с причиной user-deleted', async () => {
+        mockUserRepository.findById.mockResolvedValue(createMockUser());
         mockUserRepository.delete.mockResolvedValue(true);
 
         await userService.delete('507f1f77bcf86cd799439011');
@@ -320,6 +320,7 @@ describe('UserService', () => {
       });
 
       it('должен удалить все записи на курсы (Enrollment) удалённого пользователя — регрессия на сирот', async () => {
+        mockUserRepository.findById.mockResolvedValue(createMockUser());
         mockUserRepository.delete.mockResolvedValue(true);
 
         await userService.delete('507f1f77bcf86cd799439011');
@@ -328,11 +329,41 @@ describe('UserService', () => {
       });
 
       it('должен пересчитать оценки (Rating) удалённого пользователя на затронутых курсах — регрессия на сирот', async () => {
+        mockUserRepository.findById.mockResolvedValue(createMockUser());
         mockUserRepository.delete.mockResolvedValue(true);
 
         await userService.delete('507f1f77bcf86cd799439011');
 
         expect(courseRepository.deleteAllRatingsForUser).toHaveBeenCalledWith(new Types.ObjectId('507f1f77bcf86cd799439011'));
+      });
+
+      it('должен выполнить каскад ДО удаления самой записи пользователя — безопасный порядок для ретрая после сбоя', async () => {
+        mockUserRepository.findById.mockResolvedValue(createMockUser());
+        mockUserRepository.delete.mockResolvedValue(true);
+
+        const callOrder: string[] = [];
+        (refreshSessionService.revokeAllForUser as jest.Mock).mockImplementation(async () => {
+          callOrder.push('revokeAllForUser');
+        });
+        enrollmentService.deleteAllForUser.mockImplementation(async () => {
+          callOrder.push('enrollmentService.deleteAllForUser');
+        });
+        courseRepository.deleteAllRatingsForUser.mockImplementation(async () => {
+          callOrder.push('courseRepository.deleteAllRatingsForUser');
+        });
+        mockUserRepository.delete.mockImplementation(async () => {
+          callOrder.push('userRepository.delete');
+          return true;
+        });
+
+        await userService.delete('507f1f77bcf86cd799439011');
+
+        expect(callOrder).toEqual([
+          'revokeAllForUser',
+          'enrollmentService.deleteAllForUser',
+          'courseRepository.deleteAllRatingsForUser',
+          'userRepository.delete',
+        ]);
       });
     });
   });
