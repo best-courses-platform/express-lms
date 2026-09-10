@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { resilientFetch } from '../../utils/resilient-fetch';
 
 // Проверка пароля на "Have I Been Pwned" Pwned Passwords (k-anonymity range API, NIST 800-63B
 // прямо рекомендует сверку с базой утекших паролей). Сам пароль — и даже полный хеш пароля —
@@ -31,16 +32,14 @@ export async function isPasswordBreached(password: string): Promise<boolean> {
   const prefix = sha1.slice(0, 5);
   const suffix = sha1.slice(5);
 
-  // Таймаут обязателен — тот же класс проблемы, что уже задокументирован для GitHub OAuth
-  // (fetch без AbortController/таймаута виснет на неопределённое время при медленном/
-  // недоступном внешнем сервисе, см. Obsidian: "Известные проблемы и баги"). Тут цена
-  // отсутствия таймаута выше — это путь регистрации/смены/сброса пароля, а не редкий OAuth-колбэк.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
   try {
-    const response = await fetch(`${HIBP_RANGE_URL}${prefix}`, {
-      signal: controller.signal,
+    // GET, без побочных эффектов — идемпотентен, ретрай безопасен. retries: 1 (не больше) —
+    // это путь регистрации/смены/сброса пароля, пользователь ждёт ответа синхронно; один
+    // повторный запрос покрывает единичный транзиентный сбой, не превращая fail-open проверку
+    // в многосекундную задержку самого auth-потока при затяжной недоступности HIBP.
+    const response = await resilientFetch(`${HIBP_RANGE_URL}${prefix}`, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      retries: 1,
       // Add-Padding — официальная рекомендация HIBP: сервис дополняет ответ случайным
       // количеством "мусорных" строк фиксированного вида, чтобы размер ответа не выдавал
       // (по количеству реальных совпадений) даже примерную популярность конкретного пароля.
@@ -64,9 +63,8 @@ export async function isPasswordBreached(password: string): Promise<boolean> {
     // suffix, а не полного 35-символьного хвоста хеша.
     return body.split(/\r?\n/).some(line => line.split(':')[0] === suffix);
   } catch {
-    // Таймаут (AbortError) или сетевая ошибка — тот же fail-open принцип, что и для !response.ok.
+    // Таймаут, сетевая ошибка или исчерпанный ретрай внутри resilientFetch — тот же
+    // fail-open принцип, что и для !response.ok.
     return false;
-  } finally {
-    clearTimeout(timeout);
   }
 }

@@ -4,6 +4,9 @@ import { config } from '../../config';
 import { AUTH_MESSAGES } from 'auth/auth.constants';
 import { DoneCallback, OAuthProfile } from 'auth/auth.types';
 import { z } from 'zod';
+import { resilientFetch } from '../../utils/resilient-fetch';
+
+const GITHUB_API_TIMEOUT_MS = 5000;
 
 export const githubOAuthStrategy = new GitHubStrategy(
   {
@@ -18,7 +21,12 @@ export const githubOAuthStrategy = new GitHubStrategy(
 
       if (!email && accessToken) {
         try {
-          const response = await fetch('https://api.github.com/user/emails', {
+          // GET, без побочных эффектов — идемпотентен. Раньше этот вызов не имел вообще
+          // никакого таймаута — при зависшем/медленном GitHub API повисал бы сам OAuth-колбэк
+          // (см. Obsidian: "Известные проблемы и баги").
+          const response = await resilientFetch('https://api.github.com/user/emails', {
+            timeoutMs: GITHUB_API_TIMEOUT_MS,
+            retries: 1,
             headers: {
               Authorization: `Bearer ${accessToken}`,
               Accept: 'application/vnd.github.v3+json',

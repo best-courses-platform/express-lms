@@ -5,10 +5,24 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { config, getSelectelPublicUrl, isSelectelConfigured } from '../../config';
 import { MulterS3File, UploadedFile, UploadOptions } from './file-storage.types';
 import { FILE_STORAGE_MESSAGES } from './file-storage.constants';
 import { AppError, BadRequestError, InternalError } from '../../utils/errors';
+
+// Раньше клиент полагался на недокументированные дефолты AWS SDK v3 (сам SDK делает до 3
+// попыток на каждый запрос уже "из коробки" — retryMode: 'standard' — но без явного таймаута
+// на соединение/запрос: зависший Selectel мог держать запрос неопределённо долго). Здесь —
+// осознанные значения, а не молчаливое наследование чужих дефолтов.
+const S3_CONNECTION_TIMEOUT_MS = 5000;
+const S3_REQUEST_TIMEOUT_MS = 30_000; // видео уроков — не мелкие JSON-ответы, таймаут больше
+// 1 исходная попытка + 2 ретрая. Совпадает с прежним недокументированным дефолтом
+// (retryMode: 'standard' в SDK v3 по умолчанию тоже даёт 3 попытки) — здесь то же значение,
+// но явно. Ретрай безопасен для всех операций этого сервиса: у PutObject ключ детерминирован
+// (собирается один раз до отправки, см. uploadFile), повторная попытка с тем же Buffer и тем
+// же ключом — это overwrite того же контента, а не побочный эффект типа "создать второй файл".
+const S3_MAX_ATTEMPTS = 3;
 
 export class FileStorageService {
   private s3Client: S3Client | null = null;
@@ -27,6 +41,11 @@ export class FileStorageService {
           secretAccessKey: config.selectel.secretAccessKey,
         },
         forcePathStyle: false,
+        maxAttempts: S3_MAX_ATTEMPTS,
+        requestHandler: new NodeHttpHandler({
+          connectionTimeout: S3_CONNECTION_TIMEOUT_MS,
+          requestTimeout: S3_REQUEST_TIMEOUT_MS,
+        }),
       });
     }
   }

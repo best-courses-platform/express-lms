@@ -1,4 +1,4 @@
-import { describe, it, expect, jest, afterEach } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import crypto from 'crypto';
 
 // Мокаем global.fetch тем же приёмом, что и github-oauth.strategy.unit.spec.ts — реальный
@@ -17,11 +17,31 @@ const SHA1_HEX = crypto.createHash('sha1').update(PASSWORD).digest('hex').toUppe
 const PREFIX = SHA1_HEX.slice(0, 5);
 const SUFFIX = SHA1_HEX.slice(5);
 
+// Теперь под капотом isPasswordBreached — resilientFetch (retries: 1): сетевая ошибка/5xx
+// вызывают один повторный запрос с backoff-задержкой перед тем, как дойти до fail-open.
+// Фейковые таймеры + advanceTimersByTimeAsync — тот же приём, что и в
+// resilient-fetch.unit.spec.ts, чтобы не ждать реальный backoff в тестах.
+async function withFakeTimers<T>(promise: Promise<T>): Promise<T> {
+  let settled = false;
+  promise.finally(() => {
+    settled = true;
+  }).catch(() => undefined);
+  for (let i = 0; i < 20 && !settled; i++) {
+    await jest.advanceTimersByTimeAsync(60_000);
+  }
+  return promise;
+}
+
 describe('isPasswordBreached', () => {
   const originalFetch = global.fetch;
   const originalNodeEnv = process.env.NODE_ENV;
 
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
   afterEach(() => {
+    jest.useRealTimers();
     global.fetch = originalFetch;
     process.env.NODE_ENV = originalNodeEnv;
   });
@@ -105,17 +125,27 @@ describe('isPasswordBreached', () => {
     });
 
     it('fail-open: возвращает false, когда HIBP отвечает не 200 (не блокирует auth-поток из-за стороннего сбоя)', async () => {
-      stubFetch(async () => ({ ok: false, status: 503, text: async () => '' }));
+      // 503 — retryable внутри resilientFetch (retries: 1), поэтому один повторный запрос
+      // перед тем, как дойти до fail-open, — отсюда фейковые таймеры. headers.get() нужен
+      // по форме реального Response — resilientFetch читает Retry-After перед ретраем.
+      const fetchMock = stubFetch(async () => ({
+        ok: false,
+        status: 503,
+        headers: { get: () => null },
+        text: async () => '',
+      }));
       const { isPasswordBreached } = loadWithFakeProdEnv();
 
-      await expect(isPasswordBreached(PASSWORD)).resolves.toBe(false);
+      await expect(withFakeTimers(isPasswordBreached(PASSWORD))).resolves.toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(2); // исходная попытка + 1 ретрай
     });
 
     it('fail-open: возвращает false, когда fetch падает по сети/таймауту, а не пробрасывает ошибку выше', async () => {
-      stubFetch(() => Promise.reject(new Error('network error')));
+      const fetchMock = stubFetch(() => Promise.reject(new Error('network error')));
       const { isPasswordBreached } = loadWithFakeProdEnv();
 
-      await expect(isPasswordBreached(PASSWORD)).resolves.toBe(false);
+      await expect(withFakeTimers(isPasswordBreached(PASSWORD))).resolves.toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 });
