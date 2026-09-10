@@ -10,7 +10,7 @@ export const localAuth = passport.authenticate('local', { session: false });
 
 // Опциональная аутентификация: не отклоняет запрос без токена (или с невалидным токеном) —
 // просто пытается подставить req.user, если получится. Нужна для роутов, которые одновременно
-// публичные (анонимный доступ к опубликованному контенту) и приватные (автор/allowedUsers видят
+// публичные (анонимный доступ к опубликованному контенту) и приватные (автор/записанные студенты видят
 // больше) — например, GET /api/courses/:id.
 export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('jwt', { session: false }, (_err: unknown, user: Express.User | false) => {

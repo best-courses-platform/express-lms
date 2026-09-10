@@ -25,8 +25,6 @@ export const COURSE_MESSAGES = {
     ALREADY_EXISTS: ENTITY_MESSAGES.ALREADY_EXISTS('Курс с таким названием'),
     LESSON_ALREADY_ADDED: 'Урок уже добавлен в курс',
     LESSON_NOT_FOUND: ENTITY_MESSAGES.NOT_FOUND('Урок в курсе'),
-    USER_ALREADY_ADDED: 'Пользователь уже имеет доступ к курсу',
-    USER_NOT_FOUND_IN_ALLOWED: 'Пользователь не найден в списке доступа',
     RATING_ALREADY_EXISTS: 'Вы уже оценили этот курс',
     INVALID_DIFFICULTY: 'Недопустимый уровень сложности',
     PREVIEW_IMAGE_NOT_UPLOADED: 'Файл обложки не передан',
@@ -38,8 +36,6 @@ export const COURSE_MESSAGES = {
     LESSON_ADDED: 'Урок успешно добавлен в курс',
     LESSON_REMOVED: 'Урок успешно удален из курса',
     PREVIEW_IMAGE_UPLOADED: 'Обложка успешно загружена',
-    USER_ADDED_TO_ALLOWED: 'Пользователь успешно добавлен в список доступа',
-    USER_REMOVED_FROM_ALLOWED: 'Пользователь успешно удален из списка доступа',
     RATING_ADDED: 'Рейтинг успешно добавлен',
   },
 } as const;

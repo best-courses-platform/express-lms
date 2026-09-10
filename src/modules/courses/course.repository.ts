@@ -40,11 +40,17 @@ class CourseRepository {
     return await CourseModel.find({ author: authorId }).populate('author', 'name email avatar').exec();
   }
 
-  async findByAllowedUser(userId: string): Promise<Course[]> {
-    if (!Types.ObjectId.isValid(userId)) {
+  /**
+   * По списку id — источник для getMyCourses (роль student): курсы приходят из
+   * enrollmentService.getEnrolledCourseIds, здесь только материализуем сами документы.
+   */
+  async findByIds(ids: Types.ObjectId[]): Promise<Course[]> {
+    if (ids.length === 0) {
       return [];
     }
-    return await CourseModel.find({ allowedUsers: userId }).populate('author', 'name email avatar').exec();
+    return await CourseModel.find({ _id: { $in: ids } })
+      .populate('author', 'name email avatar')
+      .exec();
   }
 
   async findByDifficulty(difficulty: string): Promise<Course[]> {
@@ -136,47 +142,6 @@ class CourseRepository {
     return updatedCourse;
   }
 
-  async addUserToAllowed(courseId: string, userId: Types.ObjectId): Promise<Course> {
-    if (!Types.ObjectId.isValid(courseId)) {
-      throw new Error('Invalid course ID');
-    }
-
-    const updatedCourse = await CourseModel.findByIdAndUpdate(
-      courseId,
-      { $addToSet: { allowedUsers: userId } }, // $addToSet предотвращает дубликаты
-      { new: true, runValidators: true }
-    )
-      .populate('author', 'name email avatar')
-      .populate('allowedUsers', 'name email')
-      .exec();
-
-    if (!updatedCourse) {
-      throw new Error('Course not found');
-    }
-
-    return updatedCourse;
-  }
-
-  async removeUserFromAllowed(courseId: string, userId: Types.ObjectId): Promise<Course> {
-    if (!Types.ObjectId.isValid(courseId)) {
-      throw new Error('Invalid course ID');
-    }
-
-    const updatedCourse = await CourseModel.findByIdAndUpdate(
-      courseId,
-      { $pull: { allowedUsers: userId } },
-      { new: true, runValidators: true }
-    )
-      .populate('author', 'name email avatar')
-      .populate('allowedUsers', 'name email')
-      .exec();
-
-    if (!updatedCourse) {
-      throw new Error('Course not found');
-    }
-
-    return updatedCourse;
-  }
 
   // Раньше: findById (весь курс) + $pull + $push + JS-reduce по всему ratings[] + ещё один
   // findByIdAndUpdate — 4 последовательных round-trip'а на одну оценку, плюс окно гонки

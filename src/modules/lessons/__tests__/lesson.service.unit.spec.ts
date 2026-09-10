@@ -35,6 +35,7 @@ jest.mock('courses/course.service', () => ({
   courseService: {
     getById: jest.fn(),
     removeLesson: jest.fn(),
+    canAccess: jest.fn(),
   },
 }));
 jest.mock('file-storage/file-storage.service', () => ({
@@ -84,7 +85,7 @@ function createMockCourse(overrides: Partial<Course> = {}): Course {
     ratingCount: 0,
     averageRating: 0,
     isPublished: false,
-    allowedUsers: [],
+    studentsCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -370,57 +371,34 @@ describe('LessonService', () => {
       });
     });
 
-    describe('Курс не опубликован', () => {
-      it('должен вернуть true для автора курса', async () => {
-        const authorId = new Types.ObjectId();
+    describe('Делегирование в courseService.canAccess', () => {
+      // Сама логика "автор/записанный студент/опубликован" теперь только в
+      // courseService.canAccess (см. course.service.unit.spec.ts) — здесь проверяем
+      // только то, что checkUserAccess реально её вызывает и возвращает её результат,
+      // не дублируя условие ещё раз здесь.
+      it('должен вернуть true, если courseService.canAccess вернул true', async () => {
+        const userId = new Types.ObjectId();
         const lesson = createMockLesson();
+        const course = createMockCourse();
         mockLessonRepository.findById.mockResolvedValue(lesson);
-        mockCourseService.getById.mockResolvedValue(createMockCourse({ isPublished: false, author: authorId }));
+        mockCourseService.getById.mockResolvedValue(course);
+        mockCourseService.canAccess.mockResolvedValue(true);
 
-        const result = await lessonService.checkUserAccess(lesson._id.toString(), authorId.toString());
+        const result = await lessonService.checkUserAccess(lesson._id.toString(), userId.toString());
 
         expect(result).toBe(true);
+        expect(mockCourseService.canAccess).toHaveBeenCalledWith(course, userId);
       });
 
-      it('должен вернуть true для пользователя из allowedUsers', async () => {
-        const allowedUserId = new Types.ObjectId();
+      it('должен вернуть false, если courseService.canAccess вернул false', async () => {
         const lesson = createMockLesson();
         mockLessonRepository.findById.mockResolvedValue(lesson);
-        mockCourseService.getById.mockResolvedValue(
-          createMockCourse({ isPublished: false, allowedUsers: [allowedUserId] })
-        );
+        mockCourseService.getById.mockResolvedValue(createMockCourse());
+        mockCourseService.canAccess.mockResolvedValue(false);
 
-        const result = await lessonService.checkUserAccess(lesson._id.toString(), allowedUserId.toString());
-
-        expect(result).toBe(true);
-      });
-
-      it('должен вернуть false для постороннего пользователя', async () => {
-        const lesson = createMockLesson();
-        mockLessonRepository.findById.mockResolvedValue(lesson);
-        mockCourseService.getById.mockResolvedValue(createMockCourse({ isPublished: false }));
-
-        const result = await lessonService.checkUserAccess(
-          lesson._id.toString(),
-          new Types.ObjectId().toString()
-        );
+        const result = await lessonService.checkUserAccess(lesson._id.toString(), new Types.ObjectId().toString());
 
         expect(result).toBe(false);
-      });
-    });
-
-    describe('Курс опубликован', () => {
-      it('должен вернуть true для любого пользователя', async () => {
-        const lesson = createMockLesson();
-        mockLessonRepository.findById.mockResolvedValue(lesson);
-        mockCourseService.getById.mockResolvedValue(createMockCourse({ isPublished: true }));
-
-        const result = await lessonService.checkUserAccess(
-          lesson._id.toString(),
-          new Types.ObjectId().toString()
-        );
-
-        expect(result).toBe(true);
       });
     });
   });

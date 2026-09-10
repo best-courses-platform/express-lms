@@ -65,7 +65,7 @@ export const getLesson: RequestHandler = async (req, res) => {
   const lesson = await lessonService.getById(req.params.id);
   const course = await courseService.getById(lesson.courseId.toString());
 
-  if (!courseService.canAccess(course, req.user?._id)) {
+  if (!(await courseService.canAccess(course, req.user?._id))) {
     throw new ForbiddenError(LESSON_MESSAGES.ERROR.ACCESS_DENIED);
   }
 
@@ -102,7 +102,7 @@ export const deleteLesson: RequestHandler = async (req, res) => {
 export const getLessonsByCourse: RequestHandler = async (req, res) => {
   const course = await courseService.getById(req.params.courseId);
 
-  if (!courseService.canAccess(course, req.user?._id)) {
+  if (!(await courseService.canAccess(course, req.user?._id))) {
     throw new ForbiddenError(LESSON_MESSAGES.ERROR.ACCESS_DENIED);
   }
 

@@ -28,14 +28,14 @@ Authorization: Bearer {{auth_token}}
 ###
 
 ### Урок по ID
-### Если родительский курс не опубликован — виден только автору/allowedUsers, иначе 403
+### Если родительский курс не опубликован — виден только автору/записанным студентам, иначе 403
 GET {{baseUrl}}/api/lessons/{{lesson_id}}
 Authorization: Bearer {{auth_token}}
 
 ###
 
 ### Уроки конкретного курса
-### Если курс не опубликован — виден только автору/allowedUsers, иначе 403 (courseService.canAccess)
+### Если курс не опубликован — виден только автору/записанным студентам, иначе 403 (courseService.canAccess)
 GET {{baseUrl}}/api/lessons/course/{{course_id}}
 Authorization: Bearer {{auth_token}}
 

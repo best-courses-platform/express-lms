@@ -155,14 +155,13 @@ describe('Course routes (integration)', () => {
         expect(response.status).toBe(403);
       });
 
-      it('должен быть виден пользователю из allowedUsers', async () => {
+      it('должен быть виден записанному на курс студенту (Enrollment)', async () => {
         const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
         const course = await createCourseViaApi(authorAgent, { isPublished: false });
 
         const { agent: studentAgent, email: studentEmail } = await loginAgent(app, { role: 'student' });
-        const student = await mustFindUserByEmail(studentEmail);
 
-        await authorAgent.post(`/api/courses/${course._id}/allowed-users`).send({ userId: student._id.toString() });
+        await authorAgent.post(`/api/courses/${course._id}/enrollments`).send({ email: studentEmail });
 
         const response = await studentAgent.get(`/api/courses/${course._id}`);
         expect(response.status).toBe(200);
@@ -256,21 +255,61 @@ describe('Course routes (integration)', () => {
     });
   });
 
-  describe('POST /api/courses/:id/allowed-users и DELETE .../allowed-users/:userId', () => {
-    it('должен предоставлять и отзывать доступ к непубликованному курсу', async () => {
+  describe('POST /api/courses/:id/enrollments и DELETE .../enrollments/:userId', () => {
+    it('должен предоставлять и отзывать доступ к непубликованному курсу, обновляя studentsCount', async () => {
       const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
       const course = await createCourseViaApi(authorAgent, { isPublished: false });
 
       const { agent: studentAgent, email: studentEmail } = await loginAgent(app, { role: 'student' });
       const student = await mustFindUserByEmail(studentEmail);
 
-      await authorAgent.post(`/api/courses/${course._id}/allowed-users`).send({ userId: student._id.toString() });
+      const enrollResponse = await authorAgent
+        .post(`/api/courses/${course._id}/enrollments`)
+        .send({ email: studentEmail });
+      expect(enrollResponse.status).toBe(201);
+
       const afterAdd = await studentAgent.get(`/api/courses/${course._id}`);
       expect(afterAdd.status).toBe(200);
+      expect(afterAdd.body.studentsCount).toBe(1);
 
-      await authorAgent.delete(`/api/courses/${course._id}/allowed-users/${student._id.toString()}`);
+      const listResponse = await authorAgent.get(`/api/courses/${course._id}/enrollments`);
+      expect(listResponse.status).toBe(200);
+      expect(listResponse.body).toHaveLength(1);
+
+      const unenrollResponse = await authorAgent.delete(
+        `/api/courses/${course._id}/enrollments/${student._id.toString()}`
+      );
+      expect(unenrollResponse.status).toBe(200);
+
       const afterRemove = await studentAgent.get(`/api/courses/${course._id}`);
       expect(afterRemove.status).toBe(403);
+
+      const courseAfterRemove = await authorAgent.get(`/api/courses/${course._id}`);
+      expect(courseAfterRemove.body.studentsCount).toBe(0);
+    });
+
+    it('должен вернуть 404, если пользователя с таким email не существует', async () => {
+      const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
+      const course = await createCourseViaApi(authorAgent, { isPublished: false });
+
+      const response = await authorAgent
+        .post(`/api/courses/${course._id}/enrollments`)
+        .send({ email: 'no-such-user@example.com' });
+
+      expect(response.status).toBe(404);
+    });
+
+    it('должен вернуть 403, если запись/отзыв пытается сделать не автор курса', async () => {
+      const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
+      const course = await createCourseViaApi(authorAgent, { isPublished: false });
+
+      const { agent: strangerAgent, email: strangerEmail } = await loginAgent(app, { role: 'author' });
+
+      const response = await strangerAgent
+        .post(`/api/courses/${course._id}/enrollments`)
+        .send({ email: strangerEmail });
+
+      expect(response.status).toBe(403);
     });
   });
 
@@ -420,14 +459,13 @@ describe('Course routes (integration)', () => {
       });
     });
 
-    describe('Когда пользователь — student, добавленный в allowedUsers чужого курса', () => {
+    describe('Когда пользователь — student, записанный на чужой курс (Enrollment)', () => {
       it('должен вернуть этот курс', async () => {
         const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
         const course = await createCourseViaApi(authorAgent, { isPublished: false });
 
         const { agent: studentAgent, email: studentEmail } = await loginAgent(app, { role: 'student' });
-        const student = await mustFindUserByEmail(studentEmail);
-        await authorAgent.post(`/api/courses/${course._id}/allowed-users`).send({ userId: student._id.toString() });
+        await authorAgent.post(`/api/courses/${course._id}/enrollments`).send({ email: studentEmail });
 
         const response = await studentAgent.get('/api/courses/mine');
 

@@ -75,13 +75,14 @@ const courseSchema = new Schema<Course>(
       type: Boolean,
       default: false,
     },
-    allowedUsers: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-        default: [],
-      },
-    ],
+    // Денормализованный счётчик активных записей — поддерживается атомарным $inc в
+    // enrollmentRepository.setActive/setRevoked (см. modules/enrollments), тот же принцип,
+    // что и у lessonsCount выше: O(1) на чтение списка курсов, не COUNT() на каждый рендер.
+    studentsCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     timestamps: true, // автоматически добавляет createdAt и updatedAt

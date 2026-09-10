@@ -7,7 +7,7 @@ import { requireVerifiedEmail } from '../../middleware/access';
 const r = Router();
 
 // публичные (доступны анонимно), но учитывают req.user, если он есть — уроки непубликованного
-// курса видны только автору/allowedUsers (см. courseService.canAccess)
+// курса видны только автору/записанным студентам (см. courseService.canAccess)
 r.get('/', LessonController.listLessons);
 r.get('/:id', optionalAuth, ...LessonController.getLesson);
 r.get('/course/:courseId', optionalAuth, ...LessonController.getLessonsByCourse);

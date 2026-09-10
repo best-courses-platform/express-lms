@@ -4,8 +4,7 @@ import { objectIdSchema } from '../../shared/validation/object-id.schema';
 
 // Path-параметры — валидируются по формату ObjectId, не только по непустоте (см. объяснение
 // в object-id.schema.ts). Именно path-параметры участвуют в маршрутизации Express, поэтому
-// только они здесь ужесточены; поля тела запроса (например, userId в addUserToAllowedSchema)
-// маршрутизацию не затрагивают и остаются на прежней z.string().min(1, ...) проверке.
+// только они здесь ужесточены.
 const courseIdParam = objectIdSchema(
   COURSE_MESSAGES.VALIDATION.COURSE_ID_REQUIRED,
   COURSE_MESSAGES.VALIDATION.COURSE_ID_INVALID
@@ -17,10 +16,6 @@ const authorIdParam = objectIdSchema(
 const lessonIdParam = objectIdSchema(
   COURSE_MESSAGES.VALIDATION.LESSON_ID_REQUIRED,
   COURSE_MESSAGES.VALIDATION.LESSON_ID_INVALID
-);
-const userIdParam = objectIdSchema(
-  COURSE_MESSAGES.VALIDATION.USER_ID_REQUIRED,
-  COURSE_MESSAGES.VALIDATION.USER_ID_INVALID
 );
 
 // Поля без .default() — единственный источник правил валидации, переиспользуется и
@@ -114,23 +109,6 @@ export const lessonManagementSchema = z.object({
   }),
 });
 
-// Управление доступом пользователей
-export const addUserToAllowedSchema = z.object({
-  params: z.object({
-    id: courseIdParam,
-  }),
-  body: z.object({
-    userId: z.string().min(1, COURSE_MESSAGES.VALIDATION.USER_ID_REQUIRED),
-  }),
-});
-
-export const removeUserFromAllowedSchema = z.object({
-  params: z.object({
-    id: courseIdParam,
-    userId: userIdParam,
-  }),
-});
-
 // Поиск по каталогу — $text search поверх нативного text-индекса Mongo, см. course.repository.ts
 export const searchCourseSchema = z.object({
   query: z.object({
@@ -151,11 +129,9 @@ export const addRatingSchema = z.object({
 // Типы для TypeScript
 export type CreateCourseInput = z.infer<typeof createCourseSchema>['body'];
 export type UpdateCourseInput = z.infer<typeof updateCourseSchema>['body'];
-export type AddUserToAllowedInput = z.infer<typeof addUserToAllowedSchema>['body'];
 export type AddRatingInput = z.infer<typeof addRatingSchema>['body'];
 export type SearchCourseInput = z.infer<typeof searchCourseSchema>['query'];
 export type IdParamInput = z.infer<typeof idParamSchema>['params'];
 export type AuthorParamInput = z.infer<typeof authorParamSchema>['params'];
 export type DifficultyParamInput = z.infer<typeof difficultyParamSchema>['params'];
 export type LessonManagementInput = z.infer<typeof lessonManagementSchema>['params'];
-export type RemoveUserFromAllowedInput = z.infer<typeof removeUserFromAllowedSchema>['params'];

@@ -133,7 +133,10 @@ class LessonService {
   }
 
   /**
-   * Проверка доступа пользователя к уроку
+   * Проверка доступа пользователя к уроку — делегирует всю логику courseService.canAccess
+   * (автор/записанный студент/опубликован), не дублирует её здесь: раньше это было
+   * отдельной копией того же условия и требовало синхронной правки в двух местах при
+   * любом изменении правил доступа.
    */
   async checkUserAccess(lessonId: string, userId: string): Promise<boolean> {
     if (!isValidObjectIdString(lessonId) || !isValidObjectIdString(userId)) {
@@ -145,19 +148,8 @@ class LessonService {
       return false;
     }
 
-    // Проверяем доступ через родительский курс
     const course = await courseService.getById(lesson.courseId.toString());
-    const userIdObj = new Types.ObjectId(userId);
-
-    // Доступ есть у:
-    // 1. Автора курса
-    // 2. Пользователей из allowedUsers курса
-    // 3. Если курс опубликован - доступ у всех (по логике задания)
-    const isAuthor = course.author.equals(userIdObj);
-    const isAllowedUser = course.allowedUsers?.some(allowedUserId => allowedUserId.equals(userIdObj)) || false;
-    const isCoursePublished = course.isPublished;
-
-    return isAuthor || isAllowedUser || isCoursePublished;
+    return courseService.canAccess(course, new Types.ObjectId(userId));
   }
 
   /**

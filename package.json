@@ -27,7 +27,8 @@
     "test:coverage": "jest --coverage",
     "e2e:server": "tsx test/e2eServer.ts",
     "openapi:export": "tsx src/openapi/export.ts",
-    "dev:token": "tsx scripts/dev-get-token.ts"
+    "dev:token": "tsx scripts/dev-get-token.ts",
+    "migrate:enrollments": "tsx scripts/migrate-allowed-users-to-enrollments.ts"
   },
   "keywords": [],
   "author": "",
