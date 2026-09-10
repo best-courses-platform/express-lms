@@ -142,7 +142,6 @@ class CourseRepository {
     return updatedCourse;
   }
 
-
   // Раньше: findById (весь курс) + $pull + $push + JS-reduce по всему ratings[] + ещё один
   // findByIdAndUpdate — 4 последовательных round-trip'а на одну оценку, плюс окно гонки
   // между чтением ratings и записью пересчитанного average (конкурентный запрос от другого

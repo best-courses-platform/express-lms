@@ -16,10 +16,10 @@ export const enrollSchema = z.object({
     id: courseIdParam,
   }),
   body: z.object({
-    email: z.string().email(ENROLLMENT_MESSAGES.VALIDATION.EMAIL_INVALID).min(
-      1,
-      ENROLLMENT_MESSAGES.VALIDATION.EMAIL_REQUIRED
-    ),
+    email: z
+      .string()
+      .email(ENROLLMENT_MESSAGES.VALIDATION.EMAIL_INVALID)
+      .min(1, ENROLLMENT_MESSAGES.VALIDATION.EMAIL_REQUIRED),
   }),
 });
 

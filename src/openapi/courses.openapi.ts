@@ -294,7 +294,9 @@ registry.registerPath({
   responses: {
     201: {
       description: 'Студент записан',
-      content: { 'application/json': { schema: z.object({ message: z.string(), enrollment: enrollmentResponseSchema }) } },
+      content: {
+        'application/json': { schema: z.object({ message: z.string(), enrollment: enrollmentResponseSchema }) },
+      },
     },
     401: errorResponse('Не авторизован'),
     403: errorResponse('Вызывающий не автор курса'),
@@ -329,7 +331,10 @@ registry.registerPath({
   security: authSecurity,
   request: { params: unenrollSchema.shape.params },
   responses: {
-    200: { description: 'Студент отчислен', content: { 'application/json': { schema: z.object({ message: z.string() }) } } },
+    200: {
+      description: 'Студент отчислен',
+      content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+    },
     401: errorResponse('Не авторизован'),
     403: errorResponse('Вызывающий не автор курса'),
     404: errorResponse('Курс не найден или студент не был записан'),
