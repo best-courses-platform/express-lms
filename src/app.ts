@@ -2,6 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
+import mongoose from 'mongoose';
 import passport from 'passport';
 import swaggerUi from 'swagger-ui-express';
 import authRoutes from './modules/auth/auth.routes';
@@ -14,8 +15,44 @@ import { apiRateLimiter } from './middleware/rate-limit';
 import { COMMON_MESSAGES } from './shared/constants/messages';
 import { config } from './config';
 import { buildOpenApiDocument } from './openapi/document';
+import { isShuttingDown } from './shutdown';
 
 const app = express();
+
+// До helmet/CORS/rate-limit намеренно: k8s kubelet бьёт сюда напрямую по IP пода, без
+// Origin-заголовка и не как "пользовательское" действие — незачем ни ограничивать частоту,
+// ни требовать прохождения через остальной стек мидлваров.
+app.get('/healthz', (_req, res) => {
+  // Liveness — только "процесс жив и отвечает на HTTP", без обращения к БД: если этот
+  // хендлер вообще выполнился, значит event loop не завис намертво. Проверку реальных
+  // зависимостей (Mongo) делает /readyz — смешивать их означало бы, что временная
+  // недоступность Mongo триггерит перезапуск пода (liveness-фейл), хотя достаточно
+  // временно вывести под из балансировки (readiness-фейл), не убивая процесс.
+  res.status(200).json({ status: 'ok' });
+});
+
+app.get('/readyz', (_req, res) => {
+  // 503 сразу после получения SIGTERM — до того, как HTTP-сервер реально перестанет
+  // принимать соединения (shutdown.ts делает это следующим шагом). k8s снимает под
+  // с баланса по failing readiness-пробе раньше, чем соединения начнут рваться.
+  if (isShuttingDown()) {
+    res.status(503).json({ status: 'shutting down' });
+    return;
+  }
+
+  // readyState === 1 — "connected". Redis сюда намеренно не входит: BullMQ/email-очередь —
+  // единственный потребитель Redis в проекте, и его недоступность уже обрабатывается
+  // на своём уровне (см. email.queue.ts) без отказа всего остального API. Метить весь под
+  // NotReady из-за упавшего Redis означало бы снимать с баланса и курсы/уроки/авторизацию,
+  // которые от Redis вообще не зависят — это ухудшение, а не защита.
+  const mongoReady = mongoose.connection.readyState === 1;
+  if (!mongoReady) {
+    res.status(503).json({ status: 'mongo not ready' });
+    return;
+  }
+
+  res.status(200).json({ status: 'ok' });
+});
 
 app.use(helmet());
 
