@@ -71,3 +71,28 @@ jobs:
       # трогают Redis (email.queue.ts намеренно не создаёт соединение в NODE_ENV=test, см.
       # комментарий там) — внешние сервисы раннеру не нужны.
       - run: npm test
+
+  openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      # openapi:export импортирует src/config (нужен для сборки документа) — тот же набор
+      # обязательных без дефолта переменных, что и в test/setupTestEnv.ts, значения не
+      # используются ни для чего, кроме прохождения валидации схемы конфига.
+      - run: npm run openapi:export
+        env:
+          JWT_SECRET: ci-fake-jwt-secret
+          PASSWORD_PEPPER: ci-fake-password-pepper-not-a-real-secret-32plus
+          GOOGLE_CLIENT_ID: ci-fake-google-client-id
+          GOOGLE_CLIENT_SECRET: ci-fake-google-client-secret
+          GITHUB_CLIENT_ID: ci-fake-github-client-id
+          GITHUB_CLIENT_SECRET: ci-fake-github-client-secret
+      # Если openapi.json в репозитории разошёлся с тем, что реально генерируют текущие
+      # zod-схемы (кто-то поменял схему и забыл перегенерировать файл) — PR не должен
+      # молча проезжать с устаревшей спекой, на которую опирается кодоген типов на lms-web.
+      - run: git diff --exit-code openapi.json

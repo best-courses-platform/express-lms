@@ -26,11 +26,18 @@ const courseAuthorSchema = z.union([
   z.object({ _id: objectId(), name: z.string(), email: z.string().email(), avatar: z.string().nullable() }),
 ]);
 
-const ratingSchema = z.object({
-  userId: objectId(),
-  value: z.number().min(1).max(5),
-  createdAt: z.coerce.date(),
-});
+// Именованный компонент (registry.register), а не голая инлайн-схема — иначе
+// openapi-typescript на lms-web не мог бы сослаться на него как на components["schemas"]["Rating"],
+// только через громоздкий path-level тип; кодоген типов (см. Обзор — что чинили и почему/1)
+// строится на именованных компонентах.
+const ratingSchema = registry.register(
+  'Rating',
+  z.object({
+    userId: objectId(),
+    value: z.number().min(1).max(5),
+    createdAt: z.coerce.date(),
+  })
+);
 
 const courseResponseSchema = registry.register(
   'Course',
