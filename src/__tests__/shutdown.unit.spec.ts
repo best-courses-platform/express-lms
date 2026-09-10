@@ -74,7 +74,9 @@ describe('shutdown', () => {
       registerGracefulShutdown(server);
 
       process.emit('SIGTERM');
-      await Promise.resolve().then(() => Promise.resolve()).then(() => Promise.resolve());
+      await Promise.resolve()
+        .then(() => Promise.resolve())
+        .then(() => Promise.resolve());
 
       expect(server.close).toHaveBeenCalledTimes(1);
       expect(server.closeIdleConnections).toHaveBeenCalledTimes(1);
@@ -125,7 +127,9 @@ describe('shutdown', () => {
       registerGracefulShutdown(server);
 
       process.emit('SIGTERM');
-      await Promise.resolve().then(() => Promise.resolve()).then(() => Promise.resolve());
+      await Promise.resolve()
+        .then(() => Promise.resolve())
+        .then(() => Promise.resolve());
 
       expect(exitMock).toHaveBeenCalledWith(1);
       // Зависимости не должны закрываться после ошибки HTTP-сервера — раздел 5 заметки 31
@@ -140,7 +144,9 @@ describe('shutdown', () => {
       registerGracefulShutdown(server);
 
       process.emit('unhandledRejection', new Error('boom'), Promise.resolve());
-      await Promise.resolve().then(() => Promise.resolve()).then(() => Promise.resolve());
+      await Promise.resolve()
+        .then(() => Promise.resolve())
+        .then(() => Promise.resolve());
 
       expect(server.close).toHaveBeenCalledTimes(1);
       expect(exitMock).toHaveBeenCalledWith(0);
