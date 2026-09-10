@@ -74,12 +74,19 @@ class UserService {
   }
 
   async delete(id: string): Promise<void> {
-    const ok = await userRepository.delete(id);
-
-    if (!ok) {
+    const user = await userRepository.findById(id);
+    if (!user) {
       throw new NotFoundError(USER_MESSAGES.ERROR.NOT_FOUND);
     }
 
+    // Каскад ДО удаления самой записи пользователя — тот же порядок, что уже у
+    // courseService.delete() (уроки/Enrollment/Rating чистятся раньше самого курса).
+    // Если что-то из каскада упадёт на середине (транзиентный сбой, abort транзакции),
+    // пользователь ещё существует в БД — повторный вызов delete() безопасно повторит
+    // незавершённый каскад (все три вызова ниже идемпотентны сами по себе), а не
+    // столкнётся с 404 от уже удалённого userRepository.delete() и не оставит сирот
+    // навсегда без единого способа их доретраить тем же путём.
+    //
     // Тот же принцип, что у changePassword/resetPassword/logout-all (заметка 31) — событие
     // жизненного цикла аккаунта обязано гасить сессии сразу, а не полагаться на то, что
     // следующий /refresh наткнётся на несуществующего юзера и погасит только свою семью.
@@ -90,6 +97,11 @@ class UserService {
     // тех курсов при этом честно пересчитываются, а не просто теряют ссылку молча.
     await enrollmentService.deleteAllForUser(id);
     await courseRepository.deleteAllRatingsForUser(new Types.ObjectId(id));
+
+    const ok = await userRepository.delete(id);
+    if (!ok) {
+      throw new NotFoundError(USER_MESSAGES.ERROR.NOT_FOUND);
+    }
   }
 
   async findOrCreateFromOAuth(profile: OAuthProfile): Promise<User> {
