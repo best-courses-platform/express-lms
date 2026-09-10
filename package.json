@@ -28,7 +28,17 @@
     "e2e:server": "tsx test/e2eServer.ts",
     "openapi:export": "tsx src/openapi/export.ts",
     "dev:token": "tsx scripts/dev-get-token.ts",
-    "migrate:enrollments": "tsx scripts/migrate-allowed-users-to-enrollments.ts"
+    "migrate:enrollments": "tsx scripts/migrate-allowed-users-to-enrollments.ts",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "src/**/*.{json,css,md}": [
+      "prettier --write"
+    ]
   },
   "keywords": [],
   "author": "",
@@ -95,7 +105,9 @@
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "husky": "^9.1.7",
     "jest": "^30.1.3",
+    "lint-staged": "^17.5.0",
     "mongodb-memory-server": "^11.2.0",
     "prettier": "^3.6.2",
     "supertest": "^7.1.4",
