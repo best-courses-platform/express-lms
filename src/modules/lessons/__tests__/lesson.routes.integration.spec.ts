@@ -160,14 +160,13 @@ describe('Lesson routes (integration)', () => {
         expect(response.status).toBe(403);
       });
 
-      it('должен быть виден пользователю из allowedUsers курса', async () => {
+      it('должен быть виден студенту, записанному на курс (Enrollment)', async () => {
         const { agent: authorAgent } = await loginAgent(app, { role: 'author' });
         const course = await createCourseViaApi(authorAgent, { isPublished: false });
         const lesson = await createLessonViaApi(authorAgent, course._id);
 
         const { agent: studentAgent, email: studentEmail } = await loginAgent(app, { role: 'student' });
-        const student = await mustFindUserByEmail(studentEmail);
-        await authorAgent.post(`/api/courses/${course._id}/allowed-users`).send({ userId: student._id.toString() });
+        await authorAgent.post(`/api/courses/${course._id}/enrollments`).send({ email: studentEmail });
 
         const response = await studentAgent.get(`/api/lessons/${lesson._id}`);
 

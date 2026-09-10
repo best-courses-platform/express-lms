@@ -2,13 +2,14 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { Types } from 'mongoose';
 import type { courseRepository as CourseRepositoryInstance } from '../course.repository';
 import type { lessonService as LessonServiceInstance } from 'lessons/lesson.service';
+import type { enrollmentService as EnrollmentServiceInstance } from 'enrollments/enrollment.service';
 import type { courseService as CourseServiceInstance } from '../course.service';
 import type { Course } from '../course.types';
 
-// Unit-слой: courseRepository и lessonService замоканы — проверяем только бизнес-логику
-// courseService (владение, доступ, ветвление), не то, что реально происходит в MongoDB.
-// Интеграционные тесты (course.routes.integration.spec.ts) добивают то, что этот слой
-// принципиально не видит — сериализацию, реальные Mongoose-запросы, HTTP-контракт.
+// Unit-слой: courseRepository, lessonService и enrollmentService замоканы — проверяем
+// только бизнес-логику courseService (владение, доступ, ветвление), не то, что реально
+// происходит в MongoDB. Интеграционные тесты (course.routes.integration.spec.ts) добивают
+// то, что этот слой принципиально не видит — сериализацию, реальные Mongoose-запросы, HTTP-контракт.
 //
 // @swc/jest не хойстит jest.mock() выше import — require() после jest.mock() обязателен
 // для всего мокаемого/транзитивно ссылающегося на мокаемое (см. Obsidian: Jest/4).
@@ -19,7 +20,7 @@ jest.mock('../course.repository', () => ({
     findAll: jest.fn(),
     findPublished: jest.fn(),
     findByAuthor: jest.fn(),
-    findByAllowedUser: jest.fn(),
+    findByIds: jest.fn(),
     findByDifficulty: jest.fn(),
     search: jest.fn(),
     create: jest.fn(),
@@ -27,8 +28,6 @@ jest.mock('../course.repository', () => ({
     delete: jest.fn(),
     addLesson: jest.fn(),
     removeLesson: jest.fn(),
-    addUserToAllowed: jest.fn(),
-    removeUserFromAllowed: jest.fn(),
     addRating: jest.fn(),
     getRatingsByCourse: jest.fn(),
   },
@@ -38,13 +37,23 @@ jest.mock('lessons/lesson.service', () => ({
     deleteAllForCourse: jest.fn(),
   },
 }));
+jest.mock('enrollments/enrollment.service', () => ({
+  enrollmentService: {
+    isEnrolled: jest.fn(),
+    getEnrolledCourseIds: jest.fn(),
+  },
+}));
 
 const { courseRepository } = require('../course.repository') as { courseRepository: typeof CourseRepositoryInstance };
 const { lessonService } = require('lessons/lesson.service') as { lessonService: typeof LessonServiceInstance };
+const { enrollmentService } = require('enrollments/enrollment.service') as {
+  enrollmentService: typeof EnrollmentServiceInstance;
+};
 const { courseService } = require('../course.service') as { courseService: typeof CourseServiceInstance };
 
 const mockCourseRepository = courseRepository as jest.Mocked<typeof courseRepository>;
 const mockLessonService = lessonService as jest.Mocked<typeof lessonService>;
+const mockEnrollmentService = enrollmentService as jest.Mocked<typeof enrollmentService>;
 
 function createMockCourse(overrides: Partial<Course> = {}): Course {
   return {
@@ -61,7 +70,7 @@ function createMockCourse(overrides: Partial<Course> = {}): Course {
     ratingCount: 0,
     averageRating: 0,
     isPublished: false,
-    allowedUsers: [],
+    studentsCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -187,33 +196,41 @@ describe('CourseService', () => {
 
   describe('canAccess', () => {
     describe('Курс опубликован', () => {
-      it('должен вернуть true для анонимного пользователя (userId не передан)', () => {
+      it('должен вернуть true для анонимного пользователя (userId не передан), не обращаясь к enrollmentService', async () => {
         const course = createMockCourse({ isPublished: true });
-        expect(courseService.canAccess(course, undefined)).toBe(true);
+        await expect(courseService.canAccess(course, undefined)).resolves.toBe(true);
+        expect(mockEnrollmentService.isEnrolled).not.toHaveBeenCalled();
       });
     });
 
     describe('Курс не опубликован', () => {
-      it('должен вернуть false для анонимного пользователя', () => {
+      it('должен вернуть false для анонимного пользователя, не обращаясь к enrollmentService', async () => {
         const course = createMockCourse({ isPublished: false });
-        expect(courseService.canAccess(course, undefined)).toBe(false);
+        await expect(courseService.canAccess(course, undefined)).resolves.toBe(false);
+        expect(mockEnrollmentService.isEnrolled).not.toHaveBeenCalled();
       });
 
-      it('должен вернуть true для автора курса', () => {
+      it('должен вернуть true для автора курса, не обращаясь к enrollmentService', async () => {
         const authorId = new Types.ObjectId();
         const course = createMockCourse({ isPublished: false, author: authorId });
-        expect(courseService.canAccess(course, authorId)).toBe(true);
+        await expect(courseService.canAccess(course, authorId)).resolves.toBe(true);
+        expect(mockEnrollmentService.isEnrolled).not.toHaveBeenCalled();
       });
 
-      it('должен вернуть true для пользователя из allowedUsers', () => {
-        const allowedUserId = new Types.ObjectId();
-        const course = createMockCourse({ isPublished: false, allowedUsers: [allowedUserId] });
-        expect(courseService.canAccess(course, allowedUserId)).toBe(true);
-      });
-
-      it('должен вернуть false для постороннего верифицированного пользователя', () => {
+      it('должен вернуть true для активно записанного студента (enrollmentService.isEnrolled)', async () => {
         const course = createMockCourse({ isPublished: false });
-        expect(courseService.canAccess(course, new Types.ObjectId())).toBe(false);
+        const studentId = new Types.ObjectId();
+        mockEnrollmentService.isEnrolled.mockResolvedValue(true);
+
+        await expect(courseService.canAccess(course, studentId)).resolves.toBe(true);
+        expect(mockEnrollmentService.isEnrolled).toHaveBeenCalledWith(course._id, studentId);
+      });
+
+      it('должен вернуть false для постороннего верифицированного пользователя (не записан)', async () => {
+        const course = createMockCourse({ isPublished: false });
+        mockEnrollmentService.isEnrolled.mockResolvedValue(false);
+
+        await expect(courseService.canAccess(course, new Types.ObjectId())).resolves.toBe(false);
       });
     });
   });
@@ -380,7 +397,7 @@ describe('CourseService', () => {
 
   describe('getMyCourses', () => {
     describe('Когда роль — author', () => {
-      it('должен вернуть курсы, которые пользователь ведёт (findByAuthor)', async () => {
+      it('должен вернуть курсы, которые пользователь ведёт (findByAuthor), не обращаясь к enrollmentService', async () => {
         // Given
         const userId = new Types.ObjectId();
         mockCourseRepository.findByAuthor.mockResolvedValue([]);
@@ -390,7 +407,7 @@ describe('CourseService', () => {
 
         // Then
         expect(mockCourseRepository.findByAuthor).toHaveBeenCalledWith(userId.toString());
-        expect(mockCourseRepository.findByAllowedUser).not.toHaveBeenCalled();
+        expect(mockEnrollmentService.getEnrolledCourseIds).not.toHaveBeenCalled();
       });
     });
 
@@ -409,16 +426,19 @@ describe('CourseService', () => {
     });
 
     describe('Когда роль — student', () => {
-      it('должен вернуть курсы через allowedUsers (findByAllowedUser), не findByAuthor', async () => {
+      it('должен вернуть курсы через enrollmentService.getEnrolledCourseIds + findByIds, не findByAuthor', async () => {
         // Given
         const userId = new Types.ObjectId();
-        mockCourseRepository.findByAllowedUser.mockResolvedValue([]);
+        const courseIds = [new Types.ObjectId(), new Types.ObjectId()];
+        mockEnrollmentService.getEnrolledCourseIds.mockResolvedValue(courseIds);
+        mockCourseRepository.findByIds.mockResolvedValue([]);
 
         // When
         await courseService.getMyCourses(userId, 'student');
 
         // Then
-        expect(mockCourseRepository.findByAllowedUser).toHaveBeenCalledWith(userId.toString());
+        expect(mockEnrollmentService.getEnrolledCourseIds).toHaveBeenCalledWith(userId);
+        expect(mockCourseRepository.findByIds).toHaveBeenCalledWith(courseIds);
         expect(mockCourseRepository.findByAuthor).not.toHaveBeenCalled();
       });
     });
@@ -487,41 +507,8 @@ describe('CourseService', () => {
     });
   });
 
-  describe('addUserToAllowed', () => {
-    describe('Когда вызывающий не автор курса', () => {
-      it('должен выбросить 403, даже если вызывающий верифицирован', async () => {
-        const course = createMockCourse({ author: new Types.ObjectId() });
-        mockCourseRepository.findById.mockResolvedValue(course);
-
-        await expect(
-          courseService.addUserToAllowed(course._id.toString(), new Types.ObjectId(), new Types.ObjectId())
-        ).rejects.toMatchObject({ status: 403 });
-      });
-    });
-  });
-
-  describe('removeUserFromAllowed', () => {
-    describe('Когда курс не найден', () => {
-      it('должен выбросить 404', async () => {
-        mockCourseRepository.findById.mockResolvedValue(null);
-
-        await expect(
-          courseService.removeUserFromAllowed('507f1f77bcf86cd799439011', new Types.ObjectId(), new Types.ObjectId())
-        ).rejects.toMatchObject({ status: 404 });
-      });
-    });
-
-    describe('Когда вызывающий не автор курса', () => {
-      it('должен выбросить 403', async () => {
-        const course = createMockCourse({ author: new Types.ObjectId() });
-        mockCourseRepository.findById.mockResolvedValue(course);
-
-        await expect(
-          courseService.removeUserFromAllowed(course._id.toString(), new Types.ObjectId(), new Types.ObjectId())
-        ).rejects.toMatchObject({ status: 403 });
-      });
-    });
-  });
+  // addUserToAllowed/removeUserFromAllowed переехали в enrollmentService (запись студентов
+  // на курс через отдельную коллекцию Enrollment) — см. enrollment.service.unit.spec.ts.
 
   describe('getById', () => {
     describe('Когда курс не найден', () => {

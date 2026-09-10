@@ -30,7 +30,10 @@ export type Course = {
   ratingCount: number;
   averageRating?: number;
   isPublished: boolean;
-  allowedUsers: Types.ObjectId[];
+  // Поддерживается атомарным $inc в enrollmentRepository, не полем этого документа напрямую —
+  // источник истины по тому, кто именно записан, теперь Enrollment (modules/enrollments),
+  // не embedded-массив здесь (см. историю в Obsidian: "allowedUsers → Enrollment").
+  studentsCount: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -45,7 +48,7 @@ export type NewCourse = Omit<
   | 'lessonsCount'
   | 'ratingSum'
   | 'ratingCount'
-  | 'allowedUsers'
+  | 'studentsCount'
 >;
 
 export type UpdateCourse = Partial<
@@ -59,7 +62,7 @@ export type UpdateCourse = Partial<
     | 'lessonsCount'
     | 'ratingSum'
     | 'ratingCount'
-    | 'allowedUsers'
+    | 'studentsCount'
     | 'author'
   >
 >;

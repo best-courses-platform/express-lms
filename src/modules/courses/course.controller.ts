@@ -3,7 +3,6 @@ import { courseService } from './course.service';
 import { fileStorageService } from '../file-storage/file-storage.service';
 import { BadRequestError, ForbiddenError, UnauthorizedError } from '../../utils/errors';
 import { isAuthenticatedRequest, getUserIdFromRequest } from '../../utils/typeGuards';
-import { Types } from 'mongoose';
 import { validate } from '../../middleware/validate';
 import { asyncHandler } from '../../middleware/async-handler';
 import {
@@ -13,8 +12,6 @@ import {
   authorParamSchema,
   difficultyParamSchema,
   lessonManagementSchema,
-  addUserToAllowedSchema,
-  removeUserFromAllowedSchema,
   addRatingSchema,
   searchCourseSchema,
 } from './course.schema';
@@ -86,7 +83,7 @@ export const searchCourses: RequestHandler = async (req, res) => {
 export const getCourse: RequestHandler = async (req, res) => {
   const course = await courseService.getById(req.params.id);
 
-  if (!courseService.canAccess(course, req.user?._id)) {
+  if (!(await courseService.canAccess(course, req.user?._id))) {
     throw new ForbiddenError(COURSE_MESSAGES.ERROR.FORBIDDEN);
   }
 
@@ -138,34 +135,6 @@ export const removeLesson: RequestHandler = async (req, res) => {
   });
 };
 
-export const addUserToAllowed: RequestHandler = async (req, res) => {
-  if (!isAuthenticatedRequest(req)) {
-    throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
-  }
-  const userId = getUserIdFromRequest(req);
-  const updated = await courseService.addUserToAllowed(req.params.id, new Types.ObjectId(req.body.userId), userId);
-  res.json({
-    message: COURSE_MESSAGES.SUCCESS.USER_ADDED_TO_ALLOWED,
-    course: updated,
-  });
-};
-
-export const removeUserFromAllowed: RequestHandler = async (req, res) => {
-  if (!isAuthenticatedRequest(req)) {
-    throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
-  }
-  const userId = getUserIdFromRequest(req);
-  const updated = await courseService.removeUserFromAllowed(
-    req.params.id,
-    new Types.ObjectId(req.params.userId),
-    userId
-  );
-  res.json({
-    message: COURSE_MESSAGES.SUCCESS.USER_REMOVED_FROM_ALLOWED,
-    course: updated,
-  });
-};
-
 export const addRating: RequestHandler = async (req, res) => {
   if (!isAuthenticatedRequest(req)) {
     throw new UnauthorizedError(COURSE_MESSAGES.ERROR.UNAUTHORIZED);
@@ -198,8 +167,6 @@ export const CourseController = {
   deleteCourse: [validate(idParamSchema), asyncHandler(deleteCourse)],
   addLesson: [validate(lessonManagementSchema), asyncHandler(addLesson)],
   removeLesson: [validate(lessonManagementSchema), asyncHandler(removeLesson)],
-  addUserToAllowed: [validate(addUserToAllowedSchema), asyncHandler(addUserToAllowed)],
-  removeUserFromAllowed: [validate(removeUserFromAllowedSchema), asyncHandler(removeUserFromAllowed)],
   addRating: [validate(addRatingSchema), asyncHandler(addRating)],
   getRatings: [validate(idParamSchema), asyncHandler(getRatings)],
 };

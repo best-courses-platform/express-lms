@@ -2,16 +2,15 @@ import { z } from 'zod';
 import { registry, authSecurity, errorResponse, jsonBody } from './registry';
 import {
   addRatingSchema,
-  addUserToAllowedSchema,
   authorParamSchema,
   createCourseSchema,
   difficultyParamSchema,
   idParamSchema,
   lessonManagementSchema,
-  removeUserFromAllowedSchema,
   searchCourseSchema,
   updateCourseSchema,
 } from '../modules/courses/course.schema';
+import { enrollSchema, unenrollSchema, listStudentsSchema } from '../modules/enrollments/enrollment.schema';
 
 const TAG = 'Courses';
 
@@ -53,9 +52,22 @@ const courseResponseSchema = registry.register(
     lessonsCount: z.number(),
     averageRating: z.number().optional(),
     isPublished: z.boolean(),
-    allowedUsers: z.array(objectId()),
+    studentsCount: z.number(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
+  })
+);
+
+// Тот же мотив именованного компонента, что и у Rating выше — используется и в ответе
+// enroll (одна запись), и в списке listStudents (массив).
+const enrollmentResponseSchema = registry.register(
+  'Enrollment',
+  z.object({
+    _id: objectId(),
+    courseId: objectId(),
+    userId: z.union([objectId(), z.object({ _id: objectId(), name: z.string(), email: z.string().email() })]),
+    status: z.enum(['active', 'revoked']),
+    enrolledAt: z.coerce.date(),
   })
 );
 
@@ -137,7 +149,7 @@ registry.registerPath({
   method: 'get',
   path: '/api/courses/mine',
   tags: [TAG],
-  summary: 'Мои курсы — авторские (author/admin) или доступные (student, через allowedUsers)',
+  summary: 'Мои курсы — авторские (author/admin) или доступные (student, через запись на курс)',
   security: authSecurity,
   responses: {
     200: { description: 'Массив курсов', content: { 'application/json': { schema: z.array(courseResponseSchema) } } },
@@ -151,7 +163,7 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Курс по id',
   description:
-    'Непубликованный курс виден только автору/allowedUsers (canAccess) — авторизация опциональна, но учитывается, если токен передан.',
+    'Непубликованный курс виден только автору/записанным студентам (canAccess) — авторизация опциональна, но учитывается, если токен передан.',
   security: [...authSecurity, {}],
   request: { params: idParamSchema.shape.params },
   responses: {
@@ -272,13 +284,38 @@ registry.registerPath({
 
 registry.registerPath({
   method: 'post',
-  path: '/api/courses/{id}/allowed-users',
+  path: '/api/courses/{id}/enrollments',
   tags: [TAG],
-  summary: 'Выдать доступ пользователю к неопубликованному курсу',
+  summary: 'Записать студента на курс по email',
+  description:
+    'Только автор курса. Принимает email, не userId — автор обычно знает почту студента, не его внутренний id. Идемпотентно: повторный вызов для уже записанного студента ничего не ломает и не задваивает studentsCount.',
   security: authSecurity,
-  request: { params: addUserToAllowedSchema.shape.params, body: jsonBody(addUserToAllowedSchema.shape.body) },
+  request: { params: enrollSchema.shape.params, body: jsonBody(enrollSchema.shape.body) },
   responses: {
-    200: courseMessageResponse('Пользователь добавлен в allowedUsers'),
+    201: {
+      description: 'Студент записан',
+      content: {
+        'application/json': { schema: z.object({ message: z.string(), enrollment: enrollmentResponseSchema }) },
+      },
+    },
+    401: errorResponse('Не авторизован'),
+    403: errorResponse('Вызывающий не автор курса'),
+    404: errorResponse('Курс не найден или пользователь с таким email не найден'),
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/courses/{id}/enrollments',
+  tags: [TAG],
+  summary: 'Список активных студентов курса',
+  security: authSecurity,
+  request: { params: listStudentsSchema.shape.params },
+  responses: {
+    200: {
+      description: 'Массив активных записей',
+      content: { 'application/json': { schema: z.array(enrollmentResponseSchema) } },
+    },
     401: errorResponse('Не авторизован'),
     403: errorResponse('Вызывающий не автор курса'),
     404: errorResponse('Курс не найден'),
@@ -287,16 +324,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: 'delete',
-  path: '/api/courses/{id}/allowed-users/{userId}',
+  path: '/api/courses/{id}/enrollments/{userId}',
   tags: [TAG],
-  summary: 'Убрать доступ пользователя к курсу',
+  summary: 'Отчислить студента с курса',
+  description: 'Soft-delete через status: "revoked" — история записи сохраняется, документ не удаляется.',
   security: authSecurity,
-  request: { params: removeUserFromAllowedSchema.shape.params },
+  request: { params: unenrollSchema.shape.params },
   responses: {
-    200: courseMessageResponse('Пользователь убран из allowedUsers'),
+    200: {
+      description: 'Студент отчислен',
+      content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+    },
     401: errorResponse('Не авторизован'),
     403: errorResponse('Вызывающий не автор курса'),
-    404: errorResponse('Курс не найден'),
+    404: errorResponse('Курс не найден или студент не был записан'),
   },
 });
 

@@ -5,6 +5,7 @@ import { Types } from 'mongoose';
 import { CreateCourseInput, UpdateCourseInput } from './course.schema';
 import { COURSE_MESSAGES } from './course.constants';
 import { lessonService } from 'lessons/lesson.service';
+import { enrollmentService } from 'enrollments/enrollment.service';
 
 class CourseService {
   async create(input: CreateCourseInput, authorId: Types.ObjectId): Promise<Course> {
@@ -58,14 +59,16 @@ class CourseService {
 
   /**
    * "Мои курсы" для личного кабинета: у автора/админа — курсы, которые он ведёт,
-   * у студента — курсы, куда его добавили в allowedUsers (своего списка "изучаю" ещё нет).
+   * у студента — курсы, на которые он активно записан (Enrollment, своего списка
+   * "изучаю" отдельно от факта доступа ещё нет).
    */
   async getMyCourses(userId: Types.ObjectId, role: string): Promise<Course[]> {
     if (role === 'author' || role === 'admin') {
       return courseRepository.findByAuthor(userId.toString());
     }
 
-    return courseRepository.findByAllowedUser(userId.toString());
+    const courseIds = await enrollmentService.getEnrolledCourseIds(userId);
+    return courseRepository.findByIds(courseIds);
   }
 
   async getCoursesByDifficulty(difficulty: string): Promise<Course[]> {
@@ -89,10 +92,10 @@ class CourseService {
   }
 
   /**
-   * Доступ к непубликованному курсу — только автор и явно разрешённые пользователи (allowedUsers).
+   * Доступ к непубликованному курсу — только автор и активно записанные студенты (Enrollment).
    * Опубликованный курс виден всем, включая анонимных пользователей (userId не передан).
    */
-  canAccess(course: Course, userId?: Types.ObjectId): boolean {
+  async canAccess(course: Course, userId?: Types.ObjectId): Promise<boolean> {
     if (course.isPublished) {
       return true;
     }
@@ -101,10 +104,11 @@ class CourseService {
       return false;
     }
 
-    const isAuthor = course.author.equals(userId);
-    const isAllowedUser = course.allowedUsers?.some(allowedUserId => allowedUserId.equals(userId)) ?? false;
+    if (course.author.equals(userId)) {
+      return true;
+    }
 
-    return isAuthor || isAllowedUser;
+    return enrollmentService.isEnrolled(course._id, userId);
   }
 
   async delete(id: string, userId: Types.ObjectId): Promise<void> {
@@ -152,32 +156,6 @@ class CourseService {
     }
 
     return courseRepository.removeLesson(courseId, new Types.ObjectId(lessonId));
-  }
-
-  async addUserToAllowed(courseId: string, userId: Types.ObjectId, authorId: Types.ObjectId): Promise<Course> {
-    const course = await courseRepository.findById(courseId);
-    if (!course) {
-      throw new NotFoundError(COURSE_MESSAGES.ERROR.NOT_FOUND);
-    }
-
-    if (!course.author.equals(authorId)) {
-      throw new ForbiddenError(COURSE_MESSAGES.ERROR.NOT_AUTHOR);
-    }
-
-    return courseRepository.addUserToAllowed(courseId, userId);
-  }
-
-  async removeUserFromAllowed(courseId: string, userId: Types.ObjectId, authorId: Types.ObjectId): Promise<Course> {
-    const course = await courseRepository.findById(courseId);
-    if (!course) {
-      throw new NotFoundError(COURSE_MESSAGES.ERROR.NOT_FOUND);
-    }
-
-    if (!course.author.equals(authorId)) {
-      throw new ForbiddenError(COURSE_MESSAGES.ERROR.NOT_AUTHOR);
-    }
-
-    return courseRepository.removeUserFromAllowed(courseId, userId);
   }
 
   async addRating(courseId: string, userId: Types.ObjectId, value: number): Promise<Course> {

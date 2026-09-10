@@ -69,7 +69,7 @@ Authorization: Bearer {{auth_token}}
 ###
 
 ### Курс по ID
-### Если курс не опубликован (isPublished: false) — виден только автору и allowedUsers,
+### Если курс не опубликован (isPublished: false) — виден только автору и записанным студентам,
 ### анонимный или посторонний запрос получит 403 (courseService.canAccess).
 GET {{baseUrl}}/api/courses/{{course_id}}
 Authorization: Bearer {{auth_token}}
@@ -99,19 +99,26 @@ Authorization: Bearer {{auth_token}}
 
 ###
 
-### Дать пользователю доступ к непубличному курсу (allowedUsers)
-POST {{baseUrl}}/api/courses/{{course_id}}/allowed-users
+### Записать студента на непубличный курс — по email, не по userId (автор обычно знает
+### почту студента, не его внутренний id)
+POST {{baseUrl}}/api/courses/{{course_id}}/enrollments
 Content-Type: application/json
 Authorization: Bearer {{auth_token}}
 
 {
-  "userId": "{{managed_user_id}}"
+  "email": "{{managed_user_email}}"
 }
 
 ###
 
-### Забрать доступ
-DELETE {{baseUrl}}/api/courses/{{course_id}}/allowed-users/{{managed_user_id}}
+### Список активных студентов курса
+GET {{baseUrl}}/api/courses/{{course_id}}/enrollments
+Authorization: Bearer {{auth_token}}
+
+###
+
+### Отчислить студента (soft-delete — status: revoked, не удаление записи)
+DELETE {{baseUrl}}/api/courses/{{course_id}}/enrollments/{{managed_user_id}}
 Authorization: Bearer {{auth_token}}
 
 ###

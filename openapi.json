@@ -264,12 +264,8 @@
           "isPublished": {
             "type": "boolean"
           },
-          "allowedUsers": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "example": "507f1f77bcf86cd799439011"
-            }
+          "studentsCount": {
+            "type": "number"
           },
           "createdAt": {
             "type": [
@@ -296,9 +292,72 @@
           "difficulty",
           "lessonsCount",
           "isPublished",
-          "allowedUsers",
+          "studentsCount",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "Enrollment": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "example": "507f1f77bcf86cd799439011"
+          },
+          "courseId": {
+            "type": "string",
+            "example": "507f1f77bcf86cd799439011"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "example": "507f1f77bcf86cd799439011"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_id": {
+                    "type": "string",
+                    "example": "507f1f77bcf86cd799439011"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                },
+                "required": [
+                  "_id",
+                  "name",
+                  "email"
+                ]
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked"
+            ]
+          },
+          "enrolledAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "_id",
+          "courseId",
+          "userId",
+          "status",
+          "enrolledAt"
         ]
       },
       "Lesson": {
@@ -1804,7 +1863,7 @@
         "tags": [
           "Courses"
         ],
-        "summary": "Мои курсы — авторские (author/admin) или доступные (student, через allowedUsers)",
+        "summary": "Мои курсы — авторские (author/admin) или доступные (student, через запись на курс)",
         "security": [
           {
             "bearerAuth": []
@@ -1846,7 +1905,7 @@
           "Courses"
         ],
         "summary": "Курс по id",
-        "description": "Непубликованный курс виден только автору/allowedUsers (canAccess) — авторизация опциональна, но учитывается, если токен передан.",
+        "description": "Непубликованный курс виден только автору/записанным студентам (canAccess) — авторизация опциональна, но учитывается, если токен передан.",
         "security": [
           {
             "bearerAuth": []
@@ -2391,12 +2450,13 @@
         }
       }
     },
-    "/api/courses/{id}/allowed-users": {
+    "/api/courses/{id}/enrollments": {
       "post": {
         "tags": [
           "Courses"
         ],
-        "summary": "Выдать доступ пользователю к неопубликованному курсу",
+        "summary": "Записать студента на курс по email",
+        "description": "Только автор курса. Принимает email, не userId — автор обычно знает почту студента, не его внутренний id. Идемпотентно: повторный вызов для уже записанного студента ничего не ломает и не задваивает studentsCount.",
         "security": [
           {
             "bearerAuth": []
@@ -2422,21 +2482,22 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "userId": {
+                  "email": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "format": "email"
                   }
                 },
                 "required": [
-                  "userId"
+                  "email"
                 ]
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Пользователь добавлен в allowedUsers",
+          "201": {
+            "description": "Студент записан",
             "content": {
               "application/json": {
                 "schema": {
@@ -2445,14 +2506,84 @@
                     "message": {
                       "type": "string"
                     },
-                    "course": {
-                      "$ref": "#/components/schemas/Course"
+                    "enrollment": {
+                      "$ref": "#/components/schemas/Enrollment"
                     }
                   },
                   "required": [
                     "message",
-                    "course"
+                    "enrollment"
                   ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Вызывающий не автор курса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Курс не найден или пользователь с таким email не найден",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Courses"
+        ],
+        "summary": "Список активных студентов курса",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Массив активных записей",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Enrollment"
+                  }
                 }
               }
             }
@@ -2490,12 +2621,13 @@
         }
       }
     },
-    "/api/courses/{id}/allowed-users/{userId}": {
+    "/api/courses/{id}/enrollments/{userId}": {
       "delete": {
         "tags": [
           "Courses"
         ],
-        "summary": "Убрать доступ пользователя к курсу",
+        "summary": "Отчислить студента с курса",
+        "description": "Soft-delete через status: \"revoked\" — история записи сохраняется, документ не удаляется.",
         "security": [
           {
             "bearerAuth": []
@@ -2526,7 +2658,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Пользователь убран из allowedUsers",
+            "description": "Студент отчислен",
             "content": {
               "application/json": {
                 "schema": {
@@ -2534,14 +2666,10 @@
                   "properties": {
                     "message": {
                       "type": "string"
-                    },
-                    "course": {
-                      "$ref": "#/components/schemas/Course"
                     }
                   },
                   "required": [
-                    "message",
-                    "course"
+                    "message"
                   ]
                 }
               }
@@ -2568,7 +2696,7 @@
             }
           },
           "404": {
-            "description": "Курс не найден",
+            "description": "Курс не найден или студент не был записан",
             "content": {
               "application/json": {
                 "schema": {

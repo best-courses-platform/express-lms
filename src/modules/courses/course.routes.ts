@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CourseController } from './course.controller';
+import { EnrollmentController } from 'enrollments/enrollment.controller';
 import { jwtAuth, optionalAuth } from '../../middleware/auth';
 import { requireVerifiedEmail, requireRole } from '../../middleware/access';
 import { uploadImage } from '../../middleware/upload-file';
@@ -7,7 +8,7 @@ import { uploadImage } from '../../middleware/upload-file';
 const r = Router();
 
 // публичные (доступны анонимно), но /:id учитывает req.user, если он есть —
-// непубликованный курс виден только автору/allowedUsers (см. CourseController.getCourse)
+// непубликованный курс виден только автору/записанным студентам (см. CourseController.getCourse)
 r.get('/', CourseController.listCourse);
 r.get('/published', CourseController.getPublishedCourses);
 // /search — статический путь, обязан идти раньше /:id, иначе Express матчит "search"
@@ -35,9 +36,10 @@ r.delete('/:id', jwtAuth, requireVerifiedEmail, ...CourseController.deleteCourse
 r.post('/:id/lessons/:lessonId', jwtAuth, requireVerifiedEmail, ...CourseController.addLesson);
 r.delete('/:id/lessons/:lessonId', jwtAuth, requireVerifiedEmail, ...CourseController.removeLesson);
 
-// доступ пользователей
-r.post('/:id/allowed-users', jwtAuth, requireVerifiedEmail, ...CourseController.addUserToAllowed);
-r.delete('/:id/allowed-users/:userId', jwtAuth, requireVerifiedEmail, ...CourseController.removeUserFromAllowed);
+// запись студентов на курс — управляет только автор, см. enrollment.service.ts#assertIsAuthor
+r.post('/:id/enrollments', jwtAuth, requireVerifiedEmail, ...EnrollmentController.enroll);
+r.get('/:id/enrollments', jwtAuth, requireVerifiedEmail, ...EnrollmentController.listStudents);
+r.delete('/:id/enrollments/:userId', jwtAuth, requireVerifiedEmail, ...EnrollmentController.unenroll);
 
 // рейтинг
 r.post('/:id/ratings', jwtAuth, requireVerifiedEmail, ...CourseController.addRating);
