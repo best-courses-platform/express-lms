@@ -155,6 +155,32 @@
           "ip"
         ]
       },
+      "Rating": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "example": "507f1f77bcf86cd799439011"
+          },
+          "value": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "userId",
+          "value",
+          "createdAt"
+        ]
+      },
       "Course": {
         "type": "object",
         "properties": {
@@ -2678,30 +2704,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "properties": {
-                      "userId": {
-                        "type": "string",
-                        "example": "507f1f77bcf86cd799439011"
-                      },
-                      "value": {
-                        "type": "number",
-                        "minimum": 1,
-                        "maximum": 5
-                      },
-                      "createdAt": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "format": "date-time"
-                      }
-                    },
-                    "required": [
-                      "userId",
-                      "value",
-                      "createdAt"
-                    ]
+                    "$ref": "#/components/schemas/Rating"
                   }
                 }
               }
