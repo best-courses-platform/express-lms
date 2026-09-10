@@ -17,9 +17,11 @@ async function withFakeTimers<T>(promise: Promise<T>): Promise<T> {
   // .catch() здесь — только чтобы избежать unhandledRejection на производном промисе;
   // сам оригинальный `promise` возвращается ниже нетронутым, его отклонение по-прежнему
   // долетает до вызывающего теста через await/rejects.
-  promise.finally(() => {
-    settled = true;
-  }).catch(() => undefined);
+  promise
+    .finally(() => {
+      settled = true;
+    })
+    .catch(() => undefined);
   for (let i = 0; i < 20 && !settled; i++) {
     await jest.advanceTimersByTimeAsync(60_000);
   }
@@ -83,7 +85,9 @@ describe('resilientFetch', () => {
       let call = 0;
       const fetchMock = stubFetch(async () => {
         call += 1;
-        if (call === 1) {throw new Error('ECONNRESET');}
+        if (call === 1) {
+          throw new Error('ECONNRESET');
+        }
         return new Response('ok', { status: 200 });
       });
 
