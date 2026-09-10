@@ -34,3 +34,26 @@ describe('App (integration) — catch-all 404', () => {
     });
   });
 });
+
+// k8s-пробы (см. src/shutdown.ts) — маршруты вне /api, до helmet/CORS/rate-limit, поэтому
+// не задеты ни одним из существующих auth/rate-limit тестов.
+describe('Health-пробы для k8s', () => {
+  describe('GET /healthz', () => {
+    it('должен вернуть 200 без обращения к БД — процесс жив', async () => {
+      const response = await request(app).get('/healthz');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ status: 'ok' });
+    });
+  });
+
+  describe('GET /readyz', () => {
+    it('должен вернуть 200, пока Mongo подключена и процесс не останавливается', async () => {
+      // setupIntegration.ts подключает mongoose в beforeAll — readyState здесь всегда 1.
+      const response = await request(app).get('/readyz');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ status: 'ok' });
+    });
+  });
+});

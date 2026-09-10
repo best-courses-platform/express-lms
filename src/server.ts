@@ -7,9 +7,7 @@ import path from 'path';
 import { config, logConfigValidation } from './config';
 import { CONFIG_MESSAGES } from './config/config.constants';
 import mongoose from 'mongoose';
-import { closePasswordHasherPool } from './modules/users/password-hasher';
-// Импорт запускает Worker (BullMQ) — подписка на очередь начинается сразу при старте процесса.
-import { closeEmailWorker } from './modules/email/email.worker';
+import { registerGracefulShutdown } from './shutdown';
 
 // Подключение к MongoDB
 mongoose
@@ -30,9 +28,10 @@ const start = async () => {
 
       console.log(CONFIG_MESSAGES.INFO.STARTING_DEV);
 
-      app.listen(PORT, () => {
+      const server = app.listen(PORT, () => {
         console.log(`${CONFIG_MESSAGES.SUCCESS.HTTP_DEV_STARTED} http://localhost:${PORT}`);
       });
+      registerGracefulShutdown(server);
 
       return;
     }
@@ -52,9 +51,10 @@ const start = async () => {
         cert: fs.readFileSync(certPathFull),
       };
 
-      https
+      const server = https
         .createServer(httpsOptions, app)
         .listen(PORT, () => console.log(`${CONFIG_MESSAGES.SUCCESS.HTTPS_PROD_STARTED} https://localhost:${PORT}`));
+      registerGracefulShutdown(server);
     } else {
       console.warn(CONFIG_MESSAGES.ERROR.SSL_CERTS_MISSING);
       startHttpServer();
@@ -67,17 +67,10 @@ const start = async () => {
 };
 
 function startHttpServer() {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`${CONFIG_MESSAGES.SUCCESS.HTTP_PROD_STARTED} http://localhost:${PORT}`);
   });
+  registerGracefulShutdown(server);
 }
-
-process.on('SIGINT', async () => {
-  console.log(CONFIG_MESSAGES.SUCCESS.APP_CLOSED);
-  await closePasswordHasherPool();
-  await closeEmailWorker();
-  await mongoose.connection.close();
-  process.exit();
-});
 
 start();
