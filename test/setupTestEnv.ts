@@ -35,6 +35,13 @@ process.env.FRONTEND_URL = 'http://localhost:3001';
 process.env.EMAIL_USER = '';
 process.env.EMAIL_PASSWORD = '';
 
+// Тот же класс утечки для прод-провайдера: если в .env стоит EMAIL_DRIVER=postbox с реальным
+// ключом, тесты регистрации реально отправляли бы письма через Postbox. Драйвер принудительно
+// smtp (без кредов → отправка отключена), ключи Postbox пустые.
+process.env.EMAIL_DRIVER = 'smtp';
+process.env.POSTBOX_KEY_ID = '';
+process.env.POSTBOX_SECRET = '';
+
 // Тот же класс утечки, что и с EMAIL_*, только через S3: isSelectelConfigured() требует
 // accessKeyId + secretAccessKey + bucketName + publicUrl ВСЕ сразу (см. config/index.ts) —
 // одной пустой переменной достаточно, чтобы гарантированно вернуть false. Без этого

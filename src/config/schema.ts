@@ -33,6 +33,8 @@ export const configSchema = z.object({
 
   // Email (для подтверждения регистрации)
   email: z.object({
+    // smtp — dev (Ethereal/Mailpit), postbox — прод (Yandex Cloud Postbox, см. postbox ниже)
+    driver: z.enum(['smtp', 'postbox']).default('smtp'),
     host: z.string().optional(),
     port: z.coerce.number().default(587),
     secure: z.coerce.boolean().default(false),
@@ -44,6 +46,16 @@ export const configSchema = z.object({
       .optional(),
     from: z.string().default('noreply@yourapp.com'),
     verificationUrl: z.string().default('http://localhost:3000/api/auth/verify-email'),
+  }),
+
+  // Yandex Cloud Postbox — SES-совместимый HTTP API. Статический ключ сервисного аккаунта
+  // с ролью postbox.sender. Используется при EMAIL_DRIVER=postbox.
+  postbox: z.object({
+    keyId: z.string().optional(),
+    secret: z.string().optional(),
+    region: z.string().default('ru-central1'),
+    endpoint: z.string().default('https://postbox.cloud.yandex.net'),
+    from: z.string().optional(),
   }),
 
   // Фронтенд URL для ссылок подтверждения

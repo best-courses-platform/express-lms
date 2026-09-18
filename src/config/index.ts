@@ -22,6 +22,7 @@ export const config: Config = configSchema.parse({
   githubCallbackURL: process.env.GITHUB_CALLBACK_URL,
   // Email
   email: {
+    driver: process.env.EMAIL_DRIVER,
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
     secure: process.env.EMAIL_SECURE === 'true',
@@ -31,6 +32,13 @@ export const config: Config = configSchema.parse({
     },
     from: process.env.EMAIL_FROM,
     verificationUrl: process.env.EMAIL_VERIFICATION_URL,
+  },
+  postbox: {
+    keyId: process.env.POSTBOX_KEY_ID,
+    secret: process.env.POSTBOX_SECRET,
+    region: process.env.POSTBOX_REGION,
+    endpoint: process.env.POSTBOX_ENDPOINT,
+    from: process.env.POSTBOX_FROM,
   },
   frontendUrl: process.env.FRONTEND_URL,
   // Redis
