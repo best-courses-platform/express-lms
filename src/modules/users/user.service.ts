@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 import { NewUser, UpdateUser, User } from './user.types';
 import { userRepository } from './user.repository';
 import { AppError, BadRequestError, ConflictError, InternalError, NotFoundError } from '../../utils/errors';
-import { USER_MESSAGES } from './user.constants';
+import { EMAIL_VERIFICATION_TTL_MS, USER_MESSAGES } from './user.constants';
 import { OAuthProfile } from 'auth/auth.types';
 // Единственный runtime-импорт users -> sessions в проекте — refreshSessionService ничего
 // не тянет обратно из users (проверено), цикла нет. Прямой импорт, а не событийная шина —
@@ -30,7 +30,7 @@ class UserService {
     } else {
       // Для локальной регистрации генерируем токен подтверждения
       userData.emailVerificationToken = crypto.randomBytes(32).toString('hex');
-      userData.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      userData.emailVerificationExpires = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
     }
 
     return userRepository.create(userData);

@@ -80,10 +80,11 @@ export const verifyEmailSchema = z.object({
   }),
 });
 
+// Ровно одно из двух: email (письмо не пришло — экран после регистрации, вход с 403) либо
+// token из ссылки (ссылка просрочена — пользователя находим по токену, вводить email не нужно).
+// .strict() — оба поля сразу считаются ошибкой, а не тихо игнорируют одно из них.
 export const resendVerificationSchema = z.object({
-  body: z.object({
-    email: emailSchema,
-  }),
+  body: z.union([z.object({ email: emailSchema }).strict(), z.object({ token: z.string().min(1) }).strict()]),
 });
 
 export const requestPasswordResetSchema = z.object({

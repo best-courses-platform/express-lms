@@ -1,6 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import request from 'supertest';
 import { UserModel } from 'users/user.model';
+import { EMAIL_VERIFICATION_TTL_MS } from 'users/user.constants';
 import app from '../../../app';
 
 // Полный сквозной прогон через реальный Express (app.ts as is — helmet, cors, rate-limit
@@ -472,6 +473,20 @@ describe('Auth routes (integration)', () => {
   });
 
   describe('POST /api/auth/resend-verification', () => {
+    // Токен, выданный при регистрации, "состаривается" на заданное число мс — обходим серверную
+    // паузу между письмами (60 c), не дожидаясь её в тесте: момент отправки в БД не хранится,
+    // он выводится из emailVerificationExpires - TTL.
+    async function registerUnverified(email: string, sentMsAgo: number) {
+      await request(app)
+        .post('/api/auth/register')
+        .send({ name: 'Resend Me', email, password: 'password123', confirmPassword: 'password123' });
+      await UserModel.updateOne(
+        { email },
+        { emailVerificationExpires: new Date(Date.now() - sentMsAgo + EMAIL_VERIFICATION_TTL_MS) }
+      );
+      return UserModel.findOne({ email }).select('+emailVerificationToken');
+    }
+
     describe('Когда email не зарегистрирован', () => {
       it('должен ответить 200 тихо, не спалив факт отсутствия аккаунта', async () => {
         // When
@@ -483,13 +498,10 @@ describe('Auth routes (integration)', () => {
     });
 
     describe('Когда пользователь зарегистрирован, но email не подтверждён', () => {
-      it('должен ответить 200 и выдать новый токен подтверждения', async () => {
+      it('по email: должен ответить 200 и выдать новый токен подтверждения', async () => {
         // Given
         const email = 'resend@example.com';
-        await request(app)
-          .post('/api/auth/register')
-          .send({ name: 'Resend Me', email, password: 'password123', confirmPassword: 'password123' });
-        const before = await UserModel.findOne({ email }).select('+emailVerificationToken');
+        const before = await registerUnverified(email, 5 * 60_000);
 
         // When
         const response = await request(app).post('/api/auth/resend-verification').send({ email });
@@ -499,6 +511,94 @@ describe('Auth routes (integration)', () => {
         const after = await UserModel.findOne({ email }).select('+emailVerificationToken');
         expect(after?.emailVerificationToken).not.toBe(before?.emailVerificationToken);
       });
+
+      it('по токену: должен найти аккаунт по просроченному токену и выдать новый — email вводить не нужно', async () => {
+        // Given — ссылка из письма просрочена сутки назад
+        const email = 'resend-by-token@example.com';
+        const before = await registerUnverified(email, EMAIL_VERIFICATION_TTL_MS + 60_000);
+
+        // When
+        const response = await request(app)
+          .post('/api/auth/resend-verification')
+          .send({ token: before?.emailVerificationToken });
+
+        // Then
+        expect(response.status).toBe(200);
+        const after = await UserModel.findOne({ email }).select('+emailVerificationToken');
+        expect(after?.emailVerificationToken).not.toBe(before?.emailVerificationToken);
+        expect(after?.emailVerificationExpires?.getTime()).toBeGreaterThan(Date.now());
+      });
+
+      it('по неизвестному токену: должен ответить 200 тихо и ничего не менять', async () => {
+        // Given
+        const email = 'untouched@example.com';
+        const before = await registerUnverified(email, 5 * 60_000);
+
+        // When
+        const response = await request(app).post('/api/auth/resend-verification').send({ token: 'no-such-token' });
+
+        // Then
+        expect(response.status).toBe(200);
+        const after = await UserModel.findOne({ email }).select('+emailVerificationToken');
+        expect(after?.emailVerificationToken).toBe(before?.emailVerificationToken);
+      });
+    });
+
+    describe('Серверная пауза между письмами', () => {
+      it('не должен выдавать новый токен, если предыдущее письмо ушло меньше минуты назад, но отвечает тем же 200', async () => {
+        // Given — токен выдан 10 секунд назад
+        const email = 'cooldown@example.com';
+        const before = await registerUnverified(email, 10_000);
+
+        // When
+        const response = await request(app).post('/api/auth/resend-verification').send({ email });
+
+        // Then
+        expect(response.status).toBe(200);
+        const after = await UserModel.findOne({ email }).select('+emailVerificationToken');
+        expect(after?.emailVerificationToken).toBe(before?.emailVerificationToken);
+      });
+    });
+
+    describe('Валидация тела', () => {
+      it.each([
+        ['пустое тело', {}],
+        ['и email, и токен сразу', { email: 'both@example.com', token: 'abc' }],
+        ['невалидный email', { email: 'not-an-email' }],
+        ['пустой токен', { token: '' }],
+      ])('%s → 400', async (_name, body) => {
+        const response = await request(app).post('/api/auth/resend-verification').send(body);
+
+        expect(response.status).toBe(400);
+      });
+    });
+  });
+
+  describe('POST /api/auth/verify-email — срок действия токена', () => {
+    it('просроченный токен должен дать "Срок действия токена подтверждения истек", а не "Неверный токен"', async () => {
+      // Given — регрессия: findByEmailVerificationToken фильтровал просроченные токены в самом
+      // запросе, и ветка VERIFICATION_TOKEN_EXPIRED в сервисе была недостижима — unit-тест с
+      // замоканным repository этого не видел, поймать могла только реальная БД.
+      const email = 'expired@example.com';
+      await request(app)
+        .post('/api/auth/register')
+        .send({ name: 'Expired', email, password: 'password123', confirmPassword: 'password123' });
+      await UserModel.updateOne({ email }, { emailVerificationExpires: new Date(Date.now() - 1000) });
+      const user = await UserModel.findOne({ email }).select('+emailVerificationToken');
+
+      // When
+      const response = await request(app).post('/api/auth/verify-email').send({ token: user?.emailVerificationToken });
+
+      // Then
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('Срок действия токена подтверждения истек');
+    });
+
+    it('неизвестный токен должен дать "Неверный токен подтверждения"', async () => {
+      const response = await request(app).post('/api/auth/verify-email').send({ token: 'no-such-token' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('Неверный токен подтверждения');
     });
   });
 

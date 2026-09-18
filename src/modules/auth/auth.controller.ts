@@ -261,9 +261,8 @@ export const verifyEmail: RequestHandler = async (req, res) => {
 };
 
 export const resendVerification: RequestHandler = async (req, res) => {
-  const { email } = req.body;
-
-  await authService.resendVerificationEmail(email);
+  // req.body уже разобран validate(resendVerificationSchema): ровно { email } либо { token }
+  await authService.resendVerificationEmail(req.body);
 
   res.json({
     message: 'Письмо с подтверждением отправлено повторно',

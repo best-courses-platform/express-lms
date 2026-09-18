@@ -1407,20 +1407,38 @@
           "Auth"
         ],
         "summary": "Повторная отправка письма подтверждения",
-        "description": "Всегда отвечает 200, даже если email не зарегистрирован или уже подтверждён — иначе ответ бы палил факт существования аккаунта (user enumeration).",
+        "description": "Тело — ровно одно из двух: { email } (письмо не пришло) или { token } (ссылка из письма просрочена — аккаунт находится по токену, вводить email не нужно). Всегда отвечает 200, даже если email/токен не найдены, аккаунт уже подтверждён или сработала серверная пауза между письмами (60 секунд) — иначе ответ бы палил факт существования аккаунта (user enumeration).",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "format": "email"
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "email": {
+                        "type": "string",
+                        "format": "email"
+                      }
+                    },
+                    "required": [
+                      "email"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "token": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "token"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "email"
                 ]
               }
             }

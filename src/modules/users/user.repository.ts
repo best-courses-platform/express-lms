@@ -55,11 +55,13 @@ class UserRepository {
     return null;
   }
 
+  // Срок годности сознательно НЕ фильтруется в запросе: сервис сам сравнивает
+  // emailVerificationExpires с now, чтобы отличить "токен просрочен" от "токена нет" (разные
+  // сообщения) и чтобы по просроченной ссылке можно было отправить новую (resend по токену).
+  // Раньше фильтр $gt стоял здесь — и ветка VERIFICATION_TOKEN_EXPIRED в auth.service.ts была
+  // недостижима: просроченный токен просто не находился и отвечал "Неверный токен".
   async findByEmailVerificationToken(token: string): Promise<UserDocument | null> {
-    return await UserModel.findOne({
-      emailVerificationToken: token,
-      emailVerificationExpires: { $gt: new Date() },
-    }).exec();
+    return await UserModel.findOne({ emailVerificationToken: token }).exec();
   }
 
   async findByPasswordResetToken(token: string): Promise<UserDocument | null> {
