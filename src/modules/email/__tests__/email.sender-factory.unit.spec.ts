@@ -1,0 +1,72 @@
+import { describe, it, expect } from '@jest/globals';
+import type { Config } from '../../../config/schema';
+import { createEmailSender } from '../email.sender-factory';
+import { PostboxEmailSender } from '../postbox-email.sender';
+import { SmtpEmailSender } from '../smtp-email.sender';
+
+type SenderConfig = Pick<Config, 'email' | 'postbox'>;
+
+function buildConfig(overrides: { email?: Partial<Config['email']>; postbox?: Partial<Config['postbox']> } = {}): SenderConfig {
+  return {
+    email: {
+      driver: 'smtp',
+      host: 'smtp.test.com',
+      port: 587,
+      secure: false,
+      auth: { user: 'bot@example.com', pass: 'secret' },
+      from: 'noreply@example.com',
+      verificationUrl: 'http://localhost:3000/api/auth/verify-email',
+      ...overrides.email,
+    },
+    postbox: {
+      keyId: 'key-id',
+      secret: 'secret',
+      region: 'ru-central1',
+      endpoint: 'https://postbox.cloud.yandex.net',
+      from: 'noreply@best-courses-ever.ru',
+      ...overrides.postbox,
+    },
+  };
+}
+
+describe('createEmailSender', () => {
+  describe('драйвер smtp', () => {
+    it('должен вернуть SmtpEmailSender, когда заданы user и pass', () => {
+      expect(createEmailSender(buildConfig())).toBeInstanceOf(SmtpEmailSender);
+    });
+
+    it('должен вернуть null, когда auth пуст (транспорт не настроен)', () => {
+      expect(createEmailSender(buildConfig({ email: { auth: { user: '', pass: '' } } }))).toBeNull();
+    });
+
+    it('должен вернуть null, когда auth не задан вовсе', () => {
+      expect(createEmailSender(buildConfig({ email: { auth: undefined } }))).toBeNull();
+    });
+
+    it('не должен смотреть на ключи Postbox — они игнорируются при драйвере smtp', () => {
+      const sender = createEmailSender(buildConfig({ postbox: { keyId: '', secret: '' } }));
+
+      expect(sender).toBeInstanceOf(SmtpEmailSender);
+    });
+  });
+
+  describe('драйвер postbox', () => {
+    it('должен вернуть PostboxEmailSender, когда заданы keyId, secret и from', () => {
+      expect(createEmailSender(buildConfig({ email: { driver: 'postbox' } }))).toBeInstanceOf(PostboxEmailSender);
+    });
+
+    it.each([
+      ['keyId', { keyId: '' }],
+      ['secret', { secret: '' }],
+      ['from', { from: undefined }],
+    ])('должен вернуть null, когда не задан %s', (_name, postbox) => {
+      expect(createEmailSender(buildConfig({ email: { driver: 'postbox' }, postbox }))).toBeNull();
+    });
+
+    it('не должен смотреть на SMTP-креды — они игнорируются при драйвере postbox', () => {
+      const sender = createEmailSender(buildConfig({ email: { driver: 'postbox', auth: { user: '', pass: '' } } }));
+
+      expect(sender).toBeInstanceOf(PostboxEmailSender);
+    });
+  });
+});

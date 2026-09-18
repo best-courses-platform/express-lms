@@ -1,186 +1,124 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import type { EmailService as EmailServiceClass } from '../email.service';
+import type { EmailMessage } from '../email.sender';
 
-// Unit-слой: nodemailer и config замокан — впервые проверяется ветка "email реально
-// настроен" (config.email.auth.user/pass заданы). Раньше — во всех auth-тестах (unit и
-// integration) — EMAIL_USER/EMAIL_PASSWORD всегда пустые (см. test/setupTestEnv.ts), поэтому
-// emailService.isConfigured() всегда false, а реальный transporter.sendMail() не вызывался
-// вообще ни разу за всю сессию: и содержимое писем, и обработка ошибок SMTP оставались
-// полностью непроверенными.
-//
-// config.email.auth — обычный мутируемый объект (не функция вроде isSelectelConfigured()),
-// поэтому per-test конфигурация делается прямой мутацией mockConfig перед `new EmailService()`
-// (конструктор читает auth.user/pass один раз при создании инстанса) — без jest.resetModules().
+// Unit-слой: транспорт подменяется fake-адаптером через конструктор (порт EmailSender), поэтому
+// здесь проверяется только зона ответственности самого сервиса — шаблоны писем, вычисление
+// text из html и обёртка ошибок транспорта. Поведение конкретных транспортов (SMTP/Postbox)
+// проверяется в smtp-email.sender.unit.spec.ts / postbox-email.sender.unit.spec.ts, выбор
+// драйвера — в email.sender-factory.unit.spec.ts.
 const mockConfig = {
-  email: {
-    host: 'smtp.test.com',
-    port: 587,
-    secure: false,
-    auth: { user: 'bot@example.com', pass: 'secret-app-password' },
-    from: 'noreply@example.com',
-  },
+  email: { driver: 'smtp', port: 587, secure: false, from: 'noreply@example.com' },
+  postbox: { region: 'ru-central1', endpoint: 'https://postbox.example.test' },
   frontendUrl: 'http://localhost:3001',
 };
 
-const mockSendMail = jest.fn<(...args: unknown[]) => Promise<unknown>>();
-const mockCreateTransport = jest.fn().mockReturnValue({ sendMail: mockSendMail });
-// По умолчанию null — как ведёт себя getTestMessageUrl() для любого не-Ethereal транспорта
-// (реальный SMTP в проде). Отдельный тест ниже переопределяет на непустую ссылку.
-const mockGetTestMessageUrl = jest.fn().mockReturnValue(null);
-
 jest.mock('../../../config', () => ({ config: mockConfig }));
-jest.mock('nodemailer', () => ({
-  createTransport: (...args: unknown[]) => mockCreateTransport(...args),
-  getTestMessageUrl: (...args: unknown[]) => mockGetTestMessageUrl(...args),
-}));
 
 const { EmailService } = require('../email.service') as { EmailService: typeof EmailServiceClass };
 
+const mockSend = jest.fn<(message: EmailMessage) => Promise<{ providerMessageId: string }>>();
+
 function createConfiguredService(): EmailServiceClass {
-  mockConfig.email.auth = { user: 'bot@example.com', pass: 'secret-app-password' };
-  return new EmailService();
+  return new EmailService({ send: mockSend });
 }
 
 function createUnconfiguredService(): EmailServiceClass {
-  mockConfig.email.auth = { user: '', pass: '' };
-  return new EmailService();
+  return new EmailService(null);
 }
 
 describe('EmailService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockSendMail.mockResolvedValue(undefined);
-    mockGetTestMessageUrl.mockReturnValue(null);
+    mockSend.mockResolvedValue({ providerMessageId: 'test-id' });
   });
 
   describe('isConfigured', () => {
-    it('должен вернуть true, когда auth.user и auth.pass заданы', () => {
-      const service = createConfiguredService();
-      expect(service.isConfigured()).toBe(true);
+    it('должен вернуть true, когда транспорт передан', () => {
+      expect(createConfiguredService().isConfigured()).toBe(true);
     });
 
-    it('должен вернуть false и не создавать transporter, когда auth пуст', () => {
-      const service = createUnconfiguredService();
-
-      expect(service.isConfigured()).toBe(false);
-      expect(mockCreateTransport).not.toHaveBeenCalled();
+    it('должен вернуть false, когда транспорта нет (пустые креды выбранного драйвера)', () => {
+      expect(createUnconfiguredService().isConfigured()).toBe(false);
     });
   });
 
-  describe('Когда email не настроен', () => {
-    it('sendEmail должен тихо завершиться без вызова sendMail', async () => {
+  describe('Когда транспорт не настроен', () => {
+    it('sendEmail должен тихо завершиться без вызова send', async () => {
       const service = createUnconfiguredService();
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 
       await expect(service.sendEmail({ to: 'x@example.com', subject: 'Hi', html: '<p>Hi</p>' })).resolves.toBeUndefined();
-      expect(mockSendMail).not.toHaveBeenCalled();
+
+      expect(mockSend).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
     });
   });
 
-  describe('Когда email настроен', () => {
-    it('должен создать transporter с host/port/secure/auth из конфига', () => {
-      createConfiguredService();
+  describe('sendEmail', () => {
+    it('должен передать транспорту to/subject/html', async () => {
+      const service = createConfiguredService();
 
-      expect(mockCreateTransport).toHaveBeenCalledWith(
-        expect.objectContaining({
-          host: 'smtp.test.com',
-          port: 587,
-          secure: false,
-          auth: { user: 'bot@example.com', pass: 'secret-app-password' },
-        })
+      await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Body</p>' });
+
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'user@example.com', subject: 'Subject', html: '<p>Body</p>' })
       );
     });
 
-    describe('sendEmail', () => {
-      it('должен отправить письмо с указанными to/subject/html и from, построенным из config.email.from', async () => {
-        const service = createConfiguredService();
+    it('должен вычислить text из html (без тегов), если text не передан явно', async () => {
+      const service = createConfiguredService();
 
-        await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Body</p>' });
+      await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hello <b>World</b></p>' });
 
-        expect(mockSendMail).toHaveBeenCalledWith(
-          expect.objectContaining({
-            from: '"noreply" <noreply@example.com>',
-            to: 'user@example.com',
-            subject: 'Subject',
-            html: '<p>Body</p>',
-          })
-        );
-      });
-
-      it('должен вычислить text из html (без тегов), если text не передан явно', async () => {
-        const service = createConfiguredService();
-
-        await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hello <b>World</b></p>' });
-
-        const [{ text }] = mockSendMail.mock.calls[0] as [{ text: string }];
-        expect(text).not.toMatch(/[<>]/);
-        expect(text).toContain('Hello');
-        expect(text).toContain('World');
-      });
-
-      it('должен использовать переданный text как есть, не пересчитывать из html', async () => {
-        const service = createConfiguredService();
-
-        await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hi</p>', text: 'plain text' });
-
-        expect(mockSendMail).toHaveBeenCalledWith(expect.objectContaining({ text: 'plain text' }));
-      });
-
-      it('должен обернуть ошибку SMTP в AppError(500), не пробрасывая исходную ошибку как есть', async () => {
-        const service = createConfiguredService();
-        mockSendMail.mockRejectedValue(new Error('SMTP connection refused'));
-
-        await expect(
-          service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hi</p>' })
-        ).rejects.toMatchObject({ status: 500 });
-      });
-
-      it('должен вывести Ethereal preview-ссылку в лог, когда getTestMessageUrl вернул её', async () => {
-        const service = createConfiguredService();
-        const sendMailResult = { messageId: 'test-id' };
-        mockSendMail.mockResolvedValue(sendMailResult);
-        mockGetTestMessageUrl.mockReturnValue('https://ethereal.email/message/abc123');
-        const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
-
-        await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hi</p>' });
-
-        expect(mockGetTestMessageUrl).toHaveBeenCalledWith(sendMailResult);
-        expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('https://ethereal.email/message/abc123'));
-        consoleLogSpy.mockRestore();
-      });
-
-      it('не должен ничего логировать, когда getTestMessageUrl вернул null (реальный SMTP-транспорт)', async () => {
-        const service = createConfiguredService();
-        const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
-
-        await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hi</p>' });
-
-        expect(consoleLogSpy).not.toHaveBeenCalled();
-        consoleLogSpy.mockRestore();
-      });
+      const [{ text }] = mockSend.mock.calls[0];
+      expect(text).not.toMatch(/[<>]/);
+      expect(text).toContain('Hello');
+      expect(text).toContain('World');
     });
 
-    describe('sendVerificationEmail', () => {
-      it('должен отправить письмо со ссылкой подтверждения, построенной из frontendUrl и токена', async () => {
-        const service = createConfiguredService();
+    it('должен использовать переданный text как есть, не пересчитывать из html', async () => {
+      const service = createConfiguredService();
 
-        await service.sendVerificationEmail('user@example.com', 'verify-token-123', 'Имя');
+      await service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hi</p>', text: 'plain text' });
 
-        const [{ html, to }] = mockSendMail.mock.calls[0] as [{ html: string; to: string }];
-        expect(to).toBe('user@example.com');
-        expect(html).toContain('http://localhost:3001/verify-email?token=verify-token-123');
-        expect(html).toContain('Имя');
-      });
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ text: 'plain text' }));
     });
 
-    describe('sendPasswordResetEmail', () => {
-      it('должен отправить письмо со ссылкой сброса пароля, построенной из frontendUrl и токена', async () => {
-        const service = createConfiguredService();
+    it('должен обернуть ошибку транспорта в AppError(500), не пробрасывая исходную ошибку как есть', async () => {
+      const service = createConfiguredService();
+      mockSend.mockRejectedValue(new Error('SMTP connection refused'));
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
-        await service.sendPasswordResetEmail('user@example.com', 'reset-token-456', 'Имя');
+      await expect(
+        service.sendEmail({ to: 'user@example.com', subject: 'Subject', html: '<p>Hi</p>' })
+      ).rejects.toMatchObject({ status: 500 });
 
-        const [{ html }] = mockSendMail.mock.calls[0] as [{ html: string }];
-        expect(html).toContain('http://localhost:3001/reset-password?token=reset-token-456');
-      });
+      errorSpy.mockRestore();
+    });
+  });
+
+  describe('sendVerificationEmail', () => {
+    it('должен отправить письмо со ссылкой подтверждения, построенной из frontendUrl и токена', async () => {
+      const service = createConfiguredService();
+
+      await service.sendVerificationEmail('user@example.com', 'verify-token-123', 'Имя');
+
+      const [{ html, to }] = mockSend.mock.calls[0];
+      expect(to).toBe('user@example.com');
+      expect(html).toContain('http://localhost:3001/verify-email?token=verify-token-123');
+      expect(html).toContain('Имя');
+    });
+  });
+
+  describe('sendPasswordResetEmail', () => {
+    it('должен отправить письмо со ссылкой сброса пароля, построенной из frontendUrl и токена', async () => {
+      const service = createConfiguredService();
+
+      await service.sendPasswordResetEmail('user@example.com', 'reset-token-456', 'Имя');
+
+      const [{ html }] = mockSend.mock.calls[0];
+      expect(html).toContain('http://localhost:3001/reset-password?token=reset-token-456');
     });
   });
 });
