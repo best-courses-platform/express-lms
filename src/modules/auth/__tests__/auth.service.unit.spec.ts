@@ -7,6 +7,7 @@ import type { authService as AuthServiceInstance } from '../auth.service';
 import type { userService as UserServiceInstance } from 'users/user.service';
 import type { userRepository as UserRepositoryInstance } from 'users/user.repository';
 import type { emailService as EmailServiceInstance } from 'email/email.service';
+import { EMAIL_VERIFICATION_TTL_MS } from 'users/user.constants';
 import type { User, UserDocument } from 'users/user.types';
 
 // Unit-слой: repository/сервисы-соседи и почта замоканы, jwtService — НЕТ (быстрый,
@@ -413,7 +414,10 @@ describe('AuthService', () => {
         mockUserRepository.findByEmailVerificationToken.mockResolvedValue(user);
 
         // When & Then
-        await expect(authService.verifyEmail('expired-token')).rejects.toMatchObject({ status: 400 });
+        await expect(authService.verifyEmail('expired-token')).rejects.toMatchObject({
+          status: 400,
+          message: 'Срок действия токена подтверждения истек',
+        });
       });
     });
 
@@ -451,26 +455,50 @@ describe('AuthService', () => {
 
   describe('resendVerificationEmail', () => {
     describe('Когда пользователь не найден', () => {
-      it('должен тихо завершиться без ошибки и без письма', async () => {
+      it('по email: должен тихо завершиться без ошибки и без письма', async () => {
         // Given
         mockUserRepository.findByEmail.mockResolvedValue(null);
 
         // When
-        await expect(authService.resendVerificationEmail('ghost@example.com')).resolves.toBeUndefined();
+        await expect(authService.resendVerificationEmail({ email: 'ghost@example.com' })).resolves.toBeUndefined();
 
         // Then
+        expect(mockEmailService.sendVerificationEmail).not.toHaveBeenCalled();
+      });
+
+      it('по токену: должен тихо завершиться без ошибки и без письма', async () => {
+        // Given
+        mockUserRepository.findByEmailVerificationToken.mockResolvedValue(null);
+
+        // When
+        await expect(authService.resendVerificationEmail({ token: 'unknown-token' })).resolves.toBeUndefined();
+
+        // Then
+        expect(mockUserRepository.updateWithSensitiveFields).not.toHaveBeenCalled();
         expect(mockEmailService.sendVerificationEmail).not.toHaveBeenCalled();
       });
     });
 
     describe('Когда email уже подтверждён', () => {
-      it('должен тихо завершиться без письма — не спалить факт существования аккаунта', async () => {
+      it('по email: должен тихо завершиться без письма — не спалить факт существования аккаунта', async () => {
         // Given
         const user = await createUserDocument({ isEmailVerified: true });
         mockUserRepository.findByEmail.mockResolvedValue(user);
 
         // When
-        await authService.resendVerificationEmail('test@example.com');
+        await authService.resendVerificationEmail({ email: 'test@example.com' });
+
+        // Then
+        expect(mockEmailService.sendVerificationEmail).not.toHaveBeenCalled();
+      });
+
+      it('по токену: должен тихо завершиться без письма', async () => {
+        // Given
+        const user = await createUserDocument({ isEmailVerified: true, emailVerificationToken: 'leftover' });
+        mockUserRepository.findByEmailVerificationToken.mockResolvedValue(user);
+
+        // When
+        await authService.resendVerificationEmail({ token: 'leftover' });
 
         // Then
         expect(mockEmailService.sendVerificationEmail).not.toHaveBeenCalled();
@@ -478,7 +506,7 @@ describe('AuthService', () => {
     });
 
     describe('Когда пользователь существует и email не подтверждён', () => {
-      it('должен сгенерировать новый токен через userRepository.updateWithSensitiveFields и отправить письмо', async () => {
+      it('по email: должен сгенерировать новый токен через userRepository.updateWithSensitiveFields и отправить письмо', async () => {
         // Given
         const user = await createUserDocument({ isEmailVerified: false, emailVerificationToken: 'old-token' });
         mockUserRepository.findByEmail.mockResolvedValue(user);
@@ -486,7 +514,7 @@ describe('AuthService', () => {
         mockEmailService.isConfigured.mockReturnValue(true);
 
         // When
-        await authService.resendVerificationEmail('test@example.com');
+        await authService.resendVerificationEmail({ email: 'test@example.com' });
 
         // Then
         const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
@@ -494,11 +522,78 @@ describe('AuthService', () => {
         assertIsString(patch.emailVerificationToken);
         expect(patch.emailVerificationToken).not.toBe('old-token');
         expect(patch.emailVerificationExpires).toBeInstanceOf(Date);
+        expect(mockUserRepository.findByEmailVerificationToken).not.toHaveBeenCalled();
         expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
           'test@example.com',
           patch.emailVerificationToken,
           'Test User'
         );
+      });
+
+      it('по токену: должен найти аккаунт по токену (в том числе просроченному), выдать новый токен и отправить письмо на его email', async () => {
+        // Given — токен из старой ссылки просрочен сутки назад: именно ради этого случая
+        // resend по токену и нужен (пользователь не обязан помнить email)
+        const user = await createUserDocument({
+          isEmailVerified: false,
+          emailVerificationToken: 'expired-token',
+          emailVerificationExpires: new Date(Date.now() - EMAIL_VERIFICATION_TTL_MS),
+        });
+        mockUserRepository.findByEmailVerificationToken.mockResolvedValue(user);
+        mockUserRepository.updateWithSensitiveFields.mockResolvedValue(user);
+        mockEmailService.isConfigured.mockReturnValue(true);
+
+        // When
+        await authService.resendVerificationEmail({ token: 'expired-token' });
+
+        // Then
+        const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
+        expect(id).toBe(user._id.toString());
+        assertIsString(patch.emailVerificationToken);
+        expect(patch.emailVerificationToken).not.toBe('expired-token');
+        expect(mockUserRepository.findByEmail).not.toHaveBeenCalled();
+        expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
+          'test@example.com',
+          patch.emailVerificationToken,
+          'Test User'
+        );
+      });
+    });
+
+    describe('Серверная пауза между письмами', () => {
+      it('не должен отправлять новое письмо, если предыдущее ушло меньше минуты назад — тихо, без ошибки', async () => {
+        // Given — токен выдан 10 секунд назад: expires = now - 10s + TTL
+        const user = await createUserDocument({
+          isEmailVerified: false,
+          emailVerificationToken: 'fresh-token',
+          emailVerificationExpires: new Date(Date.now() - 10_000 + EMAIL_VERIFICATION_TTL_MS),
+        });
+        mockUserRepository.findByEmail.mockResolvedValue(user);
+        mockEmailService.isConfigured.mockReturnValue(true);
+
+        // When
+        await expect(authService.resendVerificationEmail({ email: 'test@example.com' })).resolves.toBeUndefined();
+
+        // Then
+        expect(mockUserRepository.updateWithSensitiveFields).not.toHaveBeenCalled();
+        expect(mockEmailService.sendVerificationEmail).not.toHaveBeenCalled();
+      });
+
+      it('должен отправить письмо, когда с прошлой отправки прошло больше минуты', async () => {
+        // Given — токен выдан 61 секунду назад
+        const user = await createUserDocument({
+          isEmailVerified: false,
+          emailVerificationToken: 'older-token',
+          emailVerificationExpires: new Date(Date.now() - 61_000 + EMAIL_VERIFICATION_TTL_MS),
+        });
+        mockUserRepository.findByEmail.mockResolvedValue(user);
+        mockUserRepository.updateWithSensitiveFields.mockResolvedValue(user);
+        mockEmailService.isConfigured.mockReturnValue(true);
+
+        // When
+        await authService.resendVerificationEmail({ email: 'test@example.com' });
+
+        // Then
+        expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledTimes(1);
       });
     });
   });

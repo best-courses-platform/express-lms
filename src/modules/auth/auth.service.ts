@@ -13,6 +13,7 @@ import { AUTH_MESSAGES } from './auth.constants';
 import { isPasswordBreached } from './breached-password-checker';
 import { isPlainUser, isUserDocumentStrict } from '../../utils/typeGuards';
 import { userRepository } from 'users/user.repository';
+import { EMAIL_VERIFICATION_RESEND_COOLDOWN_MS, EMAIL_VERIFICATION_TTL_MS } from 'users/user.constants';
 import { emailService } from 'email/email.service';
 import { enqueuePasswordResetEmail, enqueueVerificationEmail } from 'email/email.queue';
 import crypto from 'crypto'; // Импортируем crypto
@@ -76,19 +77,35 @@ export class AuthService {
     });
   }
 
-  async resendVerificationEmail(email: string): Promise<void> {
-    const user = await userRepository.findByEmail(email);
+  // Пользователя ищем либо по email (письмо не пришло), либо по токену из ссылки (ссылка
+  // просрочена — пользователь не обязан помнить/вводить email).
+  async resendVerificationEmail(input: { email: string } | { token: string }): Promise<void> {
+    const user =
+      'email' in input
+        ? await userRepository.findByEmail(input.email)
+        : await userRepository.findByEmailVerificationToken(input.token);
 
-    // Единообразный тихий ответ и для "email не найден", и для "уже подтверждён" —
+    // Единообразный тихий ответ и для "не найден" (email/токен), и для "уже подтверждён" —
     // иначе разница в ответе (400 EMAIL_ALREADY_VERIFIED vs тихий успех) палит user enumeration.
     if (!user || user.isEmailVerified) {
       return;
     }
 
+    // Серверная пауза между письмами: без неё любой может завалить чужой ящик, дёргая эндпоинт
+    // с email жертвы (общий rate limiter считает по IP, не по адресату). Момент прошлой отправки
+    // выводится из срока токена (expires - TTL), отдельного поля в схеме нет. Ответ остаётся
+    // тихим — паузу нельзя отличить снаружи от "ничего не найдено".
+    if (user.emailVerificationExpires) {
+      const lastSentAt = user.emailVerificationExpires.getTime() - EMAIL_VERIFICATION_TTL_MS;
+      if (Date.now() - lastSentAt < EMAIL_VERIFICATION_RESEND_COOLDOWN_MS) {
+        return;
+      }
+    }
+
     // Токен считаем локально, не читаем обратно из репозитория — так его тип string
     // известен сразу, без null-проверок после update().
     const emailVerificationToken = crypto.randomBytes(32).toString('hex');
-    const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const emailVerificationExpires = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
 
     await userRepository.updateWithSensitiveFields(user._id.toString(), {
       emailVerificationToken,
