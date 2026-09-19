@@ -1,7 +1,12 @@
 import { config } from '../../../config';
 import { handlePostboxEvent } from './postbox-events';
 import { PostboxEventsConsumer } from './postbox-events.consumer';
-import { createKinesisStreamClient, mongoCheckpointStore } from './postbox-events.kinesis';
+import {
+  createKinesisStreamClient,
+  mongoCheckpointStore,
+  mongoDeadLetterStore,
+  mongoIsHealthy,
+} from './postbox-events.kinesis';
 import { suppressionService } from '../suppression/suppression.service';
 
 let consumer: PostboxEventsConsumer | null = null;
@@ -17,6 +22,8 @@ export function startPostboxEventsConsumer(): boolean {
   consumer = new PostboxEventsConsumer({
     client: createKinesisStreamClient({ endpoint, streamName, region: config.postbox.region, keyId, secret }),
     checkpoints: mongoCheckpointStore,
+    deadLetters: mongoDeadLetterStore,
+    isDependencyHealthy: mongoIsHealthy,
     onEvent: async event => {
       await handlePostboxEvent(event, suppressionService);
     },
