@@ -6,8 +6,8 @@ import {
   ShardIteratorType,
 } from '@aws-sdk/client-kinesis';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
-import { Schema, model } from 'mongoose';
-import { CheckpointStore, StreamClient } from './postbox-events.consumer';
+import { Schema, connection, model } from 'mongoose';
+import { CheckpointStore, DeadLetter, DeadLetterStore, StreamClient } from './postbox-events.consumer';
 
 export interface KinesisStreamClientOptions {
   // https://yds.serverless.yandexcloud.net/<регион>/<каталог>/<идентификатор БД YDB>
@@ -90,3 +90,38 @@ export const mongoCheckpointStore: CheckpointStore = {
     await CheckpointModel.updateOne({ shardId }, { $set: { sequenceNumber } }, { upsert: true }).exec();
   },
 };
+
+// Отстойник: записи потока, которые не удалось обработать (см. DeadLetterStore). Уникальность по
+// сегменту и номеру записи — повторное откладывание той же записи не создаёт дубль.
+const deadLetterSchema = new Schema<DeadLetter>(
+  {
+    shardId: { type: String, required: true },
+    sequenceNumber: { type: String, required: true },
+    eventId: { type: String },
+    data: { type: String, required: true },
+    error: { type: String, required: true },
+    attempts: { type: Number, required: true },
+  },
+  { timestamps: true, collection: 'emaileventdeadletters' }
+);
+deadLetterSchema.index({ shardId: 1, sequenceNumber: 1 }, { unique: true });
+const DeadLetterModel = model<DeadLetter>('EmailEventDeadLetter', deadLetterSchema);
+
+export const mongoDeadLetterStore: DeadLetterStore = {
+  async save(entry) {
+    await DeadLetterModel.updateOne(
+      { shardId: entry.shardId, sequenceNumber: entry.sequenceNumber },
+      { $set: entry },
+      { upsert: true }
+    ).exec();
+  },
+};
+
+// Быстрая проверка, что Mongo отвечает: readyState 1 (подключено) и ping.
+export async function mongoIsHealthy(): Promise<boolean> {
+  if (connection.readyState !== 1 || !connection.db) {
+    return false;
+  }
+  await connection.db.admin().ping();
+  return true;
+}
