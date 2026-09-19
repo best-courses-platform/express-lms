@@ -46,6 +46,15 @@ export const configSchema = z.object({
       .optional(),
     from: z.string().default('noreply@yourapp.com'),
     verificationUrl: z.string().default('http://localhost:3000/api/auth/verify-email'),
+    // Воркер очереди отправки писем. В одном процессе с API он запускается по умолчанию; в k8s его
+    // выносят в отдельный Deployment (тот же образ): в API-подах выключают, в воркер-подах оставляют.
+    worker: z.object({
+      enabled: z.boolean().default(true),
+      // Не больше N писем в секунду со всех воркеров (лимит BullMQ на очередь). Нужен, чтобы всплеск
+      // регистраций не упёрся в лимиты Postbox: письма ждут в очереди, а не отклоняются. Не задано —
+      // без ограничения. Суточная квота Postbox (200 писем для нового адреса) — отдельный лимит.
+      ratePerSecond: z.number().positive().optional(),
+    }),
   }),
 
   // Yandex Cloud Postbox — SES-совместимый HTTP API. Статический ключ сервисного аккаунта

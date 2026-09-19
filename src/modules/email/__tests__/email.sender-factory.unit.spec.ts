@@ -17,6 +17,7 @@ function buildConfig(overrides: { email?: Partial<Config['email']>; postbox?: Pa
       auth: { user: 'bot@example.com', pass: 'secret' },
       from: 'noreply@example.com',
       verificationUrl: 'http://localhost:3000/api/auth/verify-email',
+      worker: { enabled: true },
       ...overrides.email,
     },
     postbox: {

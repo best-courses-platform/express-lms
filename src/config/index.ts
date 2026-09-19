@@ -32,6 +32,13 @@ export const config: Config = configSchema.parse({
     },
     from: process.env.EMAIL_FROM,
     verificationUrl: process.env.EMAIL_VERIFICATION_URL,
+    // Включён, пока явно не выключен: EMAIL_WORKER_ENABLED=false отключает воркер в этом процессе
+    worker: {
+      enabled: process.env.EMAIL_WORKER_ENABLED !== 'false',
+      // Не число (NaN) не пройдёт валидацию zod — опечатка в значении ломает старт, а не молча
+      // отключает лимит
+      ratePerSecond: process.env.EMAIL_WORKER_RATE_PER_SEC ? Number(process.env.EMAIL_WORKER_RATE_PER_SEC) : undefined,
+    },
   },
   postbox: {
     keyId: process.env.POSTBOX_KEY_ID,
