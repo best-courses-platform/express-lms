@@ -46,6 +46,11 @@ export const configSchema = z.object({
       .optional(),
     from: z.string().default('noreply@yourapp.com'),
     verificationUrl: z.string().default('http://localhost:3000/api/auth/verify-email'),
+    // Воркер очереди отправки писем. В одном процессе с API он запускается по умолчанию; в k8s его
+    // выносят в отдельный Deployment (тот же образ): в API-подах выключают, в воркер-подах оставляют.
+    worker: z.object({
+      enabled: z.boolean().default(true),
+    }),
   }),
 
   // Yandex Cloud Postbox — SES-совместимый HTTP API. Статический ключ сервисного аккаунта

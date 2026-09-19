@@ -32,6 +32,8 @@ export const config: Config = configSchema.parse({
     },
     from: process.env.EMAIL_FROM,
     verificationUrl: process.env.EMAIL_VERIFICATION_URL,
+    // Включён, пока явно не выключен: EMAIL_WORKER_ENABLED=false отключает воркер в этом процессе
+    worker: { enabled: process.env.EMAIL_WORKER_ENABLED !== 'false' },
   },
   postbox: {
     keyId: process.env.POSTBOX_KEY_ID,

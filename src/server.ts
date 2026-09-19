@@ -9,13 +9,17 @@ import { CONFIG_MESSAGES } from './config/config.constants';
 import mongoose from 'mongoose';
 import { registerGracefulShutdown } from './shutdown';
 import { startPostboxEventsConsumer } from './modules/email/events/postbox-events.runner';
+import { startEmailWorker } from './modules/email/email.worker';
 
 // Подключение к MongoDB
 mongoose
   .connect(config.mongoUri)
   .then(() => {
     console.log(CONFIG_MESSAGES.SUCCESS.MONGO_CONNECTED);
-    // Чтение событий Postbox (bounce/complaint) — только когда есть БД для списка подавления и заданы POSTBOX_EVENTS_*
+    // Фоновые роли процесса стартуют после подключения к БД (обе пишут/читают её): воркер очереди писем
+    // (выключается EMAIL_WORKER_ENABLED=false) и чтение событий Postbox (bounce/complaint) — только
+    // когда заданы POSTBOX_EVENTS_*. В k8s API, воркер и потребитель событий — один образ и разные env.
+    startEmailWorker();
     startPostboxEventsConsumer();
   })
   .catch((error: Error) => {
