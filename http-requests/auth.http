@@ -18,7 +18,7 @@ Content-Type: application/json
 > {%
   if (response.status === 201) {
     client.global.set("student_email", "student@example.com");
-    client.log("Студент зарегистрирован, email не подтверждён. Токен: npm run dev:token -- student@example.com (см. scripts/dev-get-token.ts).");
+    client.log("Студент зарегистрирован, email не подтверждён. Токен: npm run dev:token -- student@example.com verify (см. scripts/dev-get-token.ts).");
   }
 %}
 
@@ -42,9 +42,9 @@ Content-Type: application/json
 
 ### Подтверждение email — токен НЕ приходит в ответах API ни в каком окружении (сознательно:
 ### эндпоинт, отдающий токен верификации/сброса в JSON, легко превратить в account takeover
-### одной забытой NODE_ENV). Получить токен: npm run dev:token -- student@example.com
-### (scripts/dev-get-token.ts, читает users.emailVerificationToken напрямую из Mongo,
-### в обход HTTP) и вставить сюда вручную.
+### одной забытой NODE_ENV). Получить токен: npm run dev:token -- student@example.com verify
+### (scripts/dev-get-token.ts выдаёт НОВЫЙ токен и печатает его — в БД лежит только sha256,
+### прочитать оттуда рабочий токен нельзя) и вставить сюда вручную.
 POST {{baseUrl}}/api/auth/verify-email
 Content-Type: application/json
 
@@ -153,8 +153,8 @@ Content-Type: application/json
 ###
 
 ### Сброс пароля — токен тоже не приходит в ответе API (см. комментарий у verify-email выше).
-### Получить: npm run dev:token -- student@example.com (напечатает passwordResetToken,
-### если он сейчас установлен) и вставить сюда вручную.
+### Получить: npm run dev:token -- student@example.com reset (выдаст новый токен сброса
+### и напечатает его) и вставить сюда вручную.
 POST {{baseUrl}}/api/auth/reset-password
 Content-Type: application/json
 

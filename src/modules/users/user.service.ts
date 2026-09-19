@@ -2,7 +2,8 @@ import { Types } from 'mongoose';
 import { NewUser, UpdateUser, User } from './user.types';
 import { userRepository } from './user.repository';
 import { AppError, BadRequestError, ConflictError, InternalError, NotFoundError } from '../../utils/errors';
-import { EMAIL_VERIFICATION_TTL_MS, USER_MESSAGES } from './user.constants';
+import { EMAIL_VERIFICATION_TTL_MS, PASSWORD_RESET_TTL_MS, USER_MESSAGES } from './user.constants';
+import { generateOneTimeToken } from '../../utils/one-time-token';
 import { OAuthProfile } from 'auth/auth.types';
 // Единственный runtime-импорт users -> sessions в проекте — refreshSessionService ничего
 // не тянет обратно из users (проверено), цикла нет. Прямой импорт, а не событийная шина —
@@ -13,10 +14,11 @@ import { refreshSessionService } from 'sessions/refresh-session.service';
 // вообще ничего не знает про users. Цикла нет ни в одну, ни в другую сторону.
 import { enrollmentService } from 'enrollments/enrollment.service';
 import { courseRepository } from 'courses/course.repository';
-import crypto from 'crypto';
 
 class UserService {
-  async create(userData: NewUser): Promise<User> {
+  // Сырой токен подтверждения возвращается отдельно от документа: в БД лежит только его sha256,
+  // а в письмо должен уйти сам токен (см. utils/one-time-token.ts).
+  async create(userData: NewUser): Promise<{ user: User; emailVerificationToken?: string }> {
     const normalizedEmail = userData.email.toLowerCase().trim();
     const exists = await userRepository.findByEmail(normalizedEmail);
 
@@ -25,15 +27,40 @@ class UserService {
     }
 
     // Если пользователь создается через OAuth, email считается подтвержденным
+    let emailVerificationToken: string | undefined;
     if (userData.googleId || userData.githubId) {
       userData.isEmailVerified = true;
     } else {
-      // Для локальной регистрации генерируем токен подтверждения
-      userData.emailVerificationToken = crypto.randomBytes(32).toString('hex');
+      // Для локальной регистрации генерируем токен подтверждения: в БД — хеш, наружу — сырой
+      const { token, tokenHash } = generateOneTimeToken();
+      emailVerificationToken = token;
+      userData.emailVerificationToken = tokenHash;
       userData.emailVerificationExpires = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
     }
 
-    return userRepository.create(userData);
+    const user = await userRepository.create(userData);
+    return { user, emailVerificationToken };
+  }
+
+  // Выдаёт новый токен подтверждения email (старый перестаёт работать) и возвращает сырое значение
+  // для письма. Единая точка выдачи: повторная отправка, смена email администратором.
+  async issueEmailVerificationToken(userId: string): Promise<string> {
+    const { token, tokenHash } = generateOneTimeToken();
+    await userRepository.updateWithSensitiveFields(userId, {
+      emailVerificationToken: tokenHash,
+      emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+    });
+    return token;
+  }
+
+  // То же для токена сброса пароля (срок — час).
+  async issuePasswordResetToken(userId: string): Promise<string> {
+    const { token, tokenHash } = generateOneTimeToken();
+    await userRepository.updateWithSensitiveFields(userId, {
+      passwordResetToken: tokenHash,
+      passwordResetExpires: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    });
+    return token;
   }
 
   async list(): Promise<User[]> {
@@ -64,10 +91,12 @@ class UserService {
         throw new ConflictError(USER_MESSAGES.ERROR.ALREADY_EXISTS);
       }
 
-      // При смене email сбрасываем подтверждение
+      // При смене email сбрасываем подтверждение; новый токен выдаёт вызывающий код через
+      // issueEmailVerificationToken() — сырое значение нужно ему для письма, а update() возвращает
+      // документ без токена.
       patch.isEmailVerified = false;
-      patch.emailVerificationToken = crypto.randomBytes(32).toString('hex');
-      patch.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      patch.emailVerificationToken = null;
+      patch.emailVerificationExpires = null;
     }
 
     return userRepository.update(id, patch);

@@ -8,6 +8,7 @@ import type { userService as UserServiceInstance } from 'users/user.service';
 import type { userRepository as UserRepositoryInstance } from 'users/user.repository';
 import type { emailService as EmailServiceInstance } from 'email/email.service';
 import { EMAIL_VERIFICATION_TTL_MS } from 'users/user.constants';
+import { hashOneTimeToken } from '../../../utils/one-time-token';
 import type { User, UserDocument } from 'users/user.types';
 
 // Unit-слой: repository/сервисы-соседи и почта замоканы, jwtService — НЕТ (быстрый,
@@ -22,6 +23,8 @@ jest.mock('users/user.service', () => ({
   userService: {
     create: jest.fn(),
     getById: jest.fn(),
+    issueEmailVerificationToken: jest.fn(),
+    issuePasswordResetToken: jest.fn(),
   },
 }));
 jest.mock('users/user.repository', () => ({
@@ -96,16 +99,6 @@ const mockRefreshSessionService = refreshSessionService as jest.Mocked<typeof re
 
 const CTX = { userAgent: 'jest', ip: '127.0.0.1' };
 
-// patch.emailVerificationToken/passwordResetToken в вызовах updateWithSensitiveFields
-// типизированы как string | null | undefined (Partial<User>), хотя authService реально
-// кладёт туда crypto.randomBytes(...).toString('hex') — всегда строку. `as string` тут
-// соврал бы TypeScript'у, если бы когда-нибудь сюда действительно прилетело null/undefined —
-// вместо этого настоящая runtime-проверка (Jest её видит и провалит тест, если это не так)
-// плюс TS-narrowing через `asserts` для использования значения ниже без приведения типов.
-function assertIsString(value: unknown): asserts value is string {
-  expect(typeof value).toBe('string');
-}
-
 // Настоящий Mongoose-документ (через UserModel), не сохранённый в БД — comparePassword,
 // toObject(), isNew/$isNew/_doc и т.п. работают взаправду (это ровно то, от чего зависят
 // строгие type guards в auth.service.ts — isUserDocumentStrict/hasComparePassword), не
@@ -160,7 +153,7 @@ describe('AuthService', () => {
       it('должен создать пользователя с ролью student, не выдавая токены', async () => {
         // Given
         const created = await createUserDocument({ isEmailVerified: false, emailVerificationToken: 'tok123' });
-        mockUserService.create.mockResolvedValue(created);
+        mockUserService.create.mockResolvedValue({ user: created, emailVerificationToken: 'tok123' });
         mockEmailService.isConfigured.mockReturnValue(false);
 
         // When
@@ -182,7 +175,7 @@ describe('AuthService', () => {
       it('роль из тела запроса игнорируется — всегда student, даже если прислали admin', async () => {
         // Given
         const created = await createUserDocument();
-        mockUserService.create.mockResolvedValue(created);
+        mockUserService.create.mockResolvedValue({ user: created });
         mockEmailService.isConfigured.mockReturnValue(false);
 
         // When
@@ -205,7 +198,7 @@ describe('AuthService', () => {
       it('должен отправить письмо подтверждения', async () => {
         // Given
         const created = await createUserDocument({ isEmailVerified: false, emailVerificationToken: 'tok123' });
-        mockUserService.create.mockResolvedValue(created);
+        mockUserService.create.mockResolvedValue({ user: created, emailVerificationToken: 'tok123' });
         mockEmailService.isConfigured.mockReturnValue(true);
 
         // When
@@ -400,6 +393,9 @@ describe('AuthService', () => {
 
         // When & Then
         await expect(authService.verifyEmail('unknown-token')).rejects.toMatchObject({ status: 400 });
+
+        // Ищем по хешу, не по сырому токену — в БД лежит только sha256
+        expect(mockUserRepository.findByEmailVerificationToken).toHaveBeenCalledWith(hashOneTimeToken('unknown-token'));
       });
     });
 
@@ -474,7 +470,7 @@ describe('AuthService', () => {
         await expect(authService.resendVerificationEmail({ token: 'unknown-token' })).resolves.toBeUndefined();
 
         // Then
-        expect(mockUserRepository.updateWithSensitiveFields).not.toHaveBeenCalled();
+        expect(mockUserService.issueEmailVerificationToken).not.toHaveBeenCalled();
         expect(mockEmailService.sendVerificationEmail).not.toHaveBeenCalled();
       });
     });
@@ -506,26 +502,22 @@ describe('AuthService', () => {
     });
 
     describe('Когда пользователь существует и email не подтверждён', () => {
-      it('по email: должен сгенерировать новый токен через userRepository.updateWithSensitiveFields и отправить письмо', async () => {
+      it('по email: должен выдать новый токен через userService.issueEmailVerificationToken и отправить в письме сырое значение', async () => {
         // Given
-        const user = await createUserDocument({ isEmailVerified: false, emailVerificationToken: 'old-token' });
+        const user = await createUserDocument({ isEmailVerified: false, emailVerificationToken: 'old-token-hash' });
         mockUserRepository.findByEmail.mockResolvedValue(user);
-        mockUserRepository.updateWithSensitiveFields.mockResolvedValue(user);
+        mockUserService.issueEmailVerificationToken.mockResolvedValue('raw-token-for-email');
         mockEmailService.isConfigured.mockReturnValue(true);
 
         // When
         await authService.resendVerificationEmail({ email: 'test@example.com' });
 
         // Then
-        const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
-        expect(id).toBe(user._id.toString());
-        assertIsString(patch.emailVerificationToken);
-        expect(patch.emailVerificationToken).not.toBe('old-token');
-        expect(patch.emailVerificationExpires).toBeInstanceOf(Date);
+        expect(mockUserService.issueEmailVerificationToken).toHaveBeenCalledWith(user._id.toString());
         expect(mockUserRepository.findByEmailVerificationToken).not.toHaveBeenCalled();
         expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
           'test@example.com',
-          patch.emailVerificationToken,
+          'raw-token-for-email',
           'Test User'
         );
       });
@@ -539,21 +531,19 @@ describe('AuthService', () => {
           emailVerificationExpires: new Date(Date.now() - EMAIL_VERIFICATION_TTL_MS),
         });
         mockUserRepository.findByEmailVerificationToken.mockResolvedValue(user);
-        mockUserRepository.updateWithSensitiveFields.mockResolvedValue(user);
+        mockUserService.issueEmailVerificationToken.mockResolvedValue('fresh-raw-token');
         mockEmailService.isConfigured.mockReturnValue(true);
 
         // When
         await authService.resendVerificationEmail({ token: 'expired-token' });
 
         // Then
-        const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
-        expect(id).toBe(user._id.toString());
-        assertIsString(patch.emailVerificationToken);
-        expect(patch.emailVerificationToken).not.toBe('expired-token');
+        expect(mockUserRepository.findByEmailVerificationToken).toHaveBeenCalledWith(hashOneTimeToken('expired-token'));
+        expect(mockUserService.issueEmailVerificationToken).toHaveBeenCalledWith(user._id.toString());
         expect(mockUserRepository.findByEmail).not.toHaveBeenCalled();
         expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
           'test@example.com',
-          patch.emailVerificationToken,
+          'fresh-raw-token',
           'Test User'
         );
       });
@@ -574,7 +564,7 @@ describe('AuthService', () => {
         await expect(authService.resendVerificationEmail({ email: 'test@example.com' })).resolves.toBeUndefined();
 
         // Then
-        expect(mockUserRepository.updateWithSensitiveFields).not.toHaveBeenCalled();
+        expect(mockUserService.issueEmailVerificationToken).not.toHaveBeenCalled();
         expect(mockEmailService.sendVerificationEmail).not.toHaveBeenCalled();
       });
 
@@ -586,7 +576,7 @@ describe('AuthService', () => {
           emailVerificationExpires: new Date(Date.now() - 61_000 + EMAIL_VERIFICATION_TTL_MS),
         });
         mockUserRepository.findByEmail.mockResolvedValue(user);
-        mockUserRepository.updateWithSensitiveFields.mockResolvedValue(user);
+        mockUserService.issueEmailVerificationToken.mockResolvedValue('raw-after-cooldown');
         mockEmailService.isConfigured.mockReturnValue(true);
 
         // When
@@ -669,24 +659,21 @@ describe('AuthService', () => {
     });
 
     describe('Когда пользователь существует', () => {
-      it('должен сгенерировать токен сброса через userRepository.updateWithSensitiveFields и отправить письмо', async () => {
+      it('должен выдать токен сброса через userService.issuePasswordResetToken и отправить в письме сырое значение', async () => {
         // Given
         const user = await createUserDocument();
         mockUserRepository.findByEmail.mockResolvedValue(user);
-        mockUserRepository.updateWithSensitiveFields.mockResolvedValue(user);
+        mockUserService.issuePasswordResetToken.mockResolvedValue('raw-reset-token');
         mockEmailService.isConfigured.mockReturnValue(true);
 
         // When
         await authService.requestPasswordReset('test@example.com');
 
         // Then
-        const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
-        expect(id).toBe(user._id.toString());
-        assertIsString(patch.passwordResetToken);
-        expect(patch.passwordResetExpires).toBeInstanceOf(Date);
+        expect(mockUserService.issuePasswordResetToken).toHaveBeenCalledWith(user._id.toString());
         expect(mockEmailService.sendPasswordResetEmail).toHaveBeenCalledWith(
           'test@example.com',
-          patch.passwordResetToken,
+          'raw-reset-token',
           'Test User'
         );
       });

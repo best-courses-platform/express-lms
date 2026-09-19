@@ -6,6 +6,9 @@ import { ENTITY_MESSAGES, ENTITY_SUCCESS } from '../../shared/constants/entity-m
 // серверная пауза между повторными отправками).
 export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 
+// Срок жизни токена сброса пароля.
+export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+
 // Серверная пауза между письмами подтверждения одному пользователю. Пауза во фронтенде —
 // только удобство UI, обойти её можно прямым запросом; настоящее ограничение — здесь.
 export const EMAIL_VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;

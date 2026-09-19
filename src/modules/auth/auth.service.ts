@@ -16,7 +16,7 @@ import { userRepository } from 'users/user.repository';
 import { EMAIL_VERIFICATION_RESEND_COOLDOWN_MS, EMAIL_VERIFICATION_TTL_MS } from 'users/user.constants';
 import { emailService } from 'email/email.service';
 import { enqueuePasswordResetEmail, enqueueVerificationEmail } from 'email/email.queue';
-import crypto from 'crypto'; // Импортируем crypto
+import { hashOneTimeToken } from '../../utils/one-time-token';
 import { refreshSessionService } from 'sessions/refresh-session.service';
 import { SessionContext } from 'sessions/refresh-session.types';
 import { SESSION_MESSAGES } from 'sessions/refresh-session.constants';
@@ -33,13 +33,13 @@ export class AuthService {
       // Роль для публичной саморегистрации всегда 'student' — назначается сервером,
       // а не берётся из тела запроса (иначе анонимный клиент мог бы прислать role: 'admin').
       // userService.create сам решает isEmailVerified/токен (false + токен для локальной регистрации, true для OAuth)
-      const user = await userService.create({ ...userData, role: 'student' } as NewUser);
+      const { user, emailVerificationToken } = await userService.create({ ...userData, role: 'student' } as NewUser);
 
       // Кладём в очередь, не ждём SMTP синхронно — регистрация не должна виснуть/падать
       // из-за медленного или недоступного почтового сервера (см. Obsidian: email раньше
       // лежал в критическом пути этого запроса).
-      if (emailService.isConfigured() && user.emailVerificationToken) {
-        await enqueueVerificationEmail(user.email, user.emailVerificationToken, user.name);
+      if (emailService.isConfigured() && emailVerificationToken) {
+        await enqueueVerificationEmail(user.email, emailVerificationToken, user.name);
       }
 
       // Токены здесь намеренно НЕ выдаются: login() блокирует неподтверждённых
@@ -55,7 +55,7 @@ export class AuthService {
   }
 
   async verifyEmail(token: string): Promise<User> {
-    const user = await userRepository.findByEmailVerificationToken(token);
+    const user = await userRepository.findByEmailVerificationToken(hashOneTimeToken(token));
 
     if (!user) {
       throw new BadRequestError(AUTH_MESSAGES.ERROR.INVALID_VERIFICATION_TOKEN);
@@ -83,7 +83,7 @@ export class AuthService {
     const user =
       'email' in input
         ? await userRepository.findByEmail(input.email)
-        : await userRepository.findByEmailVerificationToken(input.token);
+        : await userRepository.findByEmailVerificationToken(hashOneTimeToken(input.token));
 
     // Единообразный тихий ответ и для "не найден" (email/токен), и для "уже подтверждён" —
     // иначе разница в ответе (400 EMAIL_ALREADY_VERIFIED vs тихий успех) палит user enumeration.
@@ -102,15 +102,8 @@ export class AuthService {
       }
     }
 
-    // Токен считаем локально, не читаем обратно из репозитория — так его тип string
-    // известен сразу, без null-проверок после update().
-    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
-    const emailVerificationExpires = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
-
-    await userRepository.updateWithSensitiveFields(user._id.toString(), {
-      emailVerificationToken,
-      emailVerificationExpires,
-    });
+    // В БД пишется хеш, сырой токен возвращается для письма (см. utils/one-time-token.ts)
+    const emailVerificationToken = await userService.issueEmailVerificationToken(user._id.toString());
 
     // Кладём в очередь, не ждём SMTP синхронно
     if (emailService.isConfigured()) {
@@ -126,13 +119,8 @@ export class AuthService {
       return;
     }
 
-    const passwordResetToken = crypto.randomBytes(32).toString('hex');
-    const passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
-
-    await userRepository.updateWithSensitiveFields(user._id.toString(), {
-      passwordResetToken,
-      passwordResetExpires,
-    });
+    // В БД пишется хеш (срок — час), сырой токен возвращается для письма
+    const passwordResetToken = await userService.issuePasswordResetToken(user._id.toString());
 
     // Кладём в очередь, не ждём SMTP синхронно
     if (emailService.isConfigured()) {
@@ -141,7 +129,7 @@ export class AuthService {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const user = await userRepository.findByPasswordResetToken(token);
+    const user = await userRepository.findByPasswordResetToken(hashOneTimeToken(token));
 
     if (!user) {
       throw new BadRequestError(AUTH_MESSAGES.ERROR.INVALID_RESET_TOKEN);

@@ -1,7 +1,11 @@
 import { describe, it, expect } from '@jest/globals';
 import request from 'supertest';
 import { UserModel } from 'users/user.model';
-import { EMAIL_VERIFICATION_TTL_MS } from 'users/user.constants';
+import { EMAIL_VERIFICATION_TTL_MS, PASSWORD_RESET_TTL_MS } from 'users/user.constants';
+import { userService } from 'users/user.service';
+import { hashOneTimeToken } from '../../../utils/one-time-token';
+import { mintEmailVerificationToken, mintPasswordResetToken } from '../../../../test/helpers';
+import { AUTH_MESSAGES } from '../auth.constants';
 import app from '../../../app';
 
 // Полный сквозной прогон через реальный Express (app.ts as is — helmet, cors, rate-limit
@@ -26,12 +30,8 @@ async function registerVerifiedUser(overrides: { email?: string; password?: stri
   // emailService не настроен в тестах — реального письма не будет, эмулируем переход
   // по ссылке подтверждения напрямую через токен, записанный в БД (тот же путь, что
   // и шпаргалка ручного тестирования проекта использует при недоступном SMTP).
-  const user = await UserModel.findOne({ email }).select('+emailVerificationToken');
-  if (!user?.emailVerificationToken) {
-    throw new Error(`test setup: verification token not found for ${email}`);
-  }
-
-  await request(app).post('/api/auth/verify-email').send({ token: user.emailVerificationToken });
+  const token = await mintEmailVerificationToken(email);
+  await request(app).post('/api/auth/verify-email').send({ token });
 
   return { email, password, name };
 }
@@ -516,16 +516,19 @@ describe('Auth routes (integration)', () => {
         // Given — ссылка из письма просрочена сутки назад
         const email = 'resend-by-token@example.com';
         const before = await registerUnverified(email, EMAIL_VERIFICATION_TTL_MS + 60_000);
+        const oldRawToken = await mintEmailVerificationToken(email, {
+          expiresAt: new Date(Date.now() - 60_000),
+        });
+        const beforeHash = (await UserModel.findOne({ email }).select('+emailVerificationToken'))?.emailVerificationToken;
+        expect(before).not.toBeNull();
 
         // When
-        const response = await request(app)
-          .post('/api/auth/resend-verification')
-          .send({ token: before?.emailVerificationToken });
+        const response = await request(app).post('/api/auth/resend-verification').send({ token: oldRawToken });
 
         // Then
         expect(response.status).toBe(200);
         const after = await UserModel.findOne({ email }).select('+emailVerificationToken');
-        expect(after?.emailVerificationToken).not.toBe(before?.emailVerificationToken);
+        expect(after?.emailVerificationToken).not.toBe(beforeHash);
         expect(after?.emailVerificationExpires?.getTime()).toBeGreaterThan(Date.now());
       });
 
@@ -583,11 +586,10 @@ describe('Auth routes (integration)', () => {
       await request(app)
         .post('/api/auth/register')
         .send({ name: 'Expired', email, password: 'password123', confirmPassword: 'password123' });
-      await UserModel.updateOne({ email }, { emailVerificationExpires: new Date(Date.now() - 1000) });
-      const user = await UserModel.findOne({ email }).select('+emailVerificationToken');
+      const rawToken = await mintEmailVerificationToken(email, { expiresAt: new Date(Date.now() - 1000) });
 
       // When
-      const response = await request(app).post('/api/auth/verify-email').send({ token: user?.emailVerificationToken });
+      const response = await request(app).post('/api/auth/verify-email').send({ token: rawToken });
 
       // Then
       expect(response.status).toBe(400);
@@ -602,6 +604,116 @@ describe('Auth routes (integration)', () => {
     });
   });
 
+  describe('Токены из писем в БД хранятся только хешами', () => {
+    async function registerUnverifiedUser(email: string) {
+      await request(app)
+        .post('/api/auth/register')
+        .send({ name: 'Hash Me', email, password: 'password123', confirmPassword: 'password123' });
+      return (await UserModel.findOne({ email }))!;
+    }
+
+    it('токен подтверждения: в БД лежит sha256, по хешу из БД подтвердить нельзя, по сырому токену — можно', async () => {
+      // Given
+      const user = await registerUnverifiedUser('hash-verify@example.com');
+      const rawToken = await userService.issueEmailVerificationToken(user._id.toString());
+      const stored = (await UserModel.findById(user._id).select('+emailVerificationToken'))?.emailVerificationToken;
+
+      // Then — в БД не сырое значение из письма, а его sha256
+      expect(stored).not.toBe(rawToken);
+      expect(stored).toBe(hashOneTimeToken(rawToken));
+
+      // When — тот, кто прочитал коллекцию users, подставляет значение из БД
+      const withStoredValue = await request(app).post('/api/auth/verify-email').send({ token: stored });
+
+      // Then — дамп БД не даёт рабочей ссылки
+      expect(withStoredValue.status).toBe(400);
+      expect((await UserModel.findById(user._id))?.isEmailVerified).toBe(false);
+
+      // When — законный владелец предъявляет токен из письма
+      const withRawToken = await request(app).post('/api/auth/verify-email').send({ token: rawToken });
+
+      // Then
+      expect(withRawToken.status).toBe(200);
+      expect((await UserModel.findById(user._id))?.isEmailVerified).toBe(true);
+    });
+
+    it('токен сброса пароля: в БД лежит sha256, по хешу из БД сбросить нельзя, по сырому токену — можно один раз', async () => {
+      // Given
+      const { email } = await registerVerifiedUser({ email: 'hash-reset@example.com', password: 'old-password123' });
+      const user = (await UserModel.findOne({ email }))!;
+      const rawToken = await userService.issuePasswordResetToken(user._id.toString());
+      const stored = (await UserModel.findById(user._id).select('+passwordResetToken'))?.passwordResetToken;
+      const newPassword = { newPassword: 'brand-new-password123', confirmPassword: 'brand-new-password123' };
+
+      // Then
+      expect(stored).not.toBe(rawToken);
+      expect(stored).toBe(hashOneTimeToken(rawToken));
+
+      // When — значение из дампа БД
+      const withStoredValue = await request(app).post('/api/auth/reset-password').send({ token: stored, ...newPassword });
+
+      // Then — захватить аккаунт по одному только дампу нельзя
+      expect(withStoredValue.status).toBe(400);
+
+      // When — сырой токен из письма
+      const withRawToken = await request(app).post('/api/auth/reset-password').send({ token: rawToken, ...newPassword });
+
+      // Then
+      expect(withRawToken.status).toBe(200);
+
+      // When — повторное использование того же токена
+      const reused = await request(app).post('/api/auth/reset-password').send({ token: rawToken, ...newPassword });
+
+      // Then — токен одноразовый
+      expect(reused.status).toBe(400);
+    });
+
+    it('POST /request-password-reset: в БД сразу ложится хеш (64 hex), а не значение, годное для reset-password', async () => {
+      // Given
+      const { email } = await registerVerifiedUser({ email: 'hash-request@example.com' });
+
+      // When
+      await request(app).post('/api/auth/request-password-reset').send({ email });
+
+      // Then
+      const stored = (await UserModel.findOne({ email }).select('+passwordResetToken'))?.passwordResetToken;
+      expect(stored).toMatch(/^[a-f0-9]{64}$/);
+      const attempt = await request(app)
+        .post('/api/auth/reset-password')
+        .send({ token: stored, newPassword: 'attacker-password123', confirmPassword: 'attacker-password123' });
+      expect(attempt.status).toBe(400);
+    });
+  });
+
+  describe('POST /api/auth/reset-password — срок действия токена', () => {
+    it('просроченный токен должен дать "Срок действия токена сброса пароля истек", а не "Неверный токен"', async () => {
+      // Given — регрессия того же класса, что и для verify-email: findByPasswordResetToken фильтровал
+      // просроченные токены в запросе, ветка RESET_TOKEN_EXPIRED в сервисе была недостижима.
+      const { email } = await registerVerifiedUser({ email: 'reset-expired@example.com' });
+      const rawToken = await mintPasswordResetToken(email, {
+        expiresAt: new Date(Date.now() - PASSWORD_RESET_TTL_MS / 2),
+      });
+
+      // When
+      const response = await request(app)
+        .post('/api/auth/reset-password')
+        .send({ token: rawToken, newPassword: 'brand-new-password123', confirmPassword: 'brand-new-password123' });
+
+      // Then
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe(AUTH_MESSAGES.ERROR.RESET_TOKEN_EXPIRED);
+    });
+
+    it('неизвестный токен должен дать "Неверный токен сброса пароля"', async () => {
+      const response = await request(app)
+        .post('/api/auth/reset-password')
+        .send({ token: 'no-such-token', newPassword: 'brand-new-password123', confirmPassword: 'brand-new-password123' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe(AUTH_MESSAGES.ERROR.INVALID_RESET_TOKEN);
+    });
+  });
+
   describe('POST /api/auth/request-password-reset и POST /api/auth/reset-password', () => {
     describe('Сквозной сценарий: запрос сброса → сброс по токену → вход с новым паролем', () => {
       it('должен позволить сменить пароль без знания старого', async () => {
@@ -612,11 +724,8 @@ describe('Auth routes (integration)', () => {
         const requestResponse = await request(app).post('/api/auth/request-password-reset').send({ email });
         expect(requestResponse.status).toBe(200);
 
-        const userWithToken = await UserModel.findOne({ email }).select('+passwordResetToken');
-        const resetToken = userWithToken?.passwordResetToken;
-        if (!resetToken) {
-          throw new Error('test setup: password reset token not found');
-        }
+        // В БД лежит только хеш, сырой токен ушёл бы в письмо — выдаём известный тесту токен
+        const resetToken = await mintPasswordResetToken(email);
 
         // When — сброс пароля по токену
         const resetResponse = await request(app)
@@ -661,11 +770,8 @@ describe('Auth routes (integration)', () => {
 
         // When
         await request(app).post('/api/auth/request-password-reset').send({ email });
-        const userWithToken = await UserModel.findOne({ email }).select('+passwordResetToken');
-        const resetToken = userWithToken?.passwordResetToken;
-        if (!resetToken) {
-          throw new Error('test setup: password reset token not found');
-        }
+        // В БД лежит только хеш, сырой токен ушёл бы в письмо — выдаём известный тесту токен
+        const resetToken = await mintPasswordResetToken(email);
         await request(app)
           .post('/api/auth/reset-password')
           .send({ token: resetToken, newPassword: 'brand-new-password789', confirmPassword: 'brand-new-password789' });

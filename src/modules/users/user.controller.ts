@@ -8,11 +8,11 @@ import { emailService } from 'email/email.service';
 import { enqueueVerificationEmail } from 'email/email.queue';
 
 export const createUser: RequestHandler = async (req, res) => {
-  const user = await userService.create(req.body);
+  const { user, emailVerificationToken } = await userService.create(req.body);
 
-  // Отправляем email для подтверждения (если не OAuth)
-  if (!user.googleId && !user.githubId && emailService.isConfigured()) {
-    await enqueueVerificationEmail(user.email, user.emailVerificationToken!, user.name);
+  // Отправляем email для подтверждения (токен есть только у локальной регистрации, не у OAuth)
+  if (emailVerificationToken && emailService.isConfigured()) {
+    await enqueueVerificationEmail(user.email, emailVerificationToken, user.name);
   }
 
   res.status(201).json({
@@ -32,11 +32,15 @@ export const getUser: RequestHandler = async (req, res) => {
 };
 
 export const updateUser: RequestHandler = async (req, res) => {
+  const before = await userService.getById(req.params.id);
   const updated = await userService.update(req.params.id, req.body);
 
-  // Если изменили email, отправляем письмо с подтверждением
-  if (req.body.email && req.body.email !== updated.email && emailService.isConfigured()) {
-    await enqueueVerificationEmail(updated.email, updated.emailVerificationToken!, updated.name);
+  // Если изменили email, подтверждение сброшено — выдаём новый токен и отправляем письмо.
+  // (Раньше сравнивали req.body.email с updated.email — они равны после обновления, письмо
+  // не уходило никогда, а токен читался из документа, из которого он вырезан .select().)
+  if (updated.email !== before.email && emailService.isConfigured()) {
+    const token = await userService.issueEmailVerificationToken(updated._id.toString());
+    await enqueueVerificationEmail(updated.email, token, updated.name);
   }
 
   res.json({
