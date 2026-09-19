@@ -2,6 +2,36 @@ import request from 'supertest';
 import type { Express } from 'express';
 import { UserModel } from 'users/user.model';
 import type { UserRole } from 'users/user.types';
+import { EMAIL_VERIFICATION_TTL_MS, PASSWORD_RESET_TTL_MS } from 'users/user.constants';
+import { generateOneTimeToken } from '../src/utils/one-time-token';
+
+// В БД лежит только sha256 токена, сырой токен уходит в письмо — а письма в тестах не
+// отправляются (SMTP не настроен, см. test/setupTestEnv.ts). Поэтому тест сам "выдаёт" известный
+// ему токен: генерирует сырой, записывает в БД его хеш (как это делает сервис) и возвращает сырой
+// — тот, что реально пришёл бы по ссылке. expiresAt позволяет сымитировать просроченный токен.
+export async function mintEmailVerificationToken(email: string, opts: { expiresAt?: Date } = {}): Promise<string> {
+  const { token, tokenHash } = generateOneTimeToken();
+  await UserModel.updateOne(
+    { email },
+    {
+      emailVerificationToken: tokenHash,
+      emailVerificationExpires: opts.expiresAt ?? new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+    }
+  );
+  return token;
+}
+
+export async function mintPasswordResetToken(email: string, opts: { expiresAt?: Date } = {}): Promise<string> {
+  const { token, tokenHash } = generateOneTimeToken();
+  await UserModel.updateOne(
+    { email },
+    {
+      passwordResetToken: tokenHash,
+      passwordResetExpires: opts.expiresAt ?? new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    }
+  );
+  return token;
+}
 
 // Общий помощник для интеграционных тестов любого модуля, которому нужен залогиненный
 // пользователь: регистрация (роль всегда 'student' — сервер её жёстко проставляет, см.
@@ -18,11 +48,8 @@ export async function registerVerifiedUser(
 
   await request(app).post('/api/auth/register').send({ name, email, password, confirmPassword: password });
 
-  const user = await UserModel.findOne({ email }).select('+emailVerificationToken');
-  if (!user?.emailVerificationToken) {
-    throw new Error(`test setup: verification token not found for ${email}`);
-  }
-  await request(app).post('/api/auth/verify-email').send({ token: user.emailVerificationToken });
+  const token = await mintEmailVerificationToken(email);
+  await request(app).post('/api/auth/verify-email').send({ token });
 
   if (overrides.role && overrides.role !== 'student') {
     await UserModel.updateOne({ email }, { $set: { role: overrides.role } });

@@ -55,20 +55,19 @@ class UserRepository {
     return null;
   }
 
-  // Срок годности сознательно НЕ фильтруется в запросе: сервис сам сравнивает
-  // emailVerificationExpires с now, чтобы отличить "токен просрочен" от "токена нет" (разные
-  // сообщения) и чтобы по просроченной ссылке можно было отправить новую (resend по токену).
-  // Раньше фильтр $gt стоял здесь — и ветка VERIFICATION_TOKEN_EXPIRED в auth.service.ts была
-  // недостижима: просроченный токен просто не находился и отвечал "Неверный токен".
-  async findByEmailVerificationToken(token: string): Promise<UserDocument | null> {
-    return await UserModel.findOne({ emailVerificationToken: token }).exec();
+  // Принимают sha256 токена (hashOneTimeToken), не сырой токен: в БД хранится только хеш.
+  //
+  // Срок годности сознательно НЕ фильтруется в запросе: сервис сам сравнивает срок с now, чтобы
+  // отличить "токен просрочен" от "токена нет" (разные сообщения) и чтобы по просроченной ссылке
+  // можно было отправить новую (resend по токену). Раньше фильтр $gt стоял здесь — и ветки
+  // VERIFICATION_TOKEN_EXPIRED / RESET_TOKEN_EXPIRED в auth.service.ts были недостижимы:
+  // просроченный токен просто не находился и отвечал "Неверный токен".
+  async findByEmailVerificationToken(tokenHash: string): Promise<UserDocument | null> {
+    return await UserModel.findOne({ emailVerificationToken: tokenHash }).exec();
   }
 
-  async findByPasswordResetToken(token: string): Promise<UserDocument | null> {
-    return await UserModel.findOne({
-      passwordResetToken: token,
-      passwordResetExpires: { $gt: new Date() },
-    }).exec();
+  async findByPasswordResetToken(tokenHash: string): Promise<UserDocument | null> {
+    return await UserModel.findOne({ passwordResetToken: tokenHash }).exec();
   }
 
   async update(id: string, patch: UpdateUser): Promise<UserDocument> {

@@ -1,5 +1,4 @@
 import { model, Schema } from 'mongoose';
-import crypto from 'crypto';
 import { comparePassword as comparePasswordHash, hashPassword } from './password-hasher';
 import { IUser, IUserMethods, UserModelType } from './user.types';
 
@@ -101,16 +100,6 @@ userSchema.methods.canPerformAction = function (): boolean {
   return this.isEmailVerified || this.role === 'admin';
 };
 
-userSchema.methods.generateEmailVerificationToken = function (): void {
-  this.emailVerificationToken = crypto.randomBytes(32).toString('hex');
-  this.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-};
-
-userSchema.methods.generatePasswordResetToken = function (): void {
-  this.passwordResetToken = crypto.randomBytes(32).toString('hex');
-  this.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
-};
-
 // === MIDDLEWARE ===
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password') || !this.password) {
@@ -140,20 +129,6 @@ userSchema.statics.findByGoogleId = function (googleId: string) {
 
 userSchema.statics.findByGithubId = function (githubId: string) {
   return this.findOne({ githubId });
-};
-
-userSchema.statics.findByEmailVerificationToken = function (token: string) {
-  return this.findOne({
-    emailVerificationToken: token,
-    emailVerificationExpires: { $gt: new Date() },
-  });
-};
-
-userSchema.statics.findByPasswordResetToken = function (token: string) {
-  return this.findOne({
-    passwordResetToken: token,
-    passwordResetExpires: { $gt: new Date() },
-  });
 };
 
 userSchema.statics.findByOAuthProvider = function (provider: string, providerId: string) {

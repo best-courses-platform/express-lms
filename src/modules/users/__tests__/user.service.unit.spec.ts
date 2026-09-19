@@ -4,6 +4,8 @@ import type { userRepository as UserRepositoryInstance } from '../user.repositor
 import type { userService as UserServiceInstance } from '../user.service';
 import type { User, UserDocument } from '../user.types';
 import type { OAuthProfile } from 'auth/auth.types';
+import { hashOneTimeToken } from '../../../utils/one-time-token';
+import { EMAIL_VERIFICATION_TTL_MS, PASSWORD_RESET_TTL_MS } from '../user.constants';
 
 // Unit-слой: userRepository замокан — проверяем только бизнес-логику userService (нормализация
 // email, ветвление OAuth/локальной регистрации, привязка провайдера к существующему аккаунту).
@@ -109,7 +111,7 @@ describe('UserService', () => {
         mockUserRepository.create.mockResolvedValue(createMockUser());
 
         // When
-        await userService.create({
+        const { emailVerificationToken } = await userService.create({
           name: 'New',
           email: 'New@Example.com ',
           password: 'password123',
@@ -117,9 +119,11 @@ describe('UserService', () => {
           isEmailVerified: false,
         });
 
-        // Then
+        // Then — в БД уходит sha256 токена, наружу (для письма) — сырое значение
         const [passedData] = mockUserRepository.create.mock.calls[0];
-        expect(passedData.emailVerificationToken).toEqual(expect.any(String));
+        expect(emailVerificationToken).toEqual(expect.any(String));
+        expect(passedData.emailVerificationToken).toBe(hashOneTimeToken(emailVerificationToken as string));
+        expect(passedData.emailVerificationToken).not.toBe(emailVerificationToken);
         expect(passedData.emailVerificationExpires).toBeInstanceOf(Date);
         expect(passedData.isEmailVerified).toBe(false);
       });
@@ -150,7 +154,7 @@ describe('UserService', () => {
         mockUserRepository.create.mockResolvedValue(createMockUser());
 
         // When
-        await userService.create({
+        const { emailVerificationToken } = await userService.create({
           name: 'OAuth User',
           email: 'oauth@example.com',
           googleId: 'google-123',
@@ -162,6 +166,7 @@ describe('UserService', () => {
         const [passedData] = mockUserRepository.create.mock.calls[0];
         expect(passedData.isEmailVerified).toBe(true);
         expect(passedData.emailVerificationToken).toBeUndefined();
+        expect(emailVerificationToken).toBeUndefined();
       });
     });
   });
@@ -259,7 +264,7 @@ describe('UserService', () => {
     });
 
     describe('Когда email меняется на свободный', () => {
-      it('должен сбросить isEmailVerified и сгенерировать новый токен подтверждения', async () => {
+      it('должен сбросить isEmailVerified и очистить токен — новый выдаётся отдельно через issueEmailVerificationToken', async () => {
         // Given
         const user = createMockUser({ email: 'old@example.com' });
         mockUserRepository.findById.mockResolvedValue(user);
@@ -272,9 +277,54 @@ describe('UserService', () => {
         // Then
         const [, passedPatch] = mockUserRepository.update.mock.calls[0];
         expect(passedPatch.isEmailVerified).toBe(false);
-        expect(passedPatch.emailVerificationToken).toEqual(expect.any(String));
-        expect(passedPatch.emailVerificationExpires).toBeInstanceOf(Date);
+        expect(passedPatch.emailVerificationToken).toBeNull();
+        expect(passedPatch.emailVerificationExpires).toBeNull();
       });
+    });
+  });
+
+  describe('issueEmailVerificationToken / issuePasswordResetToken', () => {
+    it('issueEmailVerificationToken должен записать в БД sha256 токена и срок 24 часа, а вернуть сырой токен', async () => {
+      // Given
+      mockUserRepository.updateWithSensitiveFields.mockResolvedValue(createMockUser());
+      const before = Date.now();
+
+      // When
+      const token = await userService.issueEmailVerificationToken('user-id-1');
+
+      // Then
+      const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
+      expect(id).toBe('user-id-1');
+      expect(token).toMatch(/^[a-f0-9]{64}$/);
+      expect(patch.emailVerificationToken).toBe(hashOneTimeToken(token));
+      expect(patch.emailVerificationToken).not.toBe(token);
+      const expiresAt = (patch.emailVerificationExpires as Date).getTime();
+      expect(expiresAt).toBeGreaterThanOrEqual(before + EMAIL_VERIFICATION_TTL_MS);
+    });
+
+    it('issuePasswordResetToken должен записать в БД sha256 токена и срок 1 час, а вернуть сырой токен', async () => {
+      // Given
+      mockUserRepository.updateWithSensitiveFields.mockResolvedValue(createMockUser());
+      const before = Date.now();
+
+      // When
+      const token = await userService.issuePasswordResetToken('user-id-2');
+
+      // Then
+      const [id, patch] = mockUserRepository.updateWithSensitiveFields.mock.calls[0];
+      expect(id).toBe('user-id-2');
+      expect(patch.passwordResetToken).toBe(hashOneTimeToken(token));
+      expect(patch.passwordResetToken).not.toBe(token);
+      expect((patch.passwordResetExpires as Date).getTime()).toBeGreaterThanOrEqual(before + PASSWORD_RESET_TTL_MS);
+    });
+
+    it('каждый вызов выдаёт новый токен (старый перестаёт подходить)', async () => {
+      mockUserRepository.updateWithSensitiveFields.mockResolvedValue(createMockUser());
+
+      const first = await userService.issueEmailVerificationToken('user-id-3');
+      const second = await userService.issueEmailVerificationToken('user-id-3');
+
+      expect(first).not.toBe(second);
     });
   });
 
