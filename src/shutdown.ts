@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { closePasswordHasherPool } from './modules/users/password-hasher';
 import { closeEmailWorker } from './modules/email/email.worker';
 import { emailQueue } from './modules/email/email.queue';
-import { stopPostboxEventsConsumer } from './modules/email/postbox-events.runner';
+import { stopPostboxEventsConsumer } from './modules/email/events/postbox-events.runner';
 
 // Меньше стандартного k8s terminationGracePeriodSeconds (30с по умолчанию) — если сами не
 // уложились, лучше выйти по своему таймауту с кодом 1, чем дождаться, пока kubelet пришлёт

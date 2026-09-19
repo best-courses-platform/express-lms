@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import type { EmailMessage, EmailSender } from '../email.sender';
+import type { EmailMessage, EmailSender } from '../../email.sender';
 import { SuppressionAwareEmailSender } from '../suppression-aware-email.sender';
 
 const message: EmailMessage = { to: 'user@example.com', subject: 'S', html: '<p>h</p>', text: 't' };

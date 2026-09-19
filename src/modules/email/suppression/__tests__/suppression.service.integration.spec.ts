@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { EmailSuppressionModel } from '../suppression.model';
 import { suppressionService } from '../suppression.service';
-import { handlePostboxEvent, parsePostboxEvent } from '../postbox-events';
+import { handlePostboxEvent, parsePostboxEvent } from '../../events/postbox-events';
 
 // Реальный Mongoose поверх mongodb-memory-server (см. test/setupIntegration.ts): уникальный
 // индекс, upsert и нормализация адреса проверяются на настоящей БД, а не на моке репозитория.

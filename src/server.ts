@@ -8,7 +8,7 @@ import { config, logConfigValidation } from './config';
 import { CONFIG_MESSAGES } from './config/config.constants';
 import mongoose from 'mongoose';
 import { registerGracefulShutdown } from './shutdown';
-import { startPostboxEventsConsumer } from './modules/email/postbox-events.runner';
+import { startPostboxEventsConsumer } from './modules/email/events/postbox-events.runner';
 
 // Подключение к MongoDB
 mongoose
