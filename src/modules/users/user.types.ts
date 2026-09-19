@@ -32,8 +32,6 @@ export type IUser = User;
 export interface IUserMethods {
   comparePassword(candidatePassword: string): Promise<boolean>;
   canPerformAction(): boolean;
-  generateEmailVerificationToken(): void;
-  generatePasswordResetToken(): void;
 }
 
 export type UserModelType = Model<IUser, object, IUserMethods>;
