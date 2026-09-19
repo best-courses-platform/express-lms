@@ -39,6 +39,13 @@ export const config: Config = configSchema.parse({
     region: process.env.POSTBOX_REGION,
     endpoint: process.env.POSTBOX_ENDPOINT,
     from: process.env.POSTBOX_FROM,
+    events: {
+      endpoint: process.env.POSTBOX_EVENTS_ENDPOINT,
+      streamName: process.env.POSTBOX_EVENTS_STREAM,
+      keyId: process.env.POSTBOX_EVENTS_KEY_ID,
+      secret: process.env.POSTBOX_EVENTS_SECRET,
+      pollIntervalMs: process.env.POSTBOX_EVENTS_POLL_MS,
+    },
   },
   frontendUrl: process.env.FRONTEND_URL,
   // Redis

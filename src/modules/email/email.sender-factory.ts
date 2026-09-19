@@ -2,10 +2,24 @@ import type { Config } from '../../config/schema';
 import { EmailSender } from './email.sender';
 import { PostboxEmailSender } from './postbox-email.sender';
 import { SmtpEmailSender } from './smtp-email.sender';
+import { SuppressionAwareEmailSender, SuppressionChecker } from './suppression-aware-email.sender';
 
 // null — транспорт не настроен (пустые креды выбранного драйвера): EmailService в этом случае
 // тихо не отправляет письма, как и раньше при пустых EMAIL_USER/EMAIL_PASSWORD.
-export function createEmailSender(config: Pick<Config, 'email' | 'postbox'>): EmailSender | null {
+// Если передан suppression, транспорт оборачивается проверкой списка подавления: адреса с
+// постоянным отказом или жалобой пропускаются ещё до провайдера.
+export function createEmailSender(
+  config: Pick<Config, 'email' | 'postbox'>,
+  suppression?: SuppressionChecker
+): EmailSender | null {
+  const inner = createTransportSender(config);
+  if (!inner || !suppression) {
+    return inner;
+  }
+  return new SuppressionAwareEmailSender(inner, suppression);
+}
+
+function createTransportSender(config: Pick<Config, 'email' | 'postbox'>): EmailSender | null {
   if (config.email.driver === 'postbox') {
     const { keyId, secret, region, endpoint, from } = config.postbox;
     if (!keyId || !secret || !from) {

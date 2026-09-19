@@ -10,6 +10,7 @@ const closeEmailWorkerMock = jest.fn(async () => undefined);
 const closePasswordHasherPoolMock = jest.fn(async () => undefined);
 const mongooseConnectionCloseMock = jest.fn(async (_force?: boolean) => undefined);
 const emailQueueCloseMock = jest.fn(async () => undefined);
+const stopPostboxEventsConsumerMock = jest.fn(async () => undefined);
 
 jest.mock('../modules/email/email.worker', () => ({
   closeEmailWorker: () => closeEmailWorkerMock(),
@@ -19,6 +20,9 @@ jest.mock('../modules/users/password-hasher', () => ({
 }));
 jest.mock('../modules/email/email.queue', () => ({
   emailQueue: { close: () => emailQueueCloseMock() },
+}));
+jest.mock('../modules/email/postbox-events.runner', () => ({
+  stopPostboxEventsConsumer: () => stopPostboxEventsConsumerMock(),
 }));
 jest.mock('mongoose', () => ({
   connection: { close: (force: boolean) => mongooseConnectionCloseMock(force) },
@@ -82,6 +86,7 @@ describe('shutdown', () => {
       expect(server.closeIdleConnections).toHaveBeenCalledTimes(1);
       expect(closeEmailWorkerMock).toHaveBeenCalledTimes(1);
       expect(emailQueueCloseMock).toHaveBeenCalledTimes(1);
+      expect(stopPostboxEventsConsumerMock).toHaveBeenCalledTimes(1);
       expect(closePasswordHasherPoolMock).toHaveBeenCalledTimes(1);
       expect(mongooseConnectionCloseMock).toHaveBeenCalledWith(false);
       expect(exitMock).toHaveBeenCalledWith(0);

@@ -56,6 +56,16 @@ export const configSchema = z.object({
     region: z.string().default('ru-central1'),
     endpoint: z.string().default('https://postbox.cloud.yandex.net'),
     from: z.string().optional(),
+    // Поток событий (bounce, complaint, delivery…) в Yandex Data Streams: читается по Kinesis-
+    // совместимому API отдельным ключом с ролью yds.viewer. Без endpoint/streamName/ключа
+    // потребитель событий не запускается.
+    events: z.object({
+      endpoint: z.string().optional(),
+      streamName: z.string().optional(),
+      keyId: z.string().optional(),
+      secret: z.string().optional(),
+      pollIntervalMs: z.coerce.number().default(5000),
+    }),
   }),
 
   // Фронтенд URL для ссылок подтверждения
