@@ -16,6 +16,7 @@ export function startEmailWorker(): boolean {
   if (emailWorker || !config.email.worker.enabled) {
     return false;
   }
+  const { ratePerSecond } = config.email.worker;
 
   emailWorker = new Worker<EmailJobData>(
     'email',
@@ -26,7 +27,7 @@ export function startEmailWorker(): boolean {
         await emailService.sendPasswordResetEmail(job.data.email, job.data.token, job.data.name);
       }
     },
-    { connection }
+    { connection, ...(ratePerSecond ? { limiter: { max: ratePerSecond, duration: 1000 } } : {}) }
   );
 
   emailWorker.on('failed', (job, error) => {

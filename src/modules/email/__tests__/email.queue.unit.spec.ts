@@ -21,7 +21,7 @@ const emailQueueModule = require('../email.queue') as typeof import('../email.qu
 
 process.env.NODE_ENV = originalNodeEnv;
 
-const { enqueueVerificationEmail, enqueuePasswordResetEmail, emailQueue } = emailQueueModule;
+const { enqueueVerificationEmail, enqueuePasswordResetEmail, emailQueue, emailJobId } = emailQueueModule;
 
 describe('email.queue — реальная ветка через BullMQ (Redis "настроен")', () => {
   it('создаёт очередь (не null), когда NODE_ENV не test', () => {
@@ -46,5 +46,38 @@ describe('email.queue — реальная ветка через BullMQ (Redis "
       { type: 'password-reset', email: 'c@d.com', token: 'token456', name: undefined },
       expect.objectContaining({ attempts: 3 })
     );
+  });
+
+  describe('идемпотентность задач (jobId)', () => {
+    it('одно и то же письмо получает один и тот же jobId — повторная постановка не создаст дубль', async () => {
+      addMock.mockClear();
+
+      await enqueueVerificationEmail('a@b.com', 'tok', 'Имя');
+      await enqueueVerificationEmail('a@b.com', 'tok', 'Имя');
+
+      const ids = addMock.mock.calls.map(call => (call[2] as { jobId: string }).jobId);
+      expect(ids[0]).toBe(ids[1]);
+      expect(ids[0]).toBe(emailJobId('verification', 'a@b.com', 'tok'));
+    });
+
+    it('новый токен (осознанная повторная отправка) даёт другой jobId и не блокируется', () => {
+      expect(emailJobId('verification', 'a@b.com', 'tok-1')).not.toBe(emailJobId('verification', 'a@b.com', 'tok-2'));
+    });
+
+    it('разные типы писем с одним токеном не сливаются', () => {
+      expect(emailJobId('verification', 'a@b.com', 'tok')).not.toBe(emailJobId('password-reset', 'a@b.com', 'tok'));
+    });
+
+    it('регистр и пробелы в адресе не влияют на jobId', () => {
+      expect(emailJobId('verification', '  A@B.com ', 'tok')).toBe(emailJobId('verification', 'a@b.com', 'tok'));
+    });
+
+    it('jobId не содержит двоеточия (BullMQ запрещает) и сырого токена', () => {
+      const id = emailJobId('password-reset', 'a@b.com', 'super-secret-token');
+
+      expect(id).not.toContain(':');
+      expect(id).not.toContain('super-secret-token');
+      expect(id).toMatch(/^password-reset-[0-9a-f]{64}$/);
+    });
   });
 });

@@ -9,7 +9,10 @@ const WorkerCtor = jest.fn().mockImplementation(() => ({ close: closeMock, on: o
 
 jest.mock('bullmq', () => ({ Worker: WorkerCtor }));
 
-const mockConfig = { redis: { host: 'localhost', port: 6379 }, email: { worker: { enabled: true } } };
+const mockConfig: { redis: { host: string; port: number }; email: { worker: { enabled: boolean; ratePerSecond?: number } } } = {
+  redis: { host: 'localhost', port: 6379 },
+  email: { worker: { enabled: true } },
+};
 jest.mock('../../../config', () => ({ config: mockConfig }));
 jest.mock('../email.service', () => ({ emailService: {} }));
 
@@ -21,6 +24,7 @@ describe('email.worker', () => {
     jest.clearAllMocks();
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
     mockConfig.email.worker.enabled = true;
+    mockConfig.email.worker.ratePerSecond = undefined;
     // Состояние воркера — переменная модуля: чистый модуль в каждом тесте
     jest.resetModules();
     workerModule = require('../email.worker');
@@ -37,6 +41,20 @@ describe('email.worker', () => {
     expect(WorkerCtor).toHaveBeenCalledWith('email', expect.any(Function), {
       connection: { host: 'localhost', port: 6379 },
     });
+  });
+
+  it('без ограничения скорости limiter не передаётся', () => {
+    workerModule.startEmailWorker();
+
+    expect(WorkerCtor.mock.calls[0][2]).not.toHaveProperty('limiter');
+  });
+
+  it('с EMAIL_WORKER_RATE_PER_SEC воркер ограничен N задачами в секунду', () => {
+    mockConfig.email.worker.ratePerSecond = 5;
+
+    workerModule.startEmailWorker();
+
+    expect(WorkerCtor.mock.calls[0][2]).toMatchObject({ limiter: { max: 5, duration: 1000 } });
   });
 
   it('при EMAIL_WORKER_ENABLED=false воркер не запускается', () => {
