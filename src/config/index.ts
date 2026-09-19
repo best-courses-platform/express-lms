@@ -47,6 +47,8 @@ export const config: Config = configSchema.parse({
     endpoint: process.env.POSTBOX_ENDPOINT,
     from: process.env.POSTBOX_FROM,
     events: {
+      // Включён, пока явно не выключен: POSTBOX_EVENTS_ENABLED=false отключает потребитель в этом процессе
+      enabled: process.env.POSTBOX_EVENTS_ENABLED !== 'false',
       endpoint: process.env.POSTBOX_EVENTS_ENDPOINT,
       streamName: process.env.POSTBOX_EVENTS_STREAM,
       keyId: process.env.POSTBOX_EVENTS_KEY_ID,

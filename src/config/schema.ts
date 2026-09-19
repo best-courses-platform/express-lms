@@ -69,6 +69,9 @@ export const configSchema = z.object({
     // совместимому API отдельным ключом с ролью yds.viewer. Без endpoint/streamName/ключа
     // потребитель событий не запускается.
     events: z.object({
+      // Явный выключатель по образцу email.worker.enabled: в API-подах, куда общий Secret мог занести
+      // POSTBOX_EVENTS_*, потребитель не должен стартовать, а ключ читателя потока не нужен.
+      enabled: z.boolean().default(true),
       endpoint: z.string().optional(),
       streamName: z.string().optional(),
       keyId: z.string().optional(),

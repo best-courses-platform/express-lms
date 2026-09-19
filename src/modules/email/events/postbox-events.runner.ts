@@ -12,10 +12,11 @@ import { suppressionService } from '../suppression/suppression.service';
 let consumer: PostboxEventsConsumer | null = null;
 
 // Запускается из server.ts (не из app.ts — тесты, бьющие в app через supertest, не должны ходить в
-// облако). Без настроек потока (POSTBOX_EVENTS_*) ничего не делает — dev и тесты работают как раньше.
+// облако). Не запускается, если выключен POSTBOX_EVENTS_ENABLED=false (API-поды в k8s) или не заданы
+// настройки потока (POSTBOX_EVENTS_*) — dev и тесты работают как раньше.
 export function startPostboxEventsConsumer(): boolean {
-  const { endpoint, streamName, keyId, secret, pollIntervalMs } = config.postbox.events;
-  if (!endpoint || !streamName || !keyId || !secret) {
+  const { enabled, endpoint, streamName, keyId, secret, pollIntervalMs } = config.postbox.events;
+  if (consumer || !enabled || !endpoint || !streamName || !keyId || !secret) {
     return false;
   }
 
