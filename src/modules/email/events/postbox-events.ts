@@ -1,4 +1,4 @@
-import type { SuppressionEntry } from './suppression.repository';
+import type { SuppressionEntry } from '../suppression/suppression.repository';
 
 // Формат уведомлений Postbox — docs: postbox/concepts/notification. Разбираются только нужные
 // нам поля; набор и порядок остальных может меняться.

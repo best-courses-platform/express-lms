@@ -1,9 +1,9 @@
 import { describe, it, expect } from '@jest/globals';
 import type { Config } from '../../../config/schema';
 import { createEmailSender } from '../email.sender-factory';
-import { PostboxEmailSender } from '../postbox-email.sender';
-import { SmtpEmailSender } from '../smtp-email.sender';
-import { SuppressionAwareEmailSender } from '../suppression-aware-email.sender';
+import { PostboxEmailSender } from '../senders/postbox-email.sender';
+import { SmtpEmailSender } from '../senders/smtp-email.sender';
+import { SuppressionAwareEmailSender } from '../suppression/suppression-aware-email.sender';
 
 type SenderConfig = Pick<Config, 'email' | 'postbox'>;
 

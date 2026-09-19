@@ -3,7 +3,7 @@ import { InternalError } from '../../utils/errors';
 import { EMAIL_MESSAGES } from './email.constants';
 import { EmailSender } from './email.sender';
 import { createEmailSender } from './email.sender-factory';
-import { suppressionService } from './suppression.service';
+import { suppressionService } from './suppression/suppression.service';
 
 interface EmailOptions {
   to: string;

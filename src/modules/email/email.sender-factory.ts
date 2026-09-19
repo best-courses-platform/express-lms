@@ -1,8 +1,8 @@
 import type { Config } from '../../config/schema';
 import { EmailSender } from './email.sender';
-import { PostboxEmailSender } from './postbox-email.sender';
-import { SmtpEmailSender } from './smtp-email.sender';
-import { SuppressionAwareEmailSender, SuppressionChecker } from './suppression-aware-email.sender';
+import { PostboxEmailSender } from './senders/postbox-email.sender';
+import { SmtpEmailSender } from './senders/smtp-email.sender';
+import { SuppressionAwareEmailSender, SuppressionChecker } from './suppression/suppression-aware-email.sender';
 
 // null — транспорт не настроен (пустые креды выбранного драйвера): EmailService в этом случае
 // тихо не отправляет письма, как и раньше при пустых EMAIL_USER/EMAIL_PASSWORD.

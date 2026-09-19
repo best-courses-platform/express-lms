@@ -1,4 +1,4 @@
-import { EmailMessage, EmailSender } from './email.sender';
+import { EmailMessage, EmailSender } from '../email.sender';
 
 export interface SuppressionChecker {
   isSuppressed(email: string): Promise<boolean>;

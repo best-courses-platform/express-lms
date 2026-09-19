@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { EmailMessage, EmailSender, formatFromAddress } from './email.sender';
+import { EmailMessage, EmailSender, formatFromAddress } from '../email.sender';
 
 export interface SmtpEmailSenderOptions {
   host: string;

@@ -21,7 +21,7 @@ jest.mock('../modules/users/password-hasher', () => ({
 jest.mock('../modules/email/email.queue', () => ({
   emailQueue: { close: () => emailQueueCloseMock() },
 }));
-jest.mock('../modules/email/postbox-events.runner', () => ({
+jest.mock('../modules/email/events/postbox-events.runner', () => ({
   stopPostboxEventsConsumer: () => stopPostboxEventsConsumerMock(),
 }));
 jest.mock('mongoose', () => ({

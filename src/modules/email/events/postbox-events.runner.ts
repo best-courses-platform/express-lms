@@ -1,8 +1,8 @@
-import { config } from '../../config';
+import { config } from '../../../config';
 import { handlePostboxEvent } from './postbox-events';
 import { PostboxEventsConsumer } from './postbox-events.consumer';
 import { createKinesisStreamClient, mongoCheckpointStore } from './postbox-events.kinesis';
-import { suppressionService } from './suppression.service';
+import { suppressionService } from '../suppression/suppression.service';
 
 let consumer: PostboxEventsConsumer | null = null;
 
