@@ -26,7 +26,7 @@ function buildConfig(overrides: { email?: Partial<Config['email']>; postbox?: Pa
       region: 'ru-central1',
       endpoint: 'https://postbox.cloud.yandex.net',
       from: 'noreply@best-courses-ever.ru',
-      events: { pollIntervalMs: 5000 },
+      events: { enabled: true, pollIntervalMs: 5000 },
       ...overrides.postbox,
     },
   };
