@@ -5,6 +5,7 @@ import {
   KinesisClient,
   ShardIteratorType,
 } from '@aws-sdk/client-kinesis';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { Schema, model } from 'mongoose';
 import { CheckpointStore, StreamClient } from './postbox-events.consumer';
 
@@ -24,6 +25,9 @@ export function createKinesisStreamClient(options: KinesisStreamClientOptions): 
     endpoint: options.endpoint,
     region: options.region,
     credentials: { accessKeyId: options.keyId, secretAccessKey: options.secret },
+    // Kinesis-клиент AWS по умолчанию ходит по HTTP/2, а эндпоинт Yandex Data Streams отвечает
+    // на него ERR_HTTP2_ERROR (Protocol error) — принудительно HTTP/1.1.
+    requestHandler: new NodeHttpHandler(),
   });
 
   return {
