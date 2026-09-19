@@ -66,6 +66,32 @@ export function parsePostboxEvent(data: Uint8Array | string): PostboxEvent | nul
   }
 }
 
+// Адрес получателя годится для списка подавления, только если это непустая строка. Проверка типа
+// нужна не для красоты: normalizeEmail() вызывает .trim(), и не строка в поле (чужой формат события
+// вправе измениться) дала бы TypeError на каждом чтении одной и той же записи. Потребитель не
+// сдвигает контрольную точку при ошибке обработчика, и такая запись остановила бы чтение потока
+// до истечения его хранения. Битый адрес пропускается, а не роняет обработку (см. malformedAddresses).
+function isUsableAddress(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function recipientsOf(event: PostboxEvent): { emailAddress?: unknown }[] {
+  if (event.eventType === 'Bounce') {
+    return event.bounce?.bouncedRecipients ?? [];
+  }
+  if (event.eventType === 'Complaint') {
+    return event.complaint?.complainedRecipients ?? [];
+  }
+  return [];
+}
+
+// Получатели, у которых адрес есть, но это не строка. Пустое поле — обычное дело и не считается.
+export function malformedAddresses(event: PostboxEvent): unknown[] {
+  return recipientsOf(event)
+    .map(recipient => recipient.emailAddress)
+    .filter(address => address !== undefined && address !== null && typeof address !== 'string');
+}
+
 // Какие адреса и почему надо внести в список подавления по событию. Пустой массив — событие не
 // требует подавления (доставка, открытие, задержка, отказ не по вине адреса и т.д.).
 export function toSuppressions(event: PostboxEvent): SuppressionEntry[] {
@@ -80,10 +106,13 @@ export function toSuppressions(event: PostboxEvent): SuppressionEntry[] {
       return [];
     }
     return (event.bounce.bouncedRecipients ?? [])
-      .filter(recipient => recipient.emailAddress && recipient.diagnosticCode !== SPAM_REJECTION_DIAGNOSTIC)
+      .filter(
+        (recipient): recipient is typeof recipient & { emailAddress: string } =>
+          isUsableAddress(recipient.emailAddress) && recipient.diagnosticCode !== SPAM_REJECTION_DIAGNOSTIC
+      )
       .map(recipient => ({
         ...base,
-        email: recipient.emailAddress as string,
+        email: recipient.emailAddress,
         reason: 'bounce' as const,
         detail: [subType, recipient.diagnosticCode].filter(Boolean).join(': '),
       }));
@@ -91,10 +120,12 @@ export function toSuppressions(event: PostboxEvent): SuppressionEntry[] {
 
   if (event.eventType === 'Complaint' && event.complaint?.complaintFeedbackType !== 'not-spam') {
     return (event.complaint?.complainedRecipients ?? [])
-      .filter(recipient => recipient.emailAddress)
+      .filter((recipient): recipient is typeof recipient & { emailAddress: string } =>
+        isUsableAddress(recipient.emailAddress)
+      )
       .map(recipient => ({
         ...base,
-        email: recipient.emailAddress as string,
+        email: recipient.emailAddress,
         reason: 'complaint' as const,
         detail: event.complaint?.complaintFeedbackType,
       }));
@@ -109,6 +140,20 @@ export interface SuppressionWriter {
 
 // Применяет событие: возвращает, сколько адресов внесено в список подавления.
 export async function handlePostboxEvent(event: PostboxEvent, suppression: SuppressionWriter): Promise<number> {
+  // Жалобу симулятор Postbox выдать не умеет, поэтому ветка Complaint проверена только тестами на
+  // формате из документации. Первая настоящая жалоба пишется в лог целиком, чтобы сверить реальный
+  // формат с ожидаемым (с подтипом отказа "Spam" документация уже расходилась с действительностью).
+  if (event.eventType === 'Complaint') {
+    console.warn('Postbox: получена жалоба, сырое событие:', JSON.stringify(event));
+  }
+
+  const malformed = malformedAddresses(event);
+  if (malformed.length > 0) {
+    console.error(
+      `Postbox: событие ${event.eventId ?? '(без eventId)'} содержит адрес не строкой — пропущен (${malformed.length} шт.)`
+    );
+  }
+
   const entries = toSuppressions(event);
   for (const entry of entries) {
     await suppression.suppress(entry);

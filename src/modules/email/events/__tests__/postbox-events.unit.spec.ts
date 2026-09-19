@@ -1,5 +1,11 @@
 import { describe, it, expect, jest } from '@jest/globals';
-import { handlePostboxEvent, parsePostboxEvent, toSuppressions, type PostboxEvent } from '../postbox-events';
+import {
+  handlePostboxEvent,
+  malformedAddresses,
+  parsePostboxEvent,
+  toSuppressions,
+  type PostboxEvent,
+} from '../postbox-events';
 
 // Формы событий — из документации Postbox (postbox/concepts/notification)
 function bounce(overrides: Partial<NonNullable<PostboxEvent['bounce']>> = {}): PostboxEvent {
@@ -159,5 +165,69 @@ describe('handlePostboxEvent', () => {
 
     expect(await handlePostboxEvent({ eventType: 'Delivery' }, { suppress })).toBe(0);
     expect(suppress).not.toHaveBeenCalled();
+  });
+});
+
+describe('события с некорректным адресом получателя', () => {
+  // Тип поля в JSON никто не гарантирует: TypeError на .trim() повторялся бы на каждом чтении записи,
+  // а контрольная точка при ошибке обработчика не двигается — поток встал бы намертво.
+  const badBounce = (emailAddress: unknown): PostboxEvent =>
+    ({
+      eventType: 'Bounce',
+      eventId: 'evt-bad:0',
+      bounce: { bounceType: 'Permanent', bouncedRecipients: [{ emailAddress }, { emailAddress: 'ok@example.com' }] },
+    }) as PostboxEvent;
+
+  it.each([[123], [{ a: 1 }], [['x@example.com']], [true]])(
+    'адрес не строкой (%j) пропускается, остальные получатели обрабатываются',
+    address => {
+      expect(toSuppressions(badBounce(address)).map(entry => entry.email)).toEqual(['ok@example.com']);
+    }
+  );
+
+  it('пустая и пробельная строки пропускаются без ошибки', () => {
+    expect(toSuppressions(badBounce('   ')).map(entry => entry.email)).toEqual(['ok@example.com']);
+    expect(toSuppressions(badBounce('')).map(entry => entry.email)).toEqual(['ok@example.com']);
+  });
+
+  it('malformedAddresses считает только значения не-строки, а не отсутствующие или пустые', () => {
+    expect(malformedAddresses(badBounce(123))).toEqual([123]);
+    expect(malformedAddresses(badBounce(undefined))).toEqual([]);
+    expect(malformedAddresses(badBounce(null))).toEqual([]);
+    expect(malformedAddresses(badBounce(''))).toEqual([]);
+  });
+
+  it('handlePostboxEvent не падает на таком событии, пишет ошибку с eventId и вносит остальных', async () => {
+    const suppress = jest.fn<(entry: unknown) => Promise<void>>().mockResolvedValue(undefined);
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const count = await handlePostboxEvent(badBounce(123), { suppress });
+
+    expect(count).toBe(1);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('evt-bad:0'));
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});
+
+describe('логирование жалобы', () => {
+  it('жалоба пишется в лог целиком (для сверки реального формата с документацией), другие события — нет', async () => {
+    const suppress = jest.fn<(entry: unknown) => Promise<void>>().mockResolvedValue(undefined);
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const complaint: PostboxEvent = {
+      eventType: 'Complaint',
+      eventId: 'evt-c:0',
+      complaint: { complainedRecipients: [{ emailAddress: 'angry@example.com' }], complaintFeedbackType: 'abuse' },
+    };
+
+    await handlePostboxEvent(complaint, { suppress });
+    const rawLogged = warnSpy.mock.calls.some(call => String(call[1]).includes('"eventId":"evt-c:0"'));
+    expect(rawLogged).toBe(true);
+
+    warnSpy.mockClear();
+    await handlePostboxEvent({ eventType: 'Delivery', eventId: 'evt-d:0' }, { suppress });
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });
