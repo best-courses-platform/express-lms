@@ -92,6 +92,34 @@ describe('shutdown', () => {
       expect(exitMock).toHaveBeenCalledWith(0);
     });
 
+    it('очередь, пул хешера и Mongo закрываются только после остановки воркера и потребителя событий', async () => {
+      // Потребитель "доделывает" текущую задачу — остановка не завершается, пока мы не разрешим
+      let finishConsumerStop: () => void = () => undefined;
+      stopPostboxEventsConsumerMock.mockImplementationOnce(
+        () => new Promise<undefined>(resolve => (finishConsumerStop = () => resolve(undefined)))
+      );
+      const flush = () => new Promise(resolve => setImmediate(resolve));
+      registerGracefulShutdown(createFakeServer());
+
+      process.emit('SIGTERM');
+      await flush();
+
+      expect(closeEmailWorkerMock).toHaveBeenCalledTimes(1);
+      expect(stopPostboxEventsConsumerMock).toHaveBeenCalledTimes(1);
+      expect(emailQueueCloseMock).not.toHaveBeenCalled();
+      expect(closePasswordHasherPoolMock).not.toHaveBeenCalled();
+      expect(mongooseConnectionCloseMock).not.toHaveBeenCalled();
+      expect(exitMock).not.toHaveBeenCalled();
+
+      finishConsumerStop();
+      await flush();
+
+      expect(emailQueueCloseMock).toHaveBeenCalledTimes(1);
+      expect(closePasswordHasherPoolMock).toHaveBeenCalledTimes(1);
+      expect(mongooseConnectionCloseMock).toHaveBeenCalledWith(false);
+      expect(exitMock).toHaveBeenCalledWith(0);
+    });
+
     it('isShuttingDown() должен стать true сразу по получении сигнала, не дожидаясь закрытия зависимостей', () => {
       const server = createFakeServer({
         // close() специально не вызывает callback — имитирует ещё не завершившийся дренаж.

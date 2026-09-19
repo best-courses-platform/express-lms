@@ -25,22 +25,30 @@ function closeHttpServer(server: Server): Promise<void> {
   });
 }
 
-// Promise.allSettled, не Promise.all — падение одной зависимости (например, Redis уже
-// недоступен) не должно останавливать закрытие остальных; ошибки логируются ниже.
-async function closeDependencies(): Promise<void> {
-  const results = await Promise.allSettled([
-    closeEmailWorker(),
-    stopPostboxEventsConsumer(),
-    emailQueue?.close() ?? Promise.resolve(),
-    closePasswordHasherPool(),
-    mongoose.connection.close(false),
-  ]);
-
+function logRejections(results: PromiseSettledResult<unknown>[]): void {
   for (const result of results) {
     if (result.status === 'rejected') {
       console.error('Ошибка при закрытии зависимости во время shutdown:', result.reason);
     }
   }
+}
+
+// Два шага, в каждом Promise.allSettled, не Promise.all — падение одной зависимости (например,
+// Redis уже недоступен) не должно останавливать закрытие остальных; ошибки логируются.
+//
+// Порядок важен: сначала фоновые потребители (воркер очереди писем и чтение событий Postbox) —
+// они доделывают текущую задачу и пишут в Mongo; только потом закрываются очередь, пул хешера и
+// сама Mongo. Иначе обработчик мог бы обратиться к уже закрывающейся базе (безопасно благодаря
+// повторной обработке, но лишняя ошибка в логе при каждом деплое).
+async function closeDependencies(): Promise<void> {
+  logRejections(await Promise.allSettled([closeEmailWorker(), stopPostboxEventsConsumer()]));
+  logRejections(
+    await Promise.allSettled([
+      emailQueue?.close() ?? Promise.resolve(),
+      closePasswordHasherPool(),
+      mongoose.connection.close(false),
+    ])
+  );
 }
 
 async function shutdown(reason: string, server: Server): Promise<void> {
