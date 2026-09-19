@@ -55,6 +55,16 @@ describe('toSuppressions', () => {
       expect(toSuppressions(event).map(entry => entry.email)).toEqual(['a@example.com', 'b@example.com']);
     });
 
+    it('реальный отказ от spam@simulator.pstbx.ru (bounceSubType "Spam") не подавляет адрес', () => {
+      const event = bounce({
+        bounceSubType: 'Spam',
+        bouncedRecipients: [{ emailAddress: 'abc@example.com', diagnosticCode: 'Message rejected under suspicion of SPAM' }],
+        dialAttempts: [{ reason: 'Smtp' }],
+      });
+
+      expect(toSuppressions(event)).toEqual([]);
+    });
+
     it.each(['InsufficientTLS', 'StartTlsNotOffered', 'TlsCertificateUntrusted', 'TlsVersionTooLow'])(
       'отказ по TLS (%s) не подавляет адрес — проблема не в получателе',
       subType => {
@@ -66,6 +76,30 @@ describe('toSuppressions', () => {
       const event = bounce({ bouncedRecipients: [{ emailAddress: 'abc@example.com', diagnosticCode: 'Spam detected' }] });
 
       expect(toSuppressions(event)).toEqual([]);
+    });
+
+    it('отказ "554 5.7.1 … suspicion of SPAM" (dialAttempts.reason = Spam, как у spam@simulator) не подавляет адрес', () => {
+      const event = bounce({
+        bouncedRecipients: [{ emailAddress: 'abc@example.com', diagnosticCode: '554 5.7.1 Message rejected under suspicion of SPAM' }],
+        dialAttempts: [{ reason: 'Spam' }],
+      });
+
+      expect(toSuppressions(event)).toEqual([]);
+    });
+
+    it.each(['InsufficientTLS', 'StartTlsNotOffered', 'TlsCertUntrusted', 'TlsVersionTooLow'])(
+      'все попытки доставки провалены из-за TLS (%s) → адрес не подавляется',
+      reason => {
+        expect(toSuppressions(bounce({ dialAttempts: [{ reason }, { reason }] }))).toEqual([]);
+      }
+    );
+
+    it('если хотя бы одна попытка закончилась отказом самого адреса (Smtp) — подавляем', () => {
+      expect(toSuppressions(bounce({ dialAttempts: [{ reason: 'Spam' }, { reason: 'Smtp' }] }))).toHaveLength(1);
+    });
+
+    it('отказ адреса (Smtp, 550 user unknown) подавляется', () => {
+      expect(toSuppressions(bounce({ dialAttempts: [{ reason: 'Smtp' }] }))).toHaveLength(1);
     });
 
     it('стоп-лист провайдера (Suppressed) отражается и в нашем списке', () => {

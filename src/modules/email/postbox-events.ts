@@ -10,6 +10,7 @@ export interface PostboxEvent {
     bounceType?: string;
     bounceSubType?: string;
     bouncedRecipients?: { emailAddress?: string; diagnosticCode?: string }[];
+    dialAttempts?: { reason?: string }[];
   };
   complaint?: {
     complainedRecipients?: { emailAddress?: string }[];
@@ -17,9 +18,13 @@ export interface PostboxEvent {
   };
 }
 
-// Подтипы отказа, не связанные с самим адресом получателя: сервер получателя не удовлетворяет
-// требованиям TLS, которые мы (или конфигурация) поставили. Адрес при этом может быть живым.
-const TLS_BOUNCE_SUBTYPES = new Set([
+// Подтипы отказа, не связанные с самим адресом получателя. Адрес при этом может быть живым:
+// - TLS: сервер получателя не удовлетворяет требованиям, которые мы (или конфигурация) поставили;
+// - Spam: сервер получателя отклонил письмо как спам — проблема в письме или репутации отправителя.
+//   Подтипа нет в документации, но реальный Postbox присылает именно его (проверено на
+//   spam@simulator.pstbx.ru: bounceSubType "Spam", dialAttempts.reason при этом просто "Smtp").
+const NON_ADDRESS_BOUNCE_SUBTYPES = new Set([
+  'Spam',
   'InsufficientTLS',
   'StartTlsNotOffered',
   'TlsCertificateUntrusted',
@@ -29,6 +34,24 @@ const TLS_BOUNCE_SUBTYPES = new Set([
 // Сервер получателя отклонил письмо как спам: проблема в письме или репутации отправителя, а не в
 // адресе. Подавлять такой адрес значило бы навсегда лишить человека писем (например, сброса пароля).
 const SPAM_REJECTION_DIAGNOSTIC = 'Spam detected';
+
+// Коды причин попыток доставки (bounce.dialAttempts[].reason), при которых виноват не адрес.
+// Смотрим на них, а не на текст ошибки: документация Postbox прямо просит не разбирать `error` и
+// `diagnosticCode` от сервера получателя (у него нет фиксированного формата, например, при отказе
+// "554 5.7.1 … suspicion of SPAM" diagnosticCode содержит ответ сервера, а не 'Spam detected').
+const NON_ADDRESS_ATTEMPT_REASONS = new Set([
+  'Spam',
+  'InsufficientTLS',
+  'StartTlsNotOffered',
+  'TlsCertUntrusted',
+  'TlsVersionTooLow',
+]);
+
+function failedForReasonsUnrelatedToAddress(attempts: { reason?: string }[] | undefined): boolean {
+  return (
+    !!attempts?.length && attempts.every(attempt => !!attempt.reason && NON_ADDRESS_ATTEMPT_REASONS.has(attempt.reason))
+  );
+}
 
 export function parsePostboxEvent(data: Uint8Array | string): PostboxEvent | null {
   try {
@@ -50,7 +73,10 @@ export function toSuppressions(event: PostboxEvent): SuppressionEntry[] {
 
   if (event.eventType === 'Bounce' && event.bounce?.bounceType === 'Permanent') {
     const subType = event.bounce.bounceSubType;
-    if (subType && TLS_BOUNCE_SUBTYPES.has(subType)) {
+    if (subType && NON_ADDRESS_BOUNCE_SUBTYPES.has(subType)) {
+      return [];
+    }
+    if (failedForReasonsUnrelatedToAddress(event.bounce.dialAttempts)) {
       return [];
     }
     return (event.bounce.bouncedRecipients ?? [])
