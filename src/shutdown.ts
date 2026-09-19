@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { closePasswordHasherPool } from './modules/users/password-hasher';
 import { closeEmailWorker } from './modules/email/email.worker';
 import { emailQueue } from './modules/email/email.queue';
+import { stopPostboxEventsConsumer } from './modules/email/postbox-events.runner';
 
 // Меньше стандартного k8s terminationGracePeriodSeconds (30с по умолчанию) — если сами не
 // уложились, лучше выйти по своему таймауту с кодом 1, чем дождаться, пока kubelet пришлёт
@@ -29,6 +30,7 @@ function closeHttpServer(server: Server): Promise<void> {
 async function closeDependencies(): Promise<void> {
   const results = await Promise.allSettled([
     closeEmailWorker(),
+    stopPostboxEventsConsumer(),
     emailQueue?.close() ?? Promise.resolve(),
     closePasswordHasherPool(),
     mongoose.connection.close(false),

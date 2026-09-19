@@ -3,6 +3,7 @@ import { InternalError } from '../../utils/errors';
 import { EMAIL_MESSAGES } from './email.constants';
 import { EmailSender } from './email.sender';
 import { createEmailSender } from './email.sender-factory';
+import { suppressionService } from './suppression.service';
 
 interface EmailOptions {
   to: string;
@@ -14,7 +15,7 @@ interface EmailOptions {
 // Шаблоны писем + единая обработка ошибок. Сам транспорт (SMTP для dev, Postbox для прода)
 // приходит извне через порт EmailSender; null — транспорт не настроен, письма не отправляются.
 export class EmailService {
-  constructor(private readonly sender: EmailSender | null = createEmailSender(config)) {}
+  constructor(private readonly sender: EmailSender | null = createEmailSender(config, suppressionService)) {}
 
   async sendEmail(options: EmailOptions): Promise<void> {
     if (!this.sender) {

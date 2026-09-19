@@ -8,11 +8,16 @@ import { config, logConfigValidation } from './config';
 import { CONFIG_MESSAGES } from './config/config.constants';
 import mongoose from 'mongoose';
 import { registerGracefulShutdown } from './shutdown';
+import { startPostboxEventsConsumer } from './modules/email/postbox-events.runner';
 
 // Подключение к MongoDB
 mongoose
   .connect(config.mongoUri)
-  .then(() => console.log(CONFIG_MESSAGES.SUCCESS.MONGO_CONNECTED))
+  .then(() => {
+    console.log(CONFIG_MESSAGES.SUCCESS.MONGO_CONNECTED);
+    // Чтение событий Postbox (bounce/complaint) — только когда есть БД для списка подавления и заданы POSTBOX_EVENTS_*
+    startPostboxEventsConsumer();
+  })
   .catch((error: Error) => {
     console.error(CONFIG_MESSAGES.ERROR.MONGO_CONNECTION_FAILED, error);
     process.exit(1);

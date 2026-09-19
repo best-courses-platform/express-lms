@@ -41,6 +41,9 @@ process.env.EMAIL_PASSWORD = '';
 process.env.EMAIL_DRIVER = 'smtp';
 process.env.POSTBOX_KEY_ID = '';
 process.env.POSTBOX_SECRET = '';
+// Потребитель событий Postbox ходит в облако — в тестах отключён (и не запускается из app.ts)
+process.env.POSTBOX_EVENTS_ENDPOINT = '';
+process.env.POSTBOX_EVENTS_STREAM = '';
 
 // Тот же класс утечки, что и с EMAIL_*, только через S3: isSelectelConfigured() требует
 // accessKeyId + secretAccessKey + bucketName + publicUrl ВСЕ сразу (см. config/index.ts) —
