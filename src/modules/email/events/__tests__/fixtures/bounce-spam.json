@@ -1,0 +1,72 @@
+{
+  "eventType": "Bounce",
+  "mail": {
+    "timestamp": "2026-09-19T05:27:09.446677603Z",
+    "messageId": "FIXTUREMSGID.FIXTUREMSGID@ingress1-xxx",
+    "commonHeaders": {
+      "from": [
+        "\"noreply\" <noreply@best-courses-ever.ru>"
+      ],
+      "to": [
+        "<spam+fixture@simulator.pstbx.ru>"
+      ],
+      "subject": "live test",
+      "date": "Sat, 19 Sep 2026 05:27:09 +0000",
+      "messageId": "FIXTUREMSGID.FIXTUREMSGID@ingress1-xxx",
+      "originalMessageId": ""
+    },
+    "headers": [
+      {
+        "name": "From",
+        "value": "\"noreply\" <noreply@best-courses-ever.ru>"
+      },
+      {
+        "name": "Subject",
+        "value": "live test"
+      },
+      {
+        "name": "To",
+        "value": "<spam+fixture@simulator.pstbx.ru>"
+      },
+      {
+        "name": "Content-Type",
+        "value": "multipart/alternative"
+      }
+    ],
+    "tags": {
+      "ses:configuration-set": [
+        "FIXTURECONFIGSET"
+      ],
+      "ses:from-domain": [
+        "best-courses-ever.ru"
+      ],
+      "ses:source-ip": [
+        "192.0.2.1"
+      ]
+    },
+    "identityId": "fixtureidentityid"
+  },
+  "bounce": {
+    "bounceType": "Permanent",
+    "bounceSubType": "Spam",
+    "bouncedRecipients": [
+      {
+        "emailAddress": "spam+fixture@simulator.pstbx.ru",
+        "action": "failed",
+        "status": "5.7.1",
+        "diagnosticCode": "Message rejected under suspicion of SPAM"
+      }
+    ],
+    "timestamp": "2026-09-19T05:27:11.599412713Z",
+    "dialAttempts": [
+      {
+        "mxHost": "postbox.cloud.yandex.net.",
+        "ip": "192.0.2.1",
+        "reason": "Smtp",
+        "error": "read response error: 554 5.7.1 Message rejected under suspicion of SPAM",
+        "negotiatedTls": "TLSv1.3"
+      }
+    ]
+  },
+  "eventId": "S7bqznkVpxLYjowLIJSgE"
+}

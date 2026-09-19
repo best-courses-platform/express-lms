@@ -1,0 +1,67 @@
+{
+  "eventType": "Delivery",
+  "mail": {
+    "timestamp": "2026-09-19T05:22:00.841975727Z",
+    "messageId": "FIXTUREMSGID.FIXTUREMSGID@ingress1-xxx",
+    "commonHeaders": {
+      "from": [
+        "\"noreply\" <noreply@best-courses-ever.ru>"
+      ],
+      "to": [
+        "<success+fixture@simulator.pstbx.ru>"
+      ],
+      "subject": "live test",
+      "date": "Sat, 19 Sep 2026 05:22:00 +0000",
+      "messageId": "FIXTUREMSGID.FIXTUREMSGID@ingress1-xxx",
+      "originalMessageId": ""
+    },
+    "headers": [
+      {
+        "name": "From",
+        "value": "\"noreply\" <noreply@best-courses-ever.ru>"
+      },
+      {
+        "name": "Subject",
+        "value": "live test"
+      },
+      {
+        "name": "To",
+        "value": "<success+fixture@simulator.pstbx.ru>"
+      },
+      {
+        "name": "Content-Type",
+        "value": "multipart/alternative"
+      }
+    ],
+    "tags": {
+      "ses:configuration-set": [
+        "FIXTURECONFIGSET"
+      ],
+      "ses:from-domain": [
+        "best-courses-ever.ru"
+      ],
+      "ses:outgoing-ip": [
+        "192.0.2.1"
+      ],
+      "ses:outgoing-tls-cipher": [
+        "AES_128_GCM_SHA256"
+      ],
+      "ses:outgoing-tls-version": [
+        "TLSv1.3"
+      ],
+      "ses:source-ip": [
+        "192.0.2.1"
+      ]
+    },
+    "identityId": "fixtureidentityid"
+  },
+  "delivery": {
+    "timestamp": "2026-09-19T05:22:01.864436583Z",
+    "processingTimeMillis": 1022,
+    "recipients": [
+      "success+fixture@simulator.pstbx.ru"
+    ],
+    "remoteMtaIp": ""
+  },
+  "eventId": "BfcyBVxFSNEmU1G-_GUXX"
+}
